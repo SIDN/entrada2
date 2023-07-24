@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: entrada-controller
+  config:
+    activate:
+      on-profile: kubernetes # 1
+  cloud:
+    kubernetes:
+      enabled: true # 2
+      reload: 
+        enabled: true # 3
+        mode: event # 4
+      config:
+        enabled: true # 5
+        name: entrada-controller
+        namespace: default
+        sources:
+          - name: example-application # 6
+        enableVersioning: true
+      client:
+        namespace: default

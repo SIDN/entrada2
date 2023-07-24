@@ -1,0 +1,16 @@
+# build image
+./mvnw spring-boot:build-image
+
+# create external cfg
+kubectl create configmap entrada-controller --from-file=src/main/resources/...
+
+
+# deploy on k8s
+kubectl apply -f deployments.yml
+
+# restart app
+kubectl rollout restart deployment/entrada-controller-service
+
+
+
+

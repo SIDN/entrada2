@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: entrada-controller
+  config:
+    activate:
+      on-profile: default
+  cloud:
+    config:
+      enabled: false
+    kubernetes:
+      config:
+        enabled: false
+      enabled: false
+info:
+  app:
+    version: "1.0"
