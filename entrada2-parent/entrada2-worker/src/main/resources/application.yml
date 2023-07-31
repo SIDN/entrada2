@@ -35,3 +35,20 @@ aws:
   region: us-east-1
   endpoint: 'http://localhost:9000'
   bucket: testbucket1
+
+  
+#########################
+#      MaxMind GeoIP    #
+#########################
+maxmind:
+ max-age: 24
+ license:
+   free: ''
+   paid: ''
+ country:
+   free: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&suffix=tar.gz&license_key='
+   paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-Country&suffix=tar.gz&license_key='
+ asn:
+   free: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&suffix=tar.gz&license_key='
+   paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-ISP&suffix=tar.gz&license_key='
+     

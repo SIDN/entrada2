@@ -93,7 +93,7 @@ public class RESTCatalogServer {
     catalogProperties.put(CatalogProperties.URI, "jdbc:postgresql://localhost:5432/iceberg");    
     catalogProperties.put(JdbcCatalog.PROPERTY_PREFIX + "user",  System.getenv().get("JDBC_USER"));
     catalogProperties.put(JdbcCatalog.PROPERTY_PREFIX + "password", System.getenv().get("JDBC_PASSWORD"));
-    catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse");
+    catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse/");
     
 
     log.info("Creating catalog with properties: {}", catalogProperties);

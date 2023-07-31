@@ -29,7 +29,7 @@ public class PcapReaderService {
       Optional<PcapReader> oreader = createReader(work.getName(), ois.get());
       if (oreader.isPresent()) {
         oreader.get().stream().forEach(p -> {
-          System.out.println(p);
+          
         });
       }
 

@@ -11,6 +11,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -31,13 +32,29 @@ public class CatalogTest {
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
 		properties.put(CatalogProperties.URI, "http://localhost:8182");
-		//properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse");
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse/");
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 		properties.put(S3FileIOProperties.ENDPOINT, "http://localhost:9000");
+		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "minio666");
+		properties.put(S3FileIOProperties.ACCESS_KEY_ID, "minio666");
+		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
 
 		RESTCatalog catalog = new RESTCatalog();
-		Configuration conf = new Configuration();
-		catalog.setConf(conf);
+		//Configuration conf = new Configuration();
+		
+	    Configuration hadoopCfg = new Configuration();
+	    hadoopCfg.set("fs.s3a.endpoint","http://localhost:9000");
+	    hadoopCfg.set("fs.s3a.path.style.access", "true");
+	    //hadoopCfg.set("fs.s3a.impl", "org.apache.iceberg.aws.s3.S3FileIO");
+	    hadoopCfg.set("fs.s3a.endpoint.region", "us-east-1");
+	    hadoopCfg.set("fs.s3a.access.key", "minio666");
+	    hadoopCfg.set("fs.s3a.secret.key", "minio666");
+	    hadoopCfg.set("fs.s3a.path.style.access", "true");
+	    hadoopCfg.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+	    hadoopCfg.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider");
+	   
+		
+		catalog.setConf(hadoopCfg);
 		catalog.initialize("demo", properties);
 
 		return catalog;
@@ -47,31 +64,31 @@ public class CatalogTest {
 	@Test
 	public void testCreateTable() {
 
-		RESTCatalog catalog = catalog();
-		
-		Schema schema = new Schema(Types.NestedField.required(1, "level", Types.StringType.get()),
-				Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
-				Types.NestedField.required(3, "message", Types.StringType.get()),
-				Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get())));
-		
-		PartitionSpec spec = PartitionSpec.builderFor(schema)
-			      .hour("event_time")
-			      .build();
-		
-
-		Namespace namespace = Namespace.of("entrada");
-	//	catalog.createNamespace(namespace);
-		
-		
-		List<Namespace> nsl = catalog.listNamespaces();
-		System.out.println(nsl);
-		
-		TableIdentifier name = TableIdentifier.of(namespace, "dns");	
-		catalog.createTable(name, schema);
-		//catalog.createTable(name, schema, spec);
-		
-		List<TableIdentifier> tables = catalog.listTables(namespace);
-		System.out.println(tables);
+//		RESTCatalog catalog = catalog();
+//		
+//		Schema schema = new Schema(Types.NestedField.required(1, "level", Types.StringType.get()),
+//				Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
+//				Types.NestedField.required(3, "message", Types.StringType.get()),
+//				Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get())));
+//		
+//		PartitionSpec spec = PartitionSpec.builderFor(schema)
+//			      .hour("event_time")
+//			      .build();
+//		
+//
+//		Namespace namespace = Namespace.of("entrada");
+//	//	catalog.createNamespace(namespace);
+//		
+//		
+//		List<Namespace> nsl = catalog.listNamespaces();
+//		System.out.println(nsl);
+//		
+//		TableIdentifier name = TableIdentifier.of(namespace, "dns");	
+//		catalog.createTable(name, schema);
+//		//catalog.createTable(name, schema, spec);
+//		
+//		List<TableIdentifier> tables = catalog.listTables(namespace);
+//		System.out.println(tables);
 		
 	}
 	
@@ -85,7 +102,7 @@ public class CatalogTest {
 		Namespace namespace = Namespace.of("webapp");
 
 		
-		TableIdentifier name = TableIdentifier.of(namespace, "logs");	
+		TableIdentifier name = TableIdentifier.of(namespace, "user_events");	
 		catalog.dropTable(name);
 
 		
@@ -106,7 +123,15 @@ public class CatalogTest {
 
 			Namespace webapp = Namespace.of("webapp");
 			TableIdentifier name = TableIdentifier.of(webapp, "user_events");
-			Table table = catalog.createTable(name, schema, PartitionSpec.unpartitioned());
+			
+			Table table = null;
+			if(catalog.tableExists(name)) {
+			   table = catalog.loadTable(name);
+			}else {
+			  table = catalog.createTable(name, schema, PartitionSpec.unpartitioned());
+			}
+						
+			
 			
 			
 			GenericRecord record = GenericRecord.create(schema);
@@ -115,10 +140,11 @@ public class CatalogTest {
 			builder.add(record.copy(ImmutableMap.of("event_id", UUID.randomUUID().toString(), "username", "Wayne", "userid", 1, "api_version", "1.0", "command", "glide")));
 			builder.add(record.copy(ImmutableMap.of("event_id", UUID.randomUUID().toString(), "username", "Clark", "userid", 1, "api_version", "2.0", "command", "fly")));
 			builder.add(record.copy(ImmutableMap.of("event_id", UUID.randomUUID().toString(), "username", "Kent", "userid", 1, "api_version", "1.0", "command", "land")));
-			ImmutableList<GenericRecord> records = builder.build();
+		//	ImmutableList<GenericRecord> records = builder.build();
 			
 			
 			String filepath = table.location() + "/" + UUID.randomUUID().toString();
+			System.out.println(filepath);
 			OutputFile file = table.io().newOutputFile(filepath);
 			DataWriter<GenericRecord> dataWriter =
 			    Parquet.writeData(file)
@@ -126,6 +152,7 @@ public class CatalogTest {
 			        .createWriterFunc(GenericParquetWriter::buildWriter)
 			        .overwrite()
 			        .withSpec(PartitionSpec.unpartitioned())
+			        .forTable(table)
 			        .build();
 
 			try {

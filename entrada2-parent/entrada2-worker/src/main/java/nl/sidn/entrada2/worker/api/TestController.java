@@ -22,7 +22,7 @@ public class TestController {
   @Autowired
   private PcapReaderService pcapReaderService;
 
-  @GetMapping(path = "/test1", produces = MediaType.APPLICATION_JSON_VALUE)
+  @GetMapping(path = "/test", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<Work> test() {
 
     ResponseEntity<Work> httpWork = client.work();
