@@ -26,7 +26,7 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 // this to avoid problems with memory/caches when running app for a long period of time
 // and having cached data for multiple servers in the same bean instance
 //@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-public class PacketJoinerImpl {
+public class PacketJoiner {
 
 //  @Value("${entrada.icmp.enable}")
 //  private boolean icmpEnabled;
@@ -50,7 +50,7 @@ public class PacketJoinerImpl {
 
   List<RowData> results = new ArrayList<>();
 
-  public PacketJoinerImpl(MeterRegistry registry) {
+  public PacketJoiner(MeterRegistry registry) {
     this.registry = registry;
   }
 

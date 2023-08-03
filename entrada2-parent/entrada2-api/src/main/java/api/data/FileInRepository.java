@@ -13,6 +13,4 @@ public interface FileInRepository extends PagingAndSortingRepository<FileIn, Lon
     
     List<FileIn> findByServedIsNull(Pageable pageable);
     
-        
-
 }

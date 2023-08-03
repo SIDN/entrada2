@@ -32,7 +32,7 @@ public class CatalogTest {
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
 		properties.put(CatalogProperties.URI, "http://localhost:8182");
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse/");
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://testbucket1/warehouse/");
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 		properties.put(S3FileIOProperties.ENDPOINT, "http://localhost:9000");
 		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "minio666");
@@ -64,28 +64,30 @@ public class CatalogTest {
 	@Test
 	public void testCreateTable() {
 
-//		RESTCatalog catalog = catalog();
-//		
-//		Schema schema = new Schema(Types.NestedField.required(1, "level", Types.StringType.get()),
-//				Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
-//				Types.NestedField.required(3, "message", Types.StringType.get()),
-//				Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get())));
+		RESTCatalog catalog = catalog();
+		
+		Schema schema = new Schema(Types.NestedField.required(1, "level", Types.StringType.get()),
+				Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
+				Types.NestedField.required(3, "message", Types.StringType.get()),
+				Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get())));
 //		
 //		PartitionSpec spec = PartitionSpec.builderFor(schema)
 //			      .hour("event_time")
 //			      .build();
 //		
 //
-//		Namespace namespace = Namespace.of("entrada");
-//	//	catalog.createNamespace(namespace);
+		Namespace namespace = Namespace.of("test1");
+		if(!catalog.namespaceExists(namespace)) {
+		  catalog.createNamespace(namespace);
+		}
+		
 //		
 //		
 //		List<Namespace> nsl = catalog.listNamespaces();
 //		System.out.println(nsl);
 //		
-//		TableIdentifier name = TableIdentifier.of(namespace, "dns");	
-//		catalog.createTable(name, schema);
-//		//catalog.createTable(name, schema, spec);
+		TableIdentifier name = TableIdentifier.of(namespace, "test2");	
+		catalog.createTable(name, schema, PartitionSpec.unpartitioned());
 //		
 //		List<TableIdentifier> tables = catalog.listTables(namespace);
 //		System.out.println(tables);
@@ -99,13 +101,13 @@ public class CatalogTest {
 		RESTCatalog catalog = catalog();
 		
 
-		Namespace namespace = Namespace.of("webapp");
+		Namespace namespace = Namespace.of("test1");
 
 		
-		TableIdentifier name = TableIdentifier.of(namespace, "user_events");	
+		TableIdentifier name = TableIdentifier.of(namespace, "test2");	
 		catalog.dropTable(name);
 
-		
+		catalog.dropNamespace(namespace);
 	}
 	
 	@Test
@@ -122,7 +124,7 @@ public class CatalogTest {
 			    );
 
 			Namespace webapp = Namespace.of("webapp");
-			TableIdentifier name = TableIdentifier.of(webapp, "user_events");
+			TableIdentifier name = TableIdentifier.of(webapp, "user_events2");
 			
 			Table table = null;
 			if(catalog.tableExists(name)) {

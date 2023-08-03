@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
@@ -93,24 +94,28 @@ public class RESTCatalogServer {
     catalogProperties.put(CatalogProperties.URI, "jdbc:postgresql://localhost:5432/iceberg");    
     catalogProperties.put(JdbcCatalog.PROPERTY_PREFIX + "user",  System.getenv().get("JDBC_USER"));
     catalogProperties.put(JdbcCatalog.PROPERTY_PREFIX + "password", System.getenv().get("JDBC_PASSWORD"));
-    catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3a://testbucket1/warehouse/");
-    
+    catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://testbucket1/warehouse/");
+    catalogProperties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
+    catalogProperties.put(S3FileIOProperties.ENDPOINT, "http://localhost:9000");
+    catalogProperties.put(S3FileIOProperties.ACCESS_KEY_ID, "minio666");
+    catalogProperties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "minio666");
+    catalogProperties.put(S3FileIOProperties.PATH_STYLE_ACCESS,"true");
 
     log.info("Creating catalog with properties: {}", catalogProperties);
     
-    Configuration hadoopCfg = new Configuration();
-    hadoopCfg.set("fs.s3a.endpoint","http://localhost:9000");
-    hadoopCfg.set("fs.s3a.path.style.access", "true");
-    //hadoopCfg.set("fs.s3a.impl", "org.apache.iceberg.aws.s3.S3FileIO");
-    
-    hadoopCfg.set("fs.s3a.access.key", "minio666");
-    hadoopCfg.set("fs.s3a.secret.key", "minio666");
-    hadoopCfg.set("fs.s3a.path.style.access", "true");
-    hadoopCfg.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
-    hadoopCfg.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider");
-   
+  //  Configuration hadoopCfg = new Configuration();
+//    hadoopCfg.set("fs.s3a.endpoint","http://localhost:9000");
+//    hadoopCfg.set("fs.s3a.path.style.access", "true");
+//    //hadoopCfg.set("fs.s3a.impl", "org.apache.iceberg.aws.s3.S3FileIO");
+//    hadoopCfg.set("fs.s3a.endpoint.region", "us-east-1");
+//    hadoopCfg.set("fs.s3a.access.key", "minio666");
+//    hadoopCfg.set("fs.s3a.secret.key", "minio666");
+//    hadoopCfg.set("fs.s3a.path.style.access", "true");
+//    hadoopCfg.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+//    hadoopCfg.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider");
+//   
 
-    return CatalogUtil.buildIcebergCatalog("rest_backend", catalogProperties, hadoopCfg);
+    return CatalogUtil.buildIcebergCatalog("rest_backend", catalogProperties, null);
   }
 
   

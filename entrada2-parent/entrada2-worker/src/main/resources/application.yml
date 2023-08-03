@@ -1,3 +1,9 @@
+entrada:
+  mode: 'worker'
+  parquet:
+   file:
+     max-size: 256
+  
 server:
  port: 8090
  servlet:
@@ -19,22 +25,48 @@ spring:
            dismiss404: true
 
  
-      
- management: 
-   endpoints:
-     web:
-       base-path: '/api/v1/manager' 
- #      exposure:
- #        include: '*'
+iceberg:
+  catalog:
+    url: 'http://localhost:8182'
+    warehouse: 's3://testbucket1/warehouse/'
+    endpoint: 'http://localhost:9000'
+    access_key: 'minio666'
+    secret_key: 'minio666'
+    
 
  
  
 aws:
   accesskey: DrDd94eGYZBeFpukUsSW
   secretkey: tHKvt6ew3m0s0X0nYUsPGQtE5GFst7Sihxn8ZZJ7
-  region: us-east-1
+  region: eu-west-1
   endpoint: 'http://localhost:9000'
   bucket: testbucket1
+
+
+#########################
+#        Resolvers      #
+#########################
+
+# max size of the "IP address to resolver" match cache
+# keep cache because checking IP address is expensive
+# but must make sure not to use a giant cache and get out-of-memory error
+resolver:
+  match:
+    cache:
+      size: 10000
+  google:
+    hostname: 'locations.publicdns.goog.'
+    timeout: 15
+  opendns:
+    url: 'https://umbrella.cisco.com/why-umbrella/global-network-and-traffic'
+    timeout: 15
+  cloudflare:
+    url:
+      v4: 'https://www.cloudflare.com/ips-v4'
+      v6: 'https://www.cloudflare.com/ips-v6'
+      timeout: 15
+     
 
   
 #########################
@@ -52,3 +84,12 @@ maxmind:
    free: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&suffix=tar.gz&license_key='
    paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-ISP&suffix=tar.gz&license_key='
      
+
+     
+      
+management: 
+  endpoints:
+    web:
+      base-path: '/api/v1/manager' 
+#      exposure:
+#        include: '*'
