@@ -3,6 +3,8 @@ entrada:
   parquet:
    file:
      max-size: 256
+   worker:
+     sleep: 10
   
 server:
  port: 8090
@@ -12,6 +14,8 @@ server:
 spring:
  application: 
    name: 'entrada-worker'
+ flyway:
+   enabled: false
  cloud:
    openfeign:
      client:
@@ -19,11 +23,17 @@ spring:
          default:
            connectTimeout: 5000
            readTimeout: 5000
-           loggerLevel: basic
-         workerClient:
-           url: 'http://localhost:8080/api/v1'
+           loggerLevel: full
+         workClient:
+           url: 'http://client4.sidnlabs.nl:8091/api/v1/work'
            dismiss404: true
 
+ autoconfigure:
+   exclude: 'org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration'
+
+logging:
+  level:
+    nl.sidn.entrada2.worker.client: DEBUG
  
 iceberg:
   catalog:
@@ -42,6 +52,8 @@ aws:
   region: eu-west-1
   endpoint: 'http://localhost:9000'
   bucket: testbucket1
+  directory:
+    pcap: 'pcap'
 
 
 #########################
@@ -85,6 +97,8 @@ maxmind:
    paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-ISP&suffix=tar.gz&license_key='
      
 
+flyway:
+   enabled: false
      
       
 management: 

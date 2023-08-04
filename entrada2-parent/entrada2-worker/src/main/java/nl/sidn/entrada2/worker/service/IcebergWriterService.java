@@ -62,8 +62,6 @@ public class IcebergWriterService {
         .identity("server")
         .build();
     
-    this.sortOrder = SortOrder.builderFor(schema).asc("domainname").build();
-
     Namespace namespace = Namespace.of("entrada");
     if (!catalog.namespaceExists(namespace)) {
       catalog.createNamespace(namespace);
@@ -132,10 +130,13 @@ public class IcebergWriterService {
     }
   }
 
-  public void close() {
+  public long close() {
+    long rows = 0;
+    
     try {
       AppendFiles appendFiles = table.newAppend();
       for (DataFile dataFile : partitionedFanoutWriter.dataFiles()) {
+        rows = rows + dataFile.recordCount();
         appendFiles.appendFile(dataFile);
       }
       appendFiles.commit();
@@ -144,6 +145,8 @@ public class IcebergWriterService {
     }finally {
       partitionedFanoutWriter = null;
     }
+    
+    return rows;
   }
 
 

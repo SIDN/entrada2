@@ -2,11 +2,13 @@ package nl.sidn.entrada2.worker.service.emrich.geoip;
 
 import java.net.InetAddress;
 import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import com.maxmind.geoip2.model.CountryResponse;
 import nl.sidn.entrada2.worker.service.enrich.AddressEnrichment;
 
 @Component
+@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public class CountryEnrichment implements AddressEnrichment {
 
   private GeoIPService geoLookup;

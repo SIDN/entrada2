@@ -3,19 +3,25 @@ package nl.sidn.entrada2.worker.service;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada.data.Work;
+import nl.sidn.entrada2.worker.api.BaseWork;
+import nl.sidn.entrada2.worker.api.Work;
+import nl.sidn.entrada2.worker.api.WorkResult;
+import nl.sidn.entrada2.worker.client.WorkerClient;
 import nl.sidn.entrada2.worker.load.DNSRowBuilder;
 import nl.sidn.entrada2.worker.load.DnsMetricValues;
 import nl.sidn.entrada2.worker.load.PacketJoiner;
-import nl.sidn.entrada2.worker.load.RowData;
 import nl.sidn.entrada2.worker.util.CompressionUtil;
 import nl.sidnlabs.pcap.PcapReader;
 
@@ -34,27 +40,90 @@ public class PcapReaderService {
   private IcebergWriterService writer;
   @Autowired
   private DNSRowBuilder rowBuilder;
+  @Autowired
+  private BaseWork client;
 
-  public void process(Work work) {
+  @Value("#{${entrada.worker.sleep:10}*1000}")
+  private int sleepMillis;
+
+  private boolean keepRunning = true;
+
+
+  @Async
+  public CompletableFuture<Boolean> run() {
+
+    while (keepRunning) {
+
+      ResponseEntity<Work> httpWork = client.work();
+      if (httpWork.getStatusCode().is2xxSuccessful()) {
+
+        Work w = httpWork.getBody();
+        log.info("Received work: {}", w);
+
+        long start = System.currentTimeMillis();
+        long rows = process(w);
+        long duration = System.currentTimeMillis() - start;
+        reportResults(w.getId(), rows, duration);
+
+      } else {
+        log.info("Received no work, feeling sleepy");
+        // no work sleep for while before trying again
+        sleep();
+      }
+    }
+
+    return CompletableFuture.completedFuture(Boolean.TRUE);
+  }
+  
+  private void reportResults(long id, long rows, long duration ) {
+    WorkResult res = WorkResult.builder()
+        .id(id)
+        .rows(rows)
+        .time(duration)
+        .build();
+        
+    client.status(res);
+  }
+
+  public void stop() {
+    keepRunning = false;
+  }
+
+  private void sleep() {
+    try {
+      Thread.sleep(sleepMillis);
+    } catch (InterruptedException e) {
+      log.error("Interupted while having a nice sleep", e);
+    }
+  }
+
+
+
+  public long process(Work work) {
+    
+    long rowCount = 0;
 
     Optional<InputStream> ois = s3FileService.read(work.getBucket(), work.getKey());
     if (ois.isPresent()) {
       Optional<PcapReader> oreader = createReader(work.getName(), ois.get());
       if (oreader.isPresent()) {
         oreader.get().stream().forEach(p -> {
-          
-         joiner.join(p).forEach( rd -> {    
-           Pair<GenericRecord,DnsMetricValues> rowPair = rowBuilder.build(rd, work.getServer(), work.getLocation(), writer.newGenericRecord());
-           writer.write(rowPair.getKey());
-           
-         });
+
+          joiner.join(p).forEach(rd -> {
+            Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, work.getServer(),
+                work.getLocation(), writer.newGenericRecord());
+            writer.write(rowPair.getKey());
+
+          });
         });
-        
-        writer.close();      }
-       rowBuilder.reset();
+
+        rowCount = writer.close();
+      }
+      rowBuilder.reset();
 
     }
 
+    return rowCount;
   }
 
 

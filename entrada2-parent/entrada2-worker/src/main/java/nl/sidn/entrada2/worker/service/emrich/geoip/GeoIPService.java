@@ -30,6 +30,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import com.maxmind.db.CHMCache;
 import com.maxmind.db.Reader.FileMode;
@@ -44,6 +45,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @Log4j2
 @Component
+@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public class GeoIPService {
 
   // free dbs
