@@ -6,7 +6,7 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.worker.service.PcapReaderService;
+import nl.sidn.entrada2.worker.service.WorkService;
 
 @Component
 @Slf4j
@@ -16,7 +16,7 @@ public class StartupListener {
 
   
   @Autowired
-  private PcapReaderService pcapReaderService;
+  private WorkService pcapReaderService;
   
 
   

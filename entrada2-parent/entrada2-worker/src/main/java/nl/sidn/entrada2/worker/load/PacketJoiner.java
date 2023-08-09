@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.dnslib.types.MessageType;
 import nl.sidnlabs.dnslib.types.ResourceRecordType;
@@ -19,27 +20,16 @@ import nl.sidnlabs.pcap.packet.DNSPacket;
 import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
 
-@Log4j2
 @Component
+@Slf4j
 @Getter
-// use prototype scope, create new bean each time batch of files is processed
-// this to avoid problems with memory/caches when running app for a long period of time
-// and having cached data for multiple servers in the same bean instance
-//@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class PacketJoiner {
 
-//  @Value("${entrada.icmp.enable}")
-//  private boolean icmpEnabled;
-  // @Value("${entrada.cache.timeout:2}")
-  // private int cacheTimeoutConfig;
 
   private Map<RequestCacheKey, RequestCacheValue> requestCache = new HashMap<>();
   // keep list of active zone transfers
   private Map<RequestCacheKey, Integer> activeZoneTransfers = new HashMap<>();
 
-  private long lastPacketTs = 0;
-  @Value("#{${entrada.cache.timeout:2}*1000}")
-  private int cacheTimeout;
   // stats counters
   private int counter = 0;
   private int matchedCounter = 0;
@@ -48,7 +38,6 @@ public class PacketJoiner {
 
   private final MeterRegistry registry;
 
-  List<RowData> results = new ArrayList<>();
 
   public PacketJoiner(MeterRegistry registry) {
     this.registry = registry;
@@ -56,7 +45,6 @@ public class PacketJoiner {
 
 
   public List<RowData> join(Packet p) {
-
     if (p == Packet.NULL) {
       // ignore, but do purge first
       return Collections.emptyList();
@@ -64,29 +52,18 @@ public class PacketJoiner {
 
     if (p == Packet.LAST) {
       // ignore, but do purge first
-      return purge();
+      logStats();
+      return clearCache();
     }
-
-    results.clear();
+    List<RowData> results = new ArrayList<>();
 
     counter++;
     registry.counter("entrada.pcap.packets.processed").increment();
 
-    if (counter % 100000 == 0) {
-      log.info("Received {} packets to join", Integer.valueOf(counter));
+    if (counter % 100000 == 0 && log.isDebugEnabled()) {
+      log.debug("Received {} packets to join", Integer.valueOf(counter));
     }
 
-    // if (isICMP(p)) {
-    // if (!icmpEnabled) {
-    // // do not process ICMP packets
-    // return Collections.emptyList();
-    // }
-    // // handle icmp
-    // List<RowData> results = new ArrayList<>(1);
-    // results.add(new RowData(p, null, null, null, false));
-    // return results;
-    //
-    // } else {
     // must be dnspacket
     if (isDNS(p)) {
       DNSPacket dnsPacket = (DNSPacket) p;
@@ -96,9 +73,6 @@ public class PacketJoiner {
         log.debug("Packet contains no dns message, skipping...");
         return Collections.emptyList();
       }
-
-      lastPacketTs = p.getTsMilli();
-
 
       for (Message msg : dnsPacket.getMessages()) {
         // put request into map until we find matching response, with a key based on: query id,
@@ -201,12 +175,12 @@ public class PacketJoiner {
     if (request != null && request.getPacket() != null && request.getMessage() != null) {
 
       matchedCounter++;
-      if (matchedCounter % 100000 == 0) {
-        log.info("Matched " + matchedCounter + " packets");
+      if (matchedCounter % 100000 == 0 && log.isDebugEnabled()) {
+        log.debug("Matched " + matchedCounter + " packets");
       }
 
       // pushRow(
-      return new RowData(request.getPacket(), request.getMessage(), dnsPacket, msg, false);
+      return new RowData(request.getPacket(), request.getMessage(), dnsPacket, msg);
       // );
 
     } else {
@@ -220,7 +194,7 @@ public class PacketJoiner {
 
       if (qname != null) {
         // pushRow(
-        return new RowData(null, null, dnsPacket, msg, false);
+        return new RowData(null, null, dnsPacket, msg);
         // );
       }
     }
@@ -248,7 +222,6 @@ public class PacketJoiner {
     log.info("{} total DNS messages: ", Integer.valueOf(counter));
     log.info("{} requests: ", Integer.valueOf(requestPacketCounter));
     log.info("{} responses: ", Integer.valueOf(responsePacketCounter));
-    log.info("{} request cache size: ", Integer.valueOf(requestCache.size()));
   }
 
   public Map<RequestCacheKey, RequestCacheValue> getRequestCache() {
@@ -258,62 +231,43 @@ public class PacketJoiner {
   public void setRequestCache(Map<RequestCacheKey, RequestCacheValue> requestCache) {
     this.requestCache = requestCache;
   }
-
-
-  private List<RowData> purge() {
-    // remove expired entries from requestCache
-    Iterator<RequestCacheKey> iter = requestCache.keySet().iterator();
-    // use time from pcap to calc max age of cached packets
-    long max = lastPacketTs - cacheTimeout;
+  
+  private List<RowData> clearCache() {
     int purgeCounter = 0;
-    int oldSize = requestCache.size();
-
-    List<RowData> expired = new ArrayList<>();
-
-    while (iter.hasNext()) {
-      RequestCacheKey key = iter.next();
-      // add the expiration time to the key and see if this leads to a time which is after the
-      // current time.
-      if (key.getTime() < max) {
-        // remove expired request
-        RequestCacheValue cacheValue = requestCache.get(key);
-        iter.remove();
-
-        if (cacheValue.getMessage() != null && !cacheValue.getMessage().getQuestions().isEmpty()
-            && cacheValue.getMessage().getHeader().getQr() == MessageType.QUERY) {
-
-          expired
-              .add(new RowData(cacheValue.getPacket(), cacheValue.getMessage(), null, null, true));
 
 
-          if (log.isDebugEnabled()) {
-            log
-                .debug("Expired query for: "
-                    + cacheValue.getMessage().getQuestions().get(0).getQName());
-          }
-          purgeCounter++;
-          registry.counter("entrada.dns.packets.expired").increment();
-        }
+    List<RowData> unmatched = new ArrayList<>();
+
+    for (RequestCacheValue cacheValue : requestCache.values()) {
+      
+      if (cacheValue.getMessage() != null && !cacheValue.getMessage().getQuestions().isEmpty()
+          && cacheValue.getMessage().getHeader().getQr() == MessageType.QUERY) {
+
+        unmatched
+            .add(new RowData(cacheValue.getPacket(), cacheValue.getMessage(), null, null));
+
+        purgeCounter++;
+      }else if (cacheValue.getMessage() != null && cacheValue.getMessage().getHeader().getQr() == MessageType.RESPONSE) {
+
+        unmatched
+            .add(new RowData(null, null, cacheValue.getPacket(), cacheValue.getMessage()));
+
+        purgeCounter++;      
       }
     }
+    
+    log.info("Not matched query's with rcode -1 (no response/request): {}", Integer.valueOf(purgeCounter));
 
-    log.info("-------------- Joiner Cache Purge Stats ------------------");
-    log.info("Size before: {}", Integer.valueOf(oldSize));
-    log.info("Purge TTL: {}", Integer.valueOf(cacheTimeout));
-    log.info("Purge lastPacketTs: {}", Long.valueOf(lastPacketTs));
-    log.info("Purge max: {}", Long.valueOf(max));
-    log.info("Expired query's with rcode -1 (no response): {}", Integer.valueOf(purgeCounter));
-    log.info("Size after: {}", Integer.valueOf(requestCache.size()));
-
-    return expired;
+    registry.counter("entrada.dns.packets.expired").increment(purgeCounter);
+    requestCache.clear();
+    activeZoneTransfers.clear();
+    
+    counter = 0;
+    matchedCounter = 0;
+    requestPacketCounter = 0;
+    responsePacketCounter = 0;
+    
+    return unmatched;
   }
-
-  // @Override
-  // public void reset() {
-  // counter = 0;
-  // matchedCounter = 0;
-  // requestPacketCounter = 0;
-  // responsePacketCounter = 0;
-  // }
 
 }

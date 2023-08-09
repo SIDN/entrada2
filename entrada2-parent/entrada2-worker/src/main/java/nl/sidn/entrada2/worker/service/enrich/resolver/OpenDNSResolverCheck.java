@@ -17,7 +17,7 @@
  * [<http://www.gnu.org/licenses/].
  *
  */
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ import lombok.extern.log4j.Log4j2;
 @Component
 @Log4j2
 @Setter
-@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
+//@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public final class OpenDNSResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_STATE_FILENAME = "opendns-resolvers";
@@ -60,7 +60,7 @@ public final class OpenDNSResolverCheck extends AbstractResolverCheck {
   private int timeout;
 
   @Override
-  protected List<String> fetch() {
+  public List<String> fetch() {
     log.info("Load OpenDNS resolver addresses from url: " + url);
 
     List<String> subnets = new ArrayList<>();
@@ -112,7 +112,7 @@ public final class OpenDNSResolverCheck extends AbstractResolverCheck {
   }
 
   @Override
-  protected String getFilename() {
+  public String getFilename() {
     return RESOLVER_STATE_FILENAME;
   }
 

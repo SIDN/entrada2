@@ -32,46 +32,10 @@ public class DNSRowBuilder extends AbstractRowBuilder {
   private static final int ID_UNKNOWN = -1;
   private static final int OPCODE_UNKNOWN = -1;
 
-  private static final String DNS_AVRO_SCHEMA = "/avro/dns-query.avsc";
-
-  //private Schema schema = null;
-  
-  @Autowired
-  private  Schema schema;
-
-  public DNSRowBuilder(List<AddressEnrichment> enrichments) {
-    super(enrichments);
-
-    // check if schema fields match with the ordering used in FieldEnum
-    // this may happen when the schema is changed but the enum is forgotten.
-//    int fieldOrder = 0;
-//    for (NestedField field : schema.columns()) {
-//
-//      if (fieldOrder != FieldEnum.valueOf(field.name()).ordinal()) {
-//        throw new RuntimeException(
-//            "Ordering of Avro schema field \"" + field.name() + "\" not correct, expected: "
-//                + field.pos() + " found: " + FieldEnum.valueOf(field.name()).ordinal());
-//      }
-//    }
-  }
-
-//  @Override
-//  public Pair<GenericRecord, BaseMetricValues> build(Packet p, String server) {
-//    throw new NotImplementedException();
-//  }
-
   //@Override
   public Pair<GenericRecord,DnsMetricValues> build(RowData combo, String server, String location, GenericRecord record ) {
     // try to be as efficient as possible, every object created here or expensive calculation can
     // have major impact on performance
-   // GenericRecord record = new GenericData.Record(schema);
-    
-   // GenericRecord record = GenericRecord.create(schema);
-
-    counter++;
-    if (counter % STATUS_COUNT == 0) {
-      showStatus();
-    }
     
     record.set(FieldEnum.server.ordinal(), server);
 
@@ -85,7 +49,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
     Packet transport = combo.getRequest() != null ? combo.getRequest() : combo.getResponse();
     Question question = null;
 
-    DnsMetricValues mv = new DnsMetricValues(transport.getTsMilli());
+    DnsMetricValues.DnsMetricValuesBuilder metricsBuilder =   DnsMetricValues.builder().time(transport.getTsMilli());
 
     // check to see it a response was found, if not then use -1 value for rcode
     // otherwise use the rcode returned by the server in the response.
@@ -118,7 +82,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
                   Integer.valueOf(reqTransport.getTcpHandshakeRTT()));
 
           if (metricsEnabled) {
-            mv.tcpHandshake = reqTransport.getTcpHandshakeRTT();
+            metricsBuilder.tcpHandshake( reqTransport.getTcpHandshakeRTT());
           }
         }
       }
@@ -139,7 +103,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
       }
 
       if (metricsEnabled) {
-        mv.dnsQuery = true;
+        metricsBuilder.dnsQuery(true);
       }
 
       // EDNS0 for request
@@ -186,7 +150,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
         // EDNS0 for response
         writeResponseOptions(rspMessage, record);
         if (metricsEnabled) {
-          mv.dnsResponse = true;
+          metricsBuilder.dnsResponse(true);
 
         }
       }
@@ -210,15 +174,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
       if (domainname == null) {
         domainname = NameUtil.domainname(question.getQName());
         if (domainname != null) {
-          domainCacheInserted++;
           domainCache.put(question.getQName(), domainname);
         }
-      } else {
-        domainCacheHits++;
-      }
+      } 
 
       if (metricsEnabled) {
-        mv.dnsQtype = question.getQTypeValue();
+        metricsBuilder.dnsQtype( question.getQTypeValue());
       }
     }
 
@@ -246,9 +207,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
     // get ip src/dst from either request of response
     if (reqTransport != null) {
-      if (enrich(reqTransport.getSrc(), reqTransport.getSrcAddr(), "", record, false)) {
-        cacheHits++;
-      }
+      enrich(reqTransport.getSrc(), reqTransport.getSrcAddr(), "", record, false);
 
       record.set(FieldEnum.dst.ordinal(), reqTransport.getDst());
       record.set(FieldEnum.dstp.ordinal(), Integer.valueOf(reqTransport.getDstPort()));
@@ -258,16 +217,16 @@ public class DNSRowBuilder extends AbstractRowBuilder {
         record.set(FieldEnum.src.ordinal(), reqTransport.getSrc());
       }
     } else {
-      if (enrich(rspTransport.getDst(), rspTransport.getDstAddr(), "", record, false)) {
-        cacheHits++;
-      }
+      
+      // only response packet is found
+      enrich(rspTransport.getDst(), rspTransport.getDstAddr(), "", record, false);
 
-      record.set(FieldEnum.dst.ordinal(), rspTransport.getSrc());
-      record.set(FieldEnum.dstp.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
-      record.set(FieldEnum.srcp.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
+      record.set(FieldEnum.dst.ordinal(), rspTransport.getDst());
+      record.set(FieldEnum.dstp.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
+      record.set(FieldEnum.srcp.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
 
       if (!privacy) {
-        record.set(FieldEnum.src.ordinal(), rspTransport.getDst());
+        record.set(FieldEnum.src.ordinal(), rspTransport.getSrc());
       }
     }
 
@@ -280,14 +239,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
     // create metrics
     if (metricsEnabled) {
-      mv.dnsRcode = rcode;
-      mv.dnsOpcode = opcode;
-      mv.ipV4 = transport.getIpVersion() == 4;
-      mv.ProtocolUdp = prot == PacketFactory.PROTOCOL_UDP;
-      mv.country = (String) record.get(FieldEnum.country.ordinal());
+      metricsBuilder.dnsRcode(rcode);
+      metricsBuilder.dnsOpcode(opcode);
+      metricsBuilder.ipV4(transport.getIpVersion() == 4);
+      metricsBuilder.ProtocolUdp(prot == PacketFactory.PROTOCOL_UDP);
+      metricsBuilder.country( (String) record.get(FieldEnum.country.ordinal()));
     }
 
-    return Pair.of(record, mv);
+    return Pair.of(record, metricsBuilder.build());
   }
 
   /**

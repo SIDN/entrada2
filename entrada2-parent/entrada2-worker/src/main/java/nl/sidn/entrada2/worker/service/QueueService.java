@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.worker.api.Work;
 import nl.sidn.entrada2.worker.api.WorkResult;
@@ -82,7 +83,8 @@ public class QueueService {
   }
 
   
-  public synchronized boolean saveResult(WorkResult result) {
+  @Transactional
+  public synchronized void saveResult(WorkResult result) {
 
     Optional<FileIn> ofi = fileInRepository.findById(Long.valueOf(result.getId()));
     if(ofi.isPresent()) {
@@ -95,17 +97,10 @@ public class QueueService {
       .time((int)result.getTime())
       .build();
       
-      try {
-        fileArchiveRepository.save(fa);    
-        fileInRepository.delete(fi);
-        
-        return true;
-      } catch (Exception e) {
-        log.error("Error while updating work status in the database",e);
-        
-      }
+       fileArchiveRepository.save(fa);    
+       fileInRepository.delete(fi);
+
     }
-    return false;
    
   }
   

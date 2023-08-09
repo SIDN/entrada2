@@ -1,4 +1,4 @@
-package nl.sidn.entrada2.worker.service.emrich.geoip;
+package nl.sidn.entrada2.worker.service.enrich.geoip;
 
 import java.net.InetAddress;
 import java.util.Optional;
@@ -9,13 +9,14 @@ import nl.sidn.entrada2.worker.service.enrich.AddressEnrichment;
 
 @Component
 @ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
-public class ASNOrganisationEnrichment implements AddressEnrichment {
+public class ASNEnrichment implements AddressEnrichment {
 
   private GeoIPService geoLookup;
 
-  public ASNOrganisationEnrichment(GeoIPService geoLookup) {
+  public ASNEnrichment(GeoIPService geoLookup) {
     this.geoLookup = geoLookup;
   }
+
 
   /**
    * Lookup ASN for IP address
@@ -28,7 +29,9 @@ public class ASNOrganisationEnrichment implements AddressEnrichment {
 
     Optional<? extends AsnResponse> r = geoLookup.lookupASN(inetAddress);
     if (r.isPresent()) {
-      return r.get().getAutonomousSystemOrganization();
+      if (r.get().getAutonomousSystemNumber() != null) {
+        return r.get().getAutonomousSystemNumber().toString();
+      }
     }
 
     return null;
@@ -36,7 +39,7 @@ public class ASNOrganisationEnrichment implements AddressEnrichment {
 
   @Override
   public String getColumn() {
-    return "asn_organisation";
+    return "asn";
   }
 
 

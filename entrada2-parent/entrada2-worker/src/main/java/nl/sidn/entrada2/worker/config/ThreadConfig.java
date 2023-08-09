@@ -11,9 +11,9 @@ public class ThreadConfig {
   @Bean
   public Executor asyncExecutor() {
       ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-      executor.setCorePoolSize(2);
-      executor.setMaxPoolSize(2);
-      executor.setQueueCapacity(500);
+      executor.setCorePoolSize(3);
+      executor.setMaxPoolSize(3);
+      executor.setQueueCapacity(100);
       executor.setThreadNamePrefix("ENTRADA-worker-");
       executor.initialize();
       return executor;

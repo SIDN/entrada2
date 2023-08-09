@@ -1,20 +1,18 @@
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.net.InetAddress;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import nl.sidn.entrada2.worker.service.enrich.AddressEnrichment;
 
 @Component
 public class ResolverEnrichment implements AddressEnrichment {
 
+  @Autowired
   private List<DnsResolverCheck> resolverChecks;
 
-  public ResolverEnrichment(List<DnsResolverCheck> resolverChecks) {
-    this.resolverChecks = resolverChecks;
-    for (DnsResolverCheck check : resolverChecks) {
-      check.init();
-    }
+  public ResolverEnrichment() {
   }
 
   /**

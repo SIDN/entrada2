@@ -8,7 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import nl.sidn.entrada2.worker.service.emrich.resolver.DnsResolverCheck;
+import nl.sidn.entrada2.worker.service.enrich.resolver.DnsResolverCheck;
 
 @ExtendWith(SpringExtension.class)
 @SpringBootTest

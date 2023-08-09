@@ -9,13 +9,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import nl.sidn.entrada2.worker.data.model.FileIn;
 import nl.sidn.entrada2.worker.service.FileStorageService;
 
 @RestController
-@ConditionalOnProperty( name = "entrada.mode", havingValue = "controller")
+@ConditionalOnProperty(name = "entrada.mode", havingValue = "controller")
 public class FileController {
-  
-  
+
+
   @Autowired
   private FileStorageService fileStorageService;
 
@@ -24,15 +25,12 @@ public class FileController {
       path = "/upload",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<String> upload(@RequestParam("server") String server,
+  public ResponseEntity<FileIn> upload(@RequestParam("server") String server,
       @RequestParam("location") String location,
       @RequestParam("file") MultipartFile file) {
 
-    if (fileStorageService.save(server, location, file)) {
-      return new ResponseEntity<>("ok...", HttpStatus.OK);
-    }
-
-    return new ResponseEntity<>("Fail...", HttpStatus.INTERNAL_SERVER_ERROR);
+    FileIn f = fileStorageService.save(server, location, file);
+    return new ResponseEntity<>(f, HttpStatus.OK);
   }
 
 

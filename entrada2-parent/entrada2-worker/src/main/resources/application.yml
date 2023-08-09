@@ -3,8 +3,13 @@ entrada:
   parquet:
    file:
      max-size: 256
-   worker:
-     sleep: 10
+  worker:
+    sleep: 10
+  schedule:
+    geoip: 1
+  security:
+    token:
+      admin: '94591089610224297274859827590711'
   
 server:
  port: 8090
@@ -23,26 +28,30 @@ spring:
          default:
            connectTimeout: 5000
            readTimeout: 5000
-           loggerLevel: full
-         workClient:
+           loggerLevel: basic
+         workerClient:
            url: 'http://client4.sidnlabs.nl:8091/api/v1/work'
            dismiss404: true
+         maxmindClient:
+           url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
+           dismiss404: false
 
  autoconfigure:
    exclude: 'org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration'
 
-logging:
-  level:
-    nl.sidn.entrada2.worker.client: DEBUG
+#logging:
+#  level:
+#    nl.sidn.entrada2.worker.client: DEBUG
  
 iceberg:
   catalog:
     url: 'http://localhost:8182'
-    warehouse: 's3://testbucket1/warehouse/'
-    endpoint: 'http://localhost:9000'
-    access_key: 'minio666'
-    secret_key: 'minio666'
-    
+  bucket: 'testbucket1'
+  warehouse_dir: 'warehouse'
+  endpoint: 'http://localhost:9000'
+  access_key: 'minio666'
+  secret_key: 'minio666'
+  compression: 'snappy'  
 
  
  
@@ -54,6 +63,7 @@ aws:
   bucket: testbucket1
   directory:
     pcap: 'pcap'
+    reference: 'reference'
 
 
 #########################
@@ -90,18 +100,28 @@ maxmind:
    free: ''
    paid: ''
  country:
-   free: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&suffix=tar.gz&license_key='
-   paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-Country&suffix=tar.gz&license_key='
+   free: 'GeoLite2-Country'
+   paid: 'GeoIP2-Country'
  asn:
-   free: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&suffix=tar.gz&license_key='
-   paid: 'https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-ISP&suffix=tar.gz&license_key='
+   free: 'GeoLite2-ASN'
+   paid: 'GeoIP2-ISP'
      
 
 flyway:
    enabled: false
      
-      
-management: 
+
+management:
+  graphite:
+    metrics:
+      export:
+        enabled: false
+        host: ''
+        port: 2003
+        protocol: 'Plaintext'
+        step: '1m'
+        tags-as-prefix: 'prefix'
+        prefix: 'entrada' 
   endpoints:
     web:
       base-path: '/api/v1/manager' 

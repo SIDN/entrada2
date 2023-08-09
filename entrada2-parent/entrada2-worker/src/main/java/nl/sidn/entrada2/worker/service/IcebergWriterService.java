@@ -1,40 +1,28 @@
 package nl.sidn.entrada2.worker.service;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+
 
 @Service
 @Slf4j
@@ -43,13 +31,15 @@ public class IcebergWriterService {
   @Value("#{${entrada.parquet.file.max-size:256} * 1024 * 1024}")
   private int maxFileSizeMegabyte;
   
+  @Value("${iceberg.compression}")
+  private String compressionAlgo;
+  
   @Autowired
   private Schema schema;
   @Autowired
   private RESTCatalog catalog;
   
   private Table table;
- // private SortOrder sortOrder;
   private PartitionSpec spec;
   private GenericRecord genericRecord;
   private WrappedPartitionedFanoutWriter partitionedFanoutWriter;
@@ -72,7 +62,7 @@ public class IcebergWriterService {
       this.table = catalog.createTable(tableId, schema, spec);
       this.table
           .updateProperties()
-          .set("write.parquet.compression-codec", "snappy")
+          .set("write.parquet.compression-codec", compressionAlgo)
           .set("write.metadata.delete-after-commit.enabled", "true")
           .set("write.metadata.previous-versions-max", "50")
           .commit();
@@ -95,7 +85,7 @@ public class IcebergWriterService {
     GenericAppenderFactory fileAppenderFactory =
         new GenericAppenderFactory(table.schema(), table.spec());
     
-    fileAppenderFactory.set("write.parquet.compression-codec", "snappy");
+    fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
     fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
     fileAppenderFactory.set("write.metadata.previous-versions-max", "50");
 
@@ -118,8 +108,7 @@ public class IcebergWriterService {
       try {
         createWriter();
       } catch (IOException e) {
-        log.error("Cannot create writer", e);
-        return;
+        throw new RuntimeException("Cannot create writer", e);
       }
 
     }
@@ -141,7 +130,7 @@ public class IcebergWriterService {
       }
       appendFiles.commit();
     } catch (Exception e) {
-      throw new RuntimeException("Cannot add new data files to table",e);
+      log.error("Cannot add new data files to table",e);
     }finally {
       partitionedFanoutWriter = null;
     }
@@ -165,6 +154,9 @@ public class IcebergWriterService {
       super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(), maxFileSizeMegabyte);
 
       partitionKey = new PartitionKey(table.spec(), table.spec().schema());
+      
+      //need to use wrapper for conversion datetime/long see:
+      //https://github.com/apache/iceberg/issues/6510#issuecomment-1377570948
       wrapper = new InternalRecordWrapper(table.schema().asStruct());
     }
 
@@ -175,53 +167,7 @@ public class IcebergWriterService {
     }
 
   }
-  
-//  private class SortingGenericAppenderFactory extends GenericAppenderFactory{
-//    
-//    private final Map<String, String> config = Maps.newHashMap();
-//
-//    public SortingGenericAppenderFactory(Schema schema, PartitionSpec spec) {
-//      super(schema, spec);
-//    }
-//    
-//    public GenericAppenderFactory set(String property, String value) {
-//      super.set(property, value);
-//      
-//      config.put(property, value);
-//      return this;
-//    }
-//
-//    public GenericAppenderFactory setAll(Map<String, String> properties) {
-//      super.setAll(properties);
-//      
-//      config.putAll(properties);
-//      return this;
-//    }
-//    
-//    @Override
-//    public FileAppender<Record> newAppender(OutputFile outputFile, FileFormat fileFormat) {
-//      MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
-//
-//        if(FileFormat.PARQUET == fileFormat) {
-//
-//            try {
-//              return Parquet.write(outputFile)
-//                  .schema(schema)
-//                  .createWriterFunc(GenericParquetWriter::buildWriter)
-//                  .setAll(config)
-//                  .metricsConfig(metricsConfig)
-//                  .overwrite()
-//                  .build();
-//            } catch (IOException e) {
-//             throw new RuntimeException("Error creating Parquet writer", e);
-//            }
-//            
-//        }
-//    
-//        return super.newAppender(outputFile, fileFormat);
-//    
-//     }
-//  }
+ 
 
 }
 

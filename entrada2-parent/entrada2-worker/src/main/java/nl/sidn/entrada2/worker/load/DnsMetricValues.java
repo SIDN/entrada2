@@ -1,7 +1,13 @@
 package nl.sidn.entrada2.worker.load;
 
-public class DnsMetricValues extends BaseMetricValues {
+import lombok.Builder;
+import lombok.Value;
 
+@Value
+@Builder
+public class DnsMetricValues {
+
+  public long time;
   public boolean dnsQuery;
   public boolean dnsResponse;
   public int dnsQtype;
@@ -13,10 +19,8 @@ public class DnsMetricValues extends BaseMetricValues {
   public boolean ipV4;
   public String country;
 
+  @Builder.Default
   public int tcpHandshake = -1;
 
-  public DnsMetricValues(long time) {
-    super(time);
-  }
 
 }

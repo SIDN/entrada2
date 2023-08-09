@@ -1,4 +1,4 @@
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;

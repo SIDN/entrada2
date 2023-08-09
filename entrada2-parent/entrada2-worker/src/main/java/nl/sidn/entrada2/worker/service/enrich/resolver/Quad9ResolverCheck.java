@@ -17,7 +17,7 @@
  * [<http://www.gnu.org/licenses/].
  *
  */
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +34,7 @@ import lombok.extern.log4j.Log4j2;
 
 @Component
 @Log4j2
-@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
+//@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public final class Quad9ResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_SOURCE_FILENAME = "/resolver/quad9-resolvers.txt";
@@ -42,7 +42,7 @@ public final class Quad9ResolverCheck extends AbstractResolverCheck {
   private static final String RESOLVER_NAME = "Quad9";
 
   @Override
-  protected List<String> fetch() {
+  public List<String> fetch() {
     ClassPathResource resource = new ClassPathResource(RESOLVER_SOURCE_FILENAME);
     log.info("Load Quad9 resolver addresses from {}", resource);
 
@@ -70,7 +70,7 @@ public final class Quad9ResolverCheck extends AbstractResolverCheck {
   }
 
   @Override
-  protected String getFilename() {
+  public String getFilename() {
     return RESOLVER_STATE_FILENAME;
   }
 

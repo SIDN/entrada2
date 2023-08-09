@@ -7,9 +7,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.worker.service.QueueService;
 
 @RestController
+@Slf4j
 @RequestMapping("/work")
 @ConditionalOnProperty( name = "entrada.mode", havingValue = "controller")
 public class WorkController implements BaseWork {
@@ -19,17 +21,19 @@ public class WorkController implements BaseWork {
 
 
   @Override
-  public ResponseEntity<Void> status(WorkResult result) {
+  public ResponseEntity<Void> status(long id, WorkResult result) {
+    log.info("Received work status: {}", result);
     
-    if(queueService.saveResult(result)) {
-      return new ResponseEntity<>(HttpStatus.OK);
-    }
+    queueService.saveResult(result);
+    return new ResponseEntity<>(HttpStatus.OK);
 
-    return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
   @Override
   public ResponseEntity<Work> work() {
+    if(log.isDebugEnabled()) {
+      log.debug("Received request for work");
+    }
     
     Optional<Work> ow = queueService.getWork();
     if(ow.isPresent()) {

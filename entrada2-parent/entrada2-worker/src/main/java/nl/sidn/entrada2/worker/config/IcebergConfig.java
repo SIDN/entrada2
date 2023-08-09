@@ -9,44 +9,46 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.types.Types.NestedField;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import nl.sidn.entrada2.worker.load.FieldEnum;
 
 @Configuration
 public class IcebergConfig {
-  
+
   @Value("${iceberg.catalog.url}")
   private String catalogUrl;
 
-  @Value("${iceberg.catalog.warehouse}")
+  @Value("${iceberg.warehouse_dir}")
   private String catalogWarehouse;
-  
-  @Value("${iceberg.catalog.endpoint}")
+
+  @Value("${iceberg.endpoint}")
   private String catalogEndpoint;
-  
-  @Value("${iceberg.catalog.access_key}")
+
+  @Value("${iceberg.access_key}")
   private String catalogAccessKey;
-  
-  @Value("${iceberg.catalog.secret_key}")
+
+  @Value("${iceberg.secret_key}")
   private String catalogSecretKey;
 
 
   @Bean
-  public Schema schema() {
+  Schema schema() {
     InputStream is = getClass().getResourceAsStream("/avro/dns-query.avsc");
 
     try {
-      org.apache.avro.Schema  avroSchema = new org.apache.avro.Schema.Parser().parse(is);
-      return AvroSchemaUtil.toIceberg(avroSchema);
+      org.apache.avro.Schema avroSchema = new org.apache.avro.Schema.Parser().parse(is);
+      return validatedSchema(AvroSchemaUtil.toIceberg(avroSchema));
     } catch (IOException e) {
       throw new RuntimeException("Error creating Avro schema", e);
-    }  
+    }
   }
-  
-  
+
+
   @Bean
-  public RESTCatalog catalog() {
+  RESTCatalog catalog() {
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
     properties.put(CatalogProperties.URI, catalogUrl);
@@ -61,7 +63,26 @@ public class IcebergConfig {
 
     catalog.initialize("entrada", properties);
     return catalog;
-    
-}
-  
+
+  }
+
+
+
+  private Schema validatedSchema(Schema schema) {
+    // check if schema fields match with the ordering used in FieldEnum
+    // this may happen when the schema is changed but the enum is forgotten.
+
+    for (NestedField field : schema.columns()) {
+
+      if (field.fieldId() != FieldEnum.valueOf(field.name()).ordinal()) {
+        throw new RuntimeException(
+            "Ordering of Avro schema field \"" + field.name() + "\" not correct, expected: "
+                + field.fieldId() + " found: " + FieldEnum.valueOf(field.name()).ordinal());
+      }
+    }
+
+    return schema;
+  }
+
+
 }

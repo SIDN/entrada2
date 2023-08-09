@@ -17,7 +17,7 @@
  * [<http://www.gnu.org/licenses/].
  *
  */
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @Component
 @Log4j2
-@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
+//@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public final class CloudFlareResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_STATE_FILENAME = "cloudflare-resolvers";
@@ -53,7 +53,7 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
   private int timeout;
 
   @Override
-  protected List<String> fetch() {
+  public List<String> fetch() {
 
     int timeoutInMillis = timeout * 1000;
     RequestConfig config = RequestConfig
@@ -68,7 +68,7 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
     process(client, urlV4, subnets);
     process(client, urlV6, subnets);
 
-    return subnets;
+   return subnets;
   }
 
 

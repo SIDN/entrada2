@@ -30,13 +30,13 @@ import nl.sidnlabs.pcap.packet.Packet;
 @AllArgsConstructor
 public class RowData {
 
-  public static final RowData NULL = new RowData(null, null, null, null, false);
+  public static final RowData NULL = new RowData(null, null, null, null);
 
   private Packet request;
   private Message requestMessage;
   private Packet response;
   private Message responseMessage;
-  // true if this packet has expired from cache
-  private boolean expired;
+  // false if this packet could not be matched
+ // private boolean match;
 
 }

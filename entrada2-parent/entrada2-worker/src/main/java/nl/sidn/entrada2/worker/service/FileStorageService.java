@@ -30,10 +30,9 @@ public class FileStorageService {
 
   @Autowired
   private FileInRepository fileRepository;
-
-
-  public boolean save(String server, String location, MultipartFile file) {
-    log.info("Save file: {}", file.getOriginalFilename());
+  
+  public FileIn save(String server, String location, MultipartFile file) {
+    log.info("Uploading file: {}", file.getOriginalFilename());
 
     int fileSize = -1;
     try {
@@ -48,8 +47,7 @@ public class FileStorageService {
           objectMetadata);
 
     } catch (Exception e) {
-
-      throw new RuntimeException(e.getMessage());
+      throw new RuntimeException("Error during uplouding to s3", e);
     }
 
     FileIn fin = FileIn.builder()
@@ -59,10 +57,7 @@ public class FileStorageService {
         .location(location)
         .size(fileSize)
         .build();
-    fileRepository.save(fin);
-
-    
-    return true;
+    return fileRepository.save(fin);
   }
 
   

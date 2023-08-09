@@ -6,10 +6,11 @@ import java.util.List;
 import org.apache.iceberg.data.GenericRecord;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.log4j.Log4j2;
-import nl.sidn.entrada2.worker.service.emrich.resolver.ResolverEnrichment;
 import nl.sidn.entrada2.worker.service.enrich.AddressEnrichment;
+import nl.sidn.entrada2.worker.service.enrich.resolver.ResolverEnrichment;
 
 @Log4j2
 public abstract class AbstractRowBuilder {
@@ -17,25 +18,18 @@ public abstract class AbstractRowBuilder {
   protected static final int STATUS_COUNT = 100000;
   private final static int CACHE_MAX_SIZE = 50000;
   private final static int ENRICHMENT_CACHE_MAX_SIZE = 50000;
+  
+  @Autowired
+  private List<AddressEnrichment> enrichments;
 
   @Value("${entrada.privacy.enabled:false}")
   protected boolean privacy;
   @Value("${management.metrics.export.graphite.enabled:true}")
   protected boolean metricsEnabled;
 
-  protected int counter;
-  private List<nl.sidn.entrada2.worker.service.enrich.AddressEnrichment> enrichments;
-  //protected ServerContext serverCtx;
-
-  protected int domainCacheHits;
-  protected int domainCacheInserted;
-
   protected Cache<String, String> domainCache;
 
   protected Cache<String, List<EnrichmentValue>> enrichmentCache;
-  protected int cacheHits;
-  protected int cacheInserts;
-
 
   public class EnrichmentValue {
 
@@ -50,30 +44,13 @@ public abstract class AbstractRowBuilder {
     public boolean resolver;
   }
 
-  public AbstractRowBuilder(List<AddressEnrichment> enrichments) {
-    this.enrichments = enrichments;
+  public AbstractRowBuilder() {
 
     domainCache = new Cache2kBuilder<String, String>() {}.entryCapacity(CACHE_MAX_SIZE).build();
     enrichmentCache = new Cache2kBuilder<String, List<EnrichmentValue>>() {}
         .entryCapacity(ENRICHMENT_CACHE_MAX_SIZE)
         .build();
   }
-
-//  public Schema schema(String schema) {
-//    if (avroSchema != null) {
-//      // use cached version of schema
-//      return avroSchema;
-//    }
-//
-//    try {
-//      Parser parser = new Schema.Parser().setValidate(true);
-//      avroSchema = parser.parse(new ClassPathResource(schema, getClass()).getInputStream());
-//    } catch (IOException e) {
-//      throw new RuntimeException("Cannot load schema from file: " + schema, e);
-//    }
-//
-//    return avroSchema;
-//  }
 
   /**
    * Enrich row based on IP address, use both String and InetAddress params tp prevent having to
@@ -84,7 +61,7 @@ public abstract class AbstractRowBuilder {
    * @param prefix
    * @param row
    */
-  protected boolean enrich(String address, InetAddress inetAddress, String prefix,
+  protected void enrich(String address, InetAddress inetAddress, String prefix,
       GenericRecord record, boolean skipResolvers) {
 
     List<EnrichmentValue> cached = enrichmentCache.peek(address);
@@ -98,7 +75,7 @@ public abstract class AbstractRowBuilder {
         record.setField(prefix + ev.name, ev.value);
       }
 
-      return true;
+      return;
     }
 
     // not cached, do lookups and cache results
@@ -123,51 +100,10 @@ public abstract class AbstractRowBuilder {
     }
 
     if (cached != null) {
-      cacheInserts++;
       enrichmentCache.put(address, cached);
     }
 
-    return false;
-  }
-
-  protected void showStatus() {
-    log.info(counter + " rows created.");
-    log.info(domainCacheHits + " domainname cache hits.");
-
-  }
-
-  //@Override
-  public void reset() {
-    counter = 0;
-    cacheHits = 0;
-    cacheInserts = 0;
-    domainCacheInserted = 0;
-    domainCacheHits = 0;
-  }
-
-  public void printStats() {
-    log.info("------------------ Row Builder stats ---------------------");
-    log.info("Rows: {}", counter);
-    log.info("Cache inserts (enrichment): {}", cacheInserts);
-    log.info("Cache inserts (enrichment): {}%", percent(cacheInserts, counter));
-
-    log.info("Cache hits (enrichment): {}", cacheHits);
-    log.info("Cache hits (enrichment): {}%", percent(cacheHits, counter));
-
-    log.info("Cache inserts (domain): {}", domainCacheInserted);
-    log.info("Cache inserts (domain): {}%", percent(domainCacheInserted, counter));
-
-    log.info("Cache hits (domain): {}", domainCacheHits);
-    log.info("Cache hits (domain): {}%", percent(domainCacheHits, counter));
-  }
-
-  private String percent(int frac, int total) {
-    if (total == 0) {
-      return "0";
-    }
-
-    return String.format("%.2f", ((double) frac / total) * 100.0);
-
+    return;
   }
 
 }

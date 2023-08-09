@@ -17,7 +17,7 @@
  * [<http://www.gnu.org/licenses/].
  *
  */
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,7 +44,7 @@ import lombok.extern.log4j.Log4j2;
 @Component
 @Log4j2
 @Setter
-@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
+//@ConditionalOnProperty( name = "entrada.mode", havingValue = "worker")
 public final class GoogleResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_STATE_FILENAME = "google-resolvers";
@@ -57,7 +57,7 @@ public final class GoogleResolverCheck extends AbstractResolverCheck {
 
 
   @Override
-  protected List<String> fetch() {
+  public List<String> fetch() {
 
     try {
       Lookup l =

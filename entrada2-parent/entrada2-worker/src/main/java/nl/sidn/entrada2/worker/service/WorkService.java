@@ -3,14 +3,12 @@ package nl.sidn.entrada2.worker.service;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -18,16 +16,16 @@ import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.worker.api.BaseWork;
 import nl.sidn.entrada2.worker.api.Work;
 import nl.sidn.entrada2.worker.api.WorkResult;
-import nl.sidn.entrada2.worker.client.WorkerClient;
 import nl.sidn.entrada2.worker.load.DNSRowBuilder;
 import nl.sidn.entrada2.worker.load.DnsMetricValues;
 import nl.sidn.entrada2.worker.load.PacketJoiner;
+import nl.sidn.entrada2.worker.metric.HistoricalMetricManager;
 import nl.sidn.entrada2.worker.util.CompressionUtil;
 import nl.sidnlabs.pcap.PcapReader;
 
 @Service
 @Slf4j
-public class PcapReaderService {
+public class WorkService {
 
   @Value("${entrada.inputstream.buffer:64}")
   private int bufferSizeConfig;
@@ -42,6 +40,8 @@ public class PcapReaderService {
   private DNSRowBuilder rowBuilder;
   @Autowired
   private BaseWork client;
+  @Autowired
+  private HistoricalMetricManager metrics;
 
   @Value("#{${entrada.worker.sleep:10}*1000}")
   private int sleepMillis;
@@ -63,7 +63,11 @@ public class PcapReaderService {
         long start = System.currentTimeMillis();
         long rows = process(w);
         long duration = System.currentTimeMillis() - start;
+        
+        log.info("Processed file: {} in {}ms", w.getName(), duration);
+        
         reportResults(w.getId(), rows, duration);
+        metrics.flush(w.getServer());
 
       } else {
         log.info("Received no work, feeling sleepy");
@@ -82,7 +86,9 @@ public class PcapReaderService {
         .time(duration)
         .build();
         
-    client.status(res);
+    log.info("Send work status: {}", res);
+    
+    client.status(id, res);
   }
 
   public void stop() {
@@ -113,14 +119,15 @@ public class PcapReaderService {
             Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, work.getServer(),
                 work.getLocation(), writer.newGenericRecord());
             writer.write(rowPair.getKey());
+            
+            //update metrics
+            metrics.update(rowPair.getValue());
 
           });
         });
 
         rowCount = writer.close();
       }
-      rowBuilder.reset();
-
     }
 
     return rowCount;

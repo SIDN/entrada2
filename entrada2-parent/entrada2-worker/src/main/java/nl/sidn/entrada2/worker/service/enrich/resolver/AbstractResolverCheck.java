@@ -17,28 +17,34 @@
  * [<http://www.gnu.org/licenses/].
  *
  */
-package nl.sidn.entrada2.worker.service.emrich.resolver;
+package nl.sidn.entrada2.worker.service.enrich.resolver;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.net.util.SubnetUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
+import com.google.common.base.Splitter;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import nl.sidn.entrada2.worker.service.S3FileService;
+import nl.sidn.entrada2.worker.service.enrich.geoip.MaxmindClient;
 
 @Log4j2
 @Getter
@@ -50,12 +56,30 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
   @Value("${resolver.match.cache.size:10000}")
   private int maxMatchCacheSize;
+  
+  @Autowired
+  protected S3FileService s3;
+
+  @Value("${aws.bucket}")
+  protected String bucket;
+
+  @Value("${aws.directory.reference}")
+  protected String directory;
+  
+  @Value("${entrada.mode}")
+  protected String mode;
 
   private BloomFilter<String> ipv4Filter;
 
   @PostConstruct
-  public void init() {
-    load();
+  public void load() {
+    if(StringUtils.equalsIgnoreCase(mode, "controller")) {
+      // only 1 controller will download data and save to s3
+       download();
+    }else {
+      //  only load data when running as worker
+      loadData();
+    }
   }
 
   private void createIpV4BloomFilter(List<String> subnets) {
@@ -86,25 +110,46 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
     log.info("Created IPv4 filter table with size: {}", ipv4Set.size());
   }
 
-//  private void update(File file) {
-//    // load new subnets from source
-//    List<String> subnets = fetch();
-//
-//    if (!subnets.isEmpty()) {
-//      // write subnets to file so we do not need to get them from source every time the app starts
-//      writeToFile(subnets, file);
-//    }
-//    log.info("Fetched {} resolver addresses from file: {}", subnets.size(), file);
-//  }
+  // private void update(File file) {
+  // // load new subnets from source
+  // List<String> subnets = fetch();
+  //
+  // if (!subnets.isEmpty()) {
+  // // write subnets to file so we do not need to get them from source every time the app starts
+  // writeToFile(subnets, file);
+  // }
+  // log.info("Fetched {} resolver addresses from file: {}", subnets.size(), file);
+  // }
 
-  private void load() {
-    List<String> lines = fetch();;
-//    try {
-//      lines = Files.readAllLines(file.toPath());
-//    } catch (Exception e) {
-//      log.error("Error while reading file: {}", file, e);
-//      return;
-//    }
+  @Override
+  public List<String> loadFromFile() {
+    
+    Optional<String> os = s3.readObectAsString(bucket, directory + "/" + getFilename());
+    if(os.isPresent()) {
+      return Splitter.on("\n").splitToList(os.get());
+   
+    }
+
+    return Collections.emptyList();
+
+  }
+
+  @Override
+  public void download() {
+    List<String> subnets = fetch();
+    s3.write(bucket, directory + "/" + getFilename(), Joiner.on("\n").join(subnets));
+    
+    // try {
+    // Files.write(file.toPath(), subnets, CREATE, TRUNCATE_EXISTING);
+    // } catch (IOException e) {
+    // log.error("Problem while writing to file: {}", file);
+    // }
+  }
+
+
+  private void loadData() {
+    List<String> lines = loadFromFile();
+
 
     createIpV4BloomFilter(lines);
 
@@ -138,36 +183,29 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
     return null;
   }
 
-  protected abstract List<String> fetch();
+  // protected abstract List<String> fetch();
 
-//  private boolean isFileAvailable(File file) {
-//    log.info("Load resolver addresses from file: " + file);
-//
-//    // if file does not exist or if it was not created today, then update resolvers ip's
-//    if (!file.exists()) {
-//      return false;
-//    }
-//
-//    Date lastModifiedDate = new Date(file.lastModified());
-//    Date currentDate = new Date();
-//
-//    if (!DateUtils.isSameDay(lastModifiedDate, currentDate)) {
-//      log.info("File {} is too old", file);
-//      return false;
-//    }
-//
-//    return true;
-//  }
+  // private boolean isFileAvailable(File file) {
+  // log.info("Load resolver addresses from file: " + file);
+  //
+  // // if file does not exist or if it was not created today, then update resolvers ip's
+  // if (!file.exists()) {
+  // return false;
+  // }
+  //
+  // Date lastModifiedDate = new Date(file.lastModified());
+  // Date currentDate = new Date();
+  //
+  // if (!DateUtils.isSameDay(lastModifiedDate, currentDate)) {
+  // log.info("File {} is too old", file);
+  // return false;
+  // }
+  //
+  // return true;
+  // }
 
-//  private void writeToFile(List<String> subnets, File file) {
-//    try {
-//      Files.write(file.toPath(), subnets, CREATE, TRUNCATE_EXISTING);
-//    } catch (IOException e) {
-//      log.error("Problem while writing to file: {}", file);
-//    }
-//  }
 
-  protected abstract String getFilename();
+  // protected abstract String getFilename();
 
 
   private boolean isIpv4(String address) {
@@ -215,18 +253,19 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
     return false;
   }
 
-  @Override
-  public int getMatcherCount() {
+  private int getMatcherCount() {
     return matchers4.size() + matchers6.size();
   }
 
-  @Override
-  public void done() {
-    if (log.isDebugEnabled()) {
-      log.debug("{} Clear match cache", getName());
-    }
+//  @Override
+//  public void done() {
+//    if (log.isDebugEnabled()) {
+//      log.debug("{} Clear match cache", getName());
+//    }
+//
+//    ipv4Filter = null;
+//  }
 
-    ipv4Filter = null;
-  }
+
 
 }
