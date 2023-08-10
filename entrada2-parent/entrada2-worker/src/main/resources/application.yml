@@ -59,6 +59,7 @@ logging:
 iceberg:
   catalog:
     url: 'http://localhost:8182'
+    token: 'secret_token_change_me_fast'
   bucket: 'testbucket1'
   warehouse_dir: 'warehouse'
   endpoint: 'http://localhost:9000'
