@@ -58,6 +58,12 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-kubernetes-client-all</artifactId>
+		</dependency>
+
+
+		<dependency>
 			<groupId>nl.sidnlabs</groupId>
 			<artifactId>pcap-lib</artifactId>
 			<version>0.2.22-SNAPSHOT</version>
@@ -191,6 +197,8 @@
 			<version>2.20.103</version>
 		</dependency>
 
+		<!-- hadoop not required but get ugly warning  with stacktrace during
+		startup, without hadoop -->
 		<dependency>
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-common</artifactId>

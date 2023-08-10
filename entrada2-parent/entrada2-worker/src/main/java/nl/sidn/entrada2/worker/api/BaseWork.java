@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import nl.sidn.entrada2.worker.api.data.Work;
+import nl.sidn.entrada2.worker.api.data.WorkResult;
 
 public interface BaseWork {
 

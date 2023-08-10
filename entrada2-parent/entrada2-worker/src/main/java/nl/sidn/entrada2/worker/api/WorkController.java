@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.worker.service.QueueService;
+import nl.sidn.entrada2.worker.api.data.Work;
+import nl.sidn.entrada2.worker.api.data.WorkResult;
+import nl.sidn.entrada2.worker.service.WorkQueueService;
 
 @RestController
 @Slf4j
@@ -17,7 +19,7 @@ import nl.sidn.entrada2.worker.service.QueueService;
 public class WorkController implements BaseWork {
 
   @Autowired
-  private QueueService queueService;
+  private WorkQueueService queueService;
 
 
   @Override

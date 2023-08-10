@@ -6,7 +6,7 @@ server:
 
 spring:
   application:
-    name: 'entrada-controller'
+    name: 'entrada-controller-service'
   flyway:
     enabled: true
   servlet:

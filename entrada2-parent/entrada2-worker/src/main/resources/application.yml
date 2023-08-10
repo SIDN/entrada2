@@ -6,10 +6,13 @@ entrada:
   worker:
     sleep: 10
   schedule:
-    geoip: 1
+    updater: 1
   security:
     token:
       admin: '94591089610224297274859827590711'
+      user: '58142669728959819749433125069815'
+  privacy:
+    enabled: true
   
 server:
  port: 8090
@@ -18,10 +21,13 @@ server:
 
 spring:
  application: 
-   name: 'entrada-worker'
+   name: 'entrada-worker-service'
  flyway:
    enabled: false
  cloud:
+   kubernetes:
+     reload:
+       enabled: true
    openfeign:
      client:
        config:
@@ -31,6 +37,8 @@ spring:
            loggerLevel: basic
          workerClient:
            url: 'http://client4.sidnlabs.nl:8091/api/v1/work'
+           defaultRequestHeaders:
+             'X-API-KEY': '${entrada.security.token.user}'
            dismiss404: true
          maxmindClient:
            url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
@@ -38,10 +46,15 @@ spring:
 
  autoconfigure:
    exclude: 'org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration'
+   
 
 #logging:
 #  level:
-#    nl.sidn.entrada2.worker.client: DEBUG
+#    root: DEBUG
+   
+logging:
+  level:
+    nl.sidn.entrada2.worker.client: DEBUG
  
 iceberg:
   catalog:

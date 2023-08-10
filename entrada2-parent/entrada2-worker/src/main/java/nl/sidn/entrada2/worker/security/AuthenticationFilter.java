@@ -1,7 +1,10 @@
 package nl.sidn.entrada2.worker.security;
 
 import java.io.IOException;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
@@ -16,23 +19,31 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
-@Order(1)
 public class AuthenticationFilter extends GenericFilterBean {
+
+//  @Autowired
+//  private AuthenticationService authService;
+  
+  @Value("${entrada.mode}")
+  protected String mode;
   
   @Autowired
-  private AuthenticationService authService;
+  private ApplicationContext ctx;
 
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
-    throws IOException, ServletException {
-      try {
-          Authentication authentication = authService.getAuthentication((HttpServletRequest) request);
-          SecurityContextHolder.getContext().setAuthentication(authentication);
-      } catch (BadCredentialsException exp) {
-          HttpServletResponse httpResponse = (HttpServletResponse) response;
-          httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      }
+      throws IOException, ServletException {
 
-      filterChain.doFilter(request, response);
+    if (StringUtils.equalsIgnoreCase(mode, "controller")) {
+      try {
+        Authentication authentication = ctx.getBean(AuthenticationService.class).getAuthentication((HttpServletRequest) request);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+      } catch (BadCredentialsException exp) {
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+        httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      }
+    }
+
+    filterChain.doFilter(request, response);
   }
 }

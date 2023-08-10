@@ -14,12 +14,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.worker.api.BaseWork;
-import nl.sidn.entrada2.worker.api.Work;
-import nl.sidn.entrada2.worker.api.WorkResult;
+import nl.sidn.entrada2.worker.api.data.Work;
+import nl.sidn.entrada2.worker.api.data.WorkResult;
 import nl.sidn.entrada2.worker.load.DNSRowBuilder;
 import nl.sidn.entrada2.worker.load.DnsMetricValues;
 import nl.sidn.entrada2.worker.load.PacketJoiner;
 import nl.sidn.entrada2.worker.metric.HistoricalMetricManager;
+import nl.sidn.entrada2.worker.service.StateService.APP_STATE;
 import nl.sidn.entrada2.worker.util.CompressionUtil;
 import nl.sidnlabs.pcap.PcapReader;
 
@@ -39,7 +40,7 @@ public class WorkService {
   @Autowired
   private DNSRowBuilder rowBuilder;
   @Autowired
-  private BaseWork client;
+  private BaseWork workClient;
   @Autowired
   private HistoricalMetricManager metrics;
 
@@ -47,31 +48,16 @@ public class WorkService {
   private int sleepMillis;
 
   private boolean keepRunning = true;
-
-
+ 
   @Async
   public CompletableFuture<Boolean> run() {
 
     while (keepRunning) {
-
-      ResponseEntity<Work> httpWork = client.work();
-      if (httpWork.getStatusCode().is2xxSuccessful()) {
-
-        Work w = httpWork.getBody();
-        log.info("Received work: {}", w);
-
-        long start = System.currentTimeMillis();
-        long rows = process(w);
-        long duration = System.currentTimeMillis() - start;
-        
-        log.info("Processed file: {} in {}ms", w.getName(), duration);
-        
-        reportResults(w.getId(), rows, duration);
-        metrics.flush(w.getServer());
-
-      } else {
-        log.info("Received no work, feeling sleepy");
-        // no work sleep for while before trying again
+      // make sure the loop never crashes otherwise processing stops
+      try {
+        workBatch();
+      }catch (Exception e) {
+        log.error("Error processing work", e);
         sleep();
       }
     }
@@ -79,16 +65,47 @@ public class WorkService {
     return CompletableFuture.completedFuture(Boolean.TRUE);
   }
   
-  private void reportResults(long id, long rows, long duration ) {
+  private void workBatch() {
+
+      ResponseEntity<Work> httpWork = workClient.work();
+
+      if (httpWork.getStatusCode().is2xxSuccessful()) {
+
+        Work w = httpWork.getBody();
+        log.info("Received work: {}", w);
+        
+        if(w.getState()== APP_STATE.STOPPED) {
+          // if stopped then do not perform work
+          log.debug("Worker is stopped");
+          sleep();
+          return;
+        }
+
+        long start = System.currentTimeMillis();
+        long rows = process(w);
+        long duration = System.currentTimeMillis() - start;
+
+        log.info("Processed file: {} in {}ms", w.getName(), duration);
+
+        reportResults(w.getId(), rows, duration);
+        metrics.flush(w.getServer());
+      }
+
+      log.info("Received no work, feeling sleepy");
+      // no work sleep for while before trying again
+      sleep();
+  }
+
+  private void reportResults(long id, long rows, long duration) {
     WorkResult res = WorkResult.builder()
         .id(id)
         .rows(rows)
         .time(duration)
         .build();
-        
+
     log.info("Send work status: {}", res);
-    
-    client.status(id, res);
+
+    workClient.status(id, res);
   }
 
   public void stop() {
@@ -106,7 +123,7 @@ public class WorkService {
 
 
   public long process(Work work) {
-    
+
     long rowCount = 0;
 
     Optional<InputStream> ois = s3FileService.read(work.getBucket(), work.getKey());
@@ -119,8 +136,8 @@ public class WorkService {
             Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, work.getServer(),
                 work.getLocation(), writer.newGenericRecord());
             writer.write(rowPair.getKey());
-            
-            //update metrics
+
+            // update metrics
             metrics.update(rowPair.getValue());
 
           });

@@ -8,7 +8,6 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import nl.sidn.entrada2.worker.security.AuthenticationFilter;
 
@@ -31,15 +30,6 @@ public class SecurityConfig {
         .anyRequest().authenticated()
     ).build();
 
-    //
-    //
-    // return http
-    // .addFilterAfter(authenticationFilter, BasicAuthenticationFilter.class)
-    // .csrf(AbstractHttpConfigurer::disable)
-    // .
-    // .hasRole("STAFF")
-    // .build();
-
   }
   
   @Bean
@@ -49,12 +39,5 @@ public class SecurityConfig {
       roleHierarchy.setHierarchy(hierarchy);
       return roleHierarchy;
   }
-  
-//  @Bean
-//  DefaultWebSecurityExpressionHandler webSecurityExpressionHandler() {
-//      DefaultWebSecurityExpressionHandler expressionHandler = new DefaultWebSecurityExpressionHandler();
-//      expressionHandler.setRoleHierarchy(roleHierarchy());
-//      return expressionHandler;
-//  }
 
 }

@@ -15,18 +15,18 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.worker.api.Work;
-import nl.sidn.entrada2.worker.api.WorkResult;
+import nl.sidn.entrada2.worker.api.data.Work;
+import nl.sidn.entrada2.worker.api.data.WorkResult;
 import nl.sidn.entrada2.worker.data.FileArchiveRepository;
 import nl.sidn.entrada2.worker.data.FileInRepository;
 import nl.sidn.entrada2.worker.data.model.FileArchive;
 import nl.sidn.entrada2.worker.data.model.FileIn;
+import nl.sidn.entrada2.worker.service.StateService.APP_STATE;
 
 @Service
 @Slf4j
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 @ConditionalOnProperty( name = "entrada.mode", havingValue = "controller")
-public class QueueService {
+public class WorkQueueService {
   
   @Value("${aws.endpoint}")
   private String endpoint;
@@ -42,12 +42,23 @@ public class QueueService {
 
   @Autowired
   private FileInRepository fileInRepository;
+  
+  @Autowired
+  private StateService stateService;
 
   private Queue<Work> workQueue = new ConcurrentLinkedQueue<>();
 
   public synchronized Optional<Work> getWork() {
+    
+    if(stateService.getState() != APP_STATE.RUNNING) {
+      // do nothing when not in running state except
+      // returning the state to the worker
+     return Optional.of(Work.builder().state(stateService.getState()).build());
+    }
 
     if (workQueue.isEmpty()) {
+      
+      log.debug("Work queue is empty load new work");
 
       Pageable pageable = PageRequest.of(0, 1000, Sort.by("created").ascending());
       fileInRepository.findByServedIsNull(pageable).forEach(row -> {
@@ -59,9 +70,12 @@ public class QueueService {
             .server(row.getServer())
             .location(row.getLocation())
             .size(row.getSize())
+            .state(stateService.getState())
             .build();
 
         workQueue.add(w);
+        
+        log.info("Work queue size after loading: {}", workQueue);
 
       });
 
@@ -75,13 +89,11 @@ public class QueueService {
         ofi.get().setServed(LocalDateTime.now());
         fileInRepository.save(ofi.get());
       });
-
+      return Optional.ofNullable(w);
     }
-
-    return Optional.ofNullable(w);
-
+    
+    return Optional.empty();
   }
-
   
   @Transactional
   public synchronized void saveResult(WorkResult result) {

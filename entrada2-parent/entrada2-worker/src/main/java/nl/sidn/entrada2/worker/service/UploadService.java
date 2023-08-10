@@ -17,7 +17,7 @@ import nl.sidn.entrada2.worker.data.model.FileIn;
 @Service
 @Slf4j
 @ConditionalOnProperty( name = "entrada.mode", havingValue = "controller")
-public class FileStorageService {
+public class UploadService {
   
   @Value("${aws.bucket}")
   private String bucket;

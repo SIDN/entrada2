@@ -10,15 +10,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import nl.sidn.entrada2.worker.data.model.FileIn;
-import nl.sidn.entrada2.worker.service.FileStorageService;
+import nl.sidn.entrada2.worker.service.UploadService;
 
 @RestController
 @ConditionalOnProperty(name = "entrada.mode", havingValue = "controller")
-public class FileController {
+public class UploadController {
 
 
   @Autowired
-  private FileStorageService fileStorageService;
+  private UploadService fileStorageService;
 
 
   @PostMapping(

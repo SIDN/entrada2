@@ -1,4 +1,4 @@
-package nl.sidn.entrada2.worker.api;
+package nl.sidn.entrada2.worker.api.data;
 
 import lombok.Builder;
 import lombok.Value;

@@ -184,12 +184,12 @@ public class HistoricalMetricManager {
    * the last timestamp value is used by graphite.
    */
   public void flush(String server) {
-    log.info("Flushing metrics to Graphite, size: {}", metricCache.size());
-
     if (!metricsEnabled) {
       // do nothing
       return;
     }
+    
+    log.info("Flushing metrics to Graphite, size: {}", metricCache.size());
 
     int oldSize = metricCache.size();
 

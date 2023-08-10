@@ -9,11 +9,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 public class ThreadConfig {
   
   @Bean
-  public Executor asyncExecutor() {
+  Executor taskExecutor() {
       ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-      executor.setCorePoolSize(3);
-      executor.setMaxPoolSize(3);
-      executor.setQueueCapacity(100);
+      executor.setCorePoolSize(10);
+      executor.setMaxPoolSize(10);
+      executor.setQueueCapacity(500);
       executor.setThreadNamePrefix("ENTRADA-worker-");
       executor.initialize();
       return executor;

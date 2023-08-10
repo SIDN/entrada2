@@ -7,23 +7,28 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import jakarta.servlet.http.HttpServletRequest;
 import nl.sidn.entrada2.worker.data.AuthTokenRepository;
 import nl.sidn.entrada2.worker.data.model.AuthToken;
 
-@Component
+@Service
+@ConditionalOnProperty(name = "entrada.mode", havingValue = "controller")
 public class AuthenticationService {
 
   private static final String AUTH_TOKEN_HEADER_NAME = "X-API-KEY";
 
   @Value("${entrada.security.token.admin}")
   private String adminToken;
+  
+  @Value("${entrada.security.token.user}")
+  private String userToken;
 
   @Autowired
   private AuthTokenRepository authRepository;
@@ -35,6 +40,10 @@ public class AuthenticationService {
 
       if (StringUtils.equals(apiKey, adminToken)) {
         return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
+      }
+      
+      if (StringUtils.equals(apiKey, userToken)) {
+        return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_USER"));
       }
 
       Optional<AuthToken> optAt = authRepository.findByToken(apiKey);
