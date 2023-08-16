@@ -1,0 +1,135 @@
+entrada:
+  parquet:
+   file:
+     max-size: 256
+  worker:
+    sleep: 10
+  schedule:
+    updater: 1
+  security:
+    token:
+      admin: '94591089610224297274859827590711'
+      user: '58142669728959819749433125069815'
+  privacy:
+    enabled: true
+  directory:
+    pcap: 'pcap'
+    reference: 'reference'
+  s3:
+    access-key: 'minio666'
+    secret-key: 'minio666'
+    region: 'eu-west-1'
+    endpoint: 'http://localhost:9000'
+    bucket: 'testbucket1'
+  
+server:
+ servlet:
+   contextPath: '/api/v1'
+
+spring:
+ application: 
+   name: 'entrada2'
+ flyway:
+   enabled: false
+ cloud:
+    bootstrap:
+      enabled: false
+    kubernetes:
+      config:
+        enabled: false
+      enabled: false
+      reload:
+        enabled: false
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+            loggerLevel: basic
+          workerClient:
+            # add entrada2-controller-service.entrada.svc.cluster.local to /etc/hosts for testing
+            url: 'http://entrada2-controller-service.entrada.svc.cluster.local:8091/api/v1'
+            defaultRequestHeaders:
+              'X-API-KEY': '${entrada.security.token.user}'
+            dismiss404: true
+          maxmindClient:
+            url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
+            dismiss404: false
+
+#logging:
+#  level:
+#    root: DEBUG
+   
+logging:
+  level:
+    nl.sidn.entrada2.worker.client: DEBUG
+ 
+iceberg:
+  catalog:
+    url: 'http://client4.sidnlabs.nl:8182'
+    token: 'secret_token_change_me_fast'
+  bucket: 'testbucket1'
+  warehouse_dir: 'warehouse'
+  endpoint: 'http://localhost:9000'
+  access_key: 'minio666'
+  secret_key: 'minio666'
+  compression: 'snappy'  
+  
+
+#########################
+#        Resolvers      #
+#########################
+
+# max size of the "IP address to resolver" match cache
+# keep cache because checking IP address is expensive
+# but must make sure not to use a giant cache and get out-of-memory error
+resolver:
+  match:
+    cache:
+      size: 10000
+  google:
+    hostname: 'locations.publicdns.goog.'
+    timeout: 15
+  opendns:
+    url: 'https://umbrella.cisco.com/why-umbrella/global-network-and-traffic'
+    timeout: 15
+  cloudflare:
+    url:
+      v4: 'https://www.cloudflare.com/ips-v4'
+      v6: 'https://www.cloudflare.com/ips-v6'
+      timeout: 15
+     
+
+  
+#########################
+#      MaxMind GeoIP    #
+#########################
+maxmind:
+ max-age: 24
+ license:
+   free:
+   paid:
+ country:
+   free: 'GeoLite2-Country'
+   paid: 'GeoIP2-Country'
+ asn:
+   free: 'GeoLite2-ASN'
+   paid: 'GeoIP2-ISP'
+     
+
+management:
+  graphite:
+    metrics:
+      export:
+        enabled: true
+        host: entrada-mon.sidnlabs.nl
+        port: 2003
+        protocol: 'Plaintext'
+        step: '1m'
+        tags-as-prefix: 'prefix'
+        prefix: 'entrada2-test' 
+  endpoints:
+    web:
+      exposure:
+        include: 'health,info,prometheus'

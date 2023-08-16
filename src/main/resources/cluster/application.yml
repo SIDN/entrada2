@@ -1,0 +1,125 @@
+---
+entrada:
+  db:
+    host: 'labs-db1.sidnlabs.nl'
+    name: 'entrada2'
+    user: 'entrada2'
+    password: 'Soz25jdvW6PuPGps'
+  parquet:
+   file:
+     max-size: 256
+  worker:
+    sleep: 10
+  schedule:
+    updater: 1
+  security:
+    token:
+      admin: '94591089610224297274859827590711'
+      user: '58142669728959819749433125069815'
+  privacy:
+    enabled: true
+  directory:
+    pcap: 'pcap'
+    reference: 'reference'
+  s3:
+    bucket: 'maarten-dev'
+    access-key: 'FnrCQc3JQXEM1OwAtrSg'
+    secret-key: 'dNITppQxnZbjIHs1AOejZuPDnNOG5emYHhbj5ar2'
+    region: 'eu-west-1'
+    endpoint: 'https://s3-lb.sidnlabs.nl:9000'
+    
+spring:
+  flyway:
+    enabled: false
+  servlet:
+    multipart:
+      max-file-size: '2GB'
+      max-request-size: '2GB'
+
+  datasource:
+    url: 'jdbc:postgresql://${entrada.db.host}:5432/${entrada.db.name}'
+    username: ${entrada.db.user}
+    password: ${entrada.db.password}
+
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+      dialect: 'org.hibernate.dialect.PostgreSQLDialect'
+
+  cloud:
+    bootstrap:
+      enabled: true
+    kubernetes:
+      config:
+        enabled: true
+      enabled: true
+      reload:
+        enabled: true
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+            loggerLevel: basic
+          workerClient:
+            url: 'http://entrada2-controller-service.entrada.svc.cluster.local:8091/api/v1'
+            defaultRequestHeaders:
+              'X-API-KEY': '${entrada.security.token.user}'
+            dismiss404: true
+          maxmindClient:
+            url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
+            dismiss404: false
+
+
+iceberg:
+  catalog:
+    url: 'https://iceberg-catalog.sidnlabs.nl'
+    token: 'secret-123'
+  bucket: 'maarten-dev'
+  warehouse_dir: 'warehouse'
+  endpoint: 'https://s3-lb.sidnlabs.nl:9000'
+  access_key: 'FnrCQc3JQXEM1OwAtrSg'
+  secret_key: 'dNITppQxnZbjIHs1AOejZuPDnNOG5emYHhbj5ar2'
+  compression: 'snappy'  
+
+
+maxmind:
+ max-age: 24
+ license:
+   paid: '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'
+
+management:
+  graphite:
+    metrics:
+      export:
+        enabled: true
+        host: entrada-mon.sidnlabs.nl
+        port: 2003
+        protocol: 'Plaintext'
+        step: '1m'
+        tags-as-prefix: 'prefix'
+        prefix: 'entrada2' 
+---
+
+spring:
+  profiles: controller 
+  flyway:
+    enabled: true
+    
+server:
+ port: 8091
+
+     
+---
+
+spring:
+  profiles: worker 
+  
+server:
+ port: 8090
+
+ 
