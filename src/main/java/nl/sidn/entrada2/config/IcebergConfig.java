@@ -8,6 +8,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
+import org.apache.iceberg.hadoop.HadoopMetricsContext;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.types.Types.NestedField;
@@ -62,9 +63,10 @@ public class IcebergConfig {
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, catalogSecretKey);
     properties.put(S3FileIOProperties.ACCESS_KEY_ID, catalogAccessKey);
     properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
-
+    
+    //properties.put(HadoopMetricsContext.SCHEME, "s3");
+    
     RESTCatalog catalog = new RESTCatalog();
-
     catalog.initialize("entrada", properties);
     return catalog;
 

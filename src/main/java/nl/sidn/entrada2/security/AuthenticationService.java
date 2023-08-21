@@ -19,18 +19,14 @@ import nl.sidn.entrada2.data.AuthTokenRepository;
 import nl.sidn.entrada2.data.model.AuthToken;
 
 @Service
-@Profile("controller")
 public class AuthenticationService {
 
   private static final String AUTH_TOKEN_HEADER_NAME = "X-API-KEY";
 
   @Value("${entrada.security.token.admin}")
   private String adminToken;
-  
-  @Value("${entrada.security.token.user}")
-  private String userToken;
 
-  @Autowired
+  @Autowired(required = false)
   private AuthTokenRepository authRepository;
 
 
@@ -42,17 +38,16 @@ public class AuthenticationService {
         return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
       }
       
-      if (StringUtils.equals(apiKey, userToken)) {
-        return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_USER"));
-      }
-
-      Optional<AuthToken> optAt = authRepository.findByToken(apiKey);
-      if (optAt.isEmpty() || !StringUtils.equals(apiKey, optAt.get().getToken())) {
-        throw new BadCredentialsException("Invalid API Key");
+      if(authRepository != null) {
+        // auth repo only works for controller, for worker need to use admintoken.
+        Optional<AuthToken> optAt = authRepository.findByToken(apiKey);
+        if (optAt.isPresent() && StringUtils.equals(apiKey, optAt.get().getToken())) {
+          return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_USER"));
+        }
       }
     }
 
-    return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_USER"));
+    throw new BadCredentialsException("Invalid API Key");
   }
   
   

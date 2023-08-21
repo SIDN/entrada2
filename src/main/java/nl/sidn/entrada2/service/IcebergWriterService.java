@@ -66,10 +66,12 @@ public class IcebergWriterService {
           .set("write.metadata.delete-after-commit.enabled", "true")
           .set("write.metadata.previous-versions-max", "50")
           .commit();
-      
-      this.table.replaceSortOrder()
-        .asc("domainname")
-        .commit();
+    
+      // Sort disabled as writer does not sort 
+      // enable again when writer supports sort
+//      this.table.replaceSortOrder()
+//        .asc("domainname")
+//        .commit();
     } else {
       this.table = catalog.loadTable(tableId);
     }

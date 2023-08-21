@@ -67,31 +67,24 @@ public class HistoricalMetricManager {
   public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT_SAMPLES = "tcp.rtt.handshake.samples";
 
 
-  @Value("${management.graphite.metrics.export.enabled:true}")
+  @Value("${entrada.metrics.enabled:true}")
   protected boolean metricsEnabled;
-
- // private int metricListCounter = 0;
+  
   private int metricCounter = 0;
 
   private Map<String, TreeMap<Long, Metric>> metricCache = new ConcurrentHashMap<>(1000);
 
-  @Value("${management.graphite.metrics.export.prefix}")
+  @Value("${entrada.metrics.graphite.prefix}")
   private String prefix;
 
-  @Value("${management.graphite.metrics.export.host}")
+  @Value("${entrada.metrics.graphite.host}")
   private String host;
 
-  @Value("${management.graphite.metrics.export.port}")
+  @Value("${entrada.metrics.graphite.port}")
   private int port;
 
-  @Value("${management.graphite.metrics.export.retention:60}")
-  private int retention;
-
- // private ServerContext settings;
-
-//  public HistoricalMetricManager(ServerContext settings) {
-//    this.settings = settings;
-//  }
+  @Value("${entrada.metrics.graphite.step:60}")
+  private int step;
 
   private String createMetricName(String metric, String server) {
     // replace dot in the server name with underscore otherwise graphite will assume nesting
@@ -104,10 +97,14 @@ public class HistoricalMetricManager {
         .append(StringUtils.defaultIfBlank(server.replaceAll("[^A-Za-z0-9]", "_"), "all"))
         .toString();
   }
+  
+  private boolean isMetricsEnabled() {
+    return metricsEnabled;
+  }
 
   public void update(DnsMetricValues dmv) {
 
-    if (!metricsEnabled || dmv == null) {
+    if (!isMetricsEnabled() || dmv == null) {
       // do nothing
       return;
     }
@@ -175,7 +172,7 @@ public class HistoricalMetricManager {
   private long roundToRetention(long millis) {
     // get retention from config
     long secs = (millis / 1000);
-    return secs - (secs % retention);
+    return secs - (secs % step);
   }
 
   /**
@@ -184,7 +181,7 @@ public class HistoricalMetricManager {
    * the last timestamp value is used by graphite.
    */
   public void flush(String server) {
-    if (!metricsEnabled) {
+    if (!isMetricsEnabled()) {
       // do nothing
       return;
     }

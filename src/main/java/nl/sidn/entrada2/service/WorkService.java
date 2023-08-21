@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.api.BaseWork;
@@ -51,14 +52,18 @@ public class WorkService {
 
   @Value("#{${entrada.worker.sleep:10}*1000}")
   private int sleepMillis;
+  
+  @Value("#{${entrada.worker.stalled:15}*60*1000}")
+  private int stalledMillis;
 
   private boolean keepRunning = true;
+  private long startOfWork;
   
-  private Counter workCounter;
+  private MeterRegistry meterRegistry;
   private Counter workErrorCounter;
   
   public WorkService(MeterRegistry meterRegistry) {
-    workCounter = meterRegistry.counter("worker.work.total");
+    this.meterRegistry = meterRegistry;
     workErrorCounter = meterRegistry.counter("worker.work.error");
   }
 
@@ -67,6 +72,7 @@ public class WorkService {
 
     while (keepRunning) {
       // make sure the loop never crashes otherwise processing stops
+      startOfWork = 0;
       try {
         workBatch();
       } catch (Exception e) {
@@ -95,13 +101,15 @@ public class WorkService {
         return;
       }
 
-      long start = System.currentTimeMillis();
+      startOfWork = System.currentTimeMillis();
       long rows = process(w);
-      long duration = System.currentTimeMillis() - start;
+      long duration = System.currentTimeMillis() - startOfWork;
+      // startOfWork is also use to check for stalled processing, reset after done with file
+      startOfWork = 0;
 
       log.info("Processed file: {} in {}ms", w.getName(), duration);
 
-      reportResults(w.getId(), rows, duration);
+      reportResults(w, rows, duration);
       metrics.flush(w.getServer());
     }
 
@@ -110,16 +118,24 @@ public class WorkService {
     sleep();
   }
 
-  private void reportResults(long id, long rows, long duration) {
+  private void reportResults(Work work, long rows, long duration) {
+    
+    Counter.builder("worker.work.files")
+    .tags("server", work.getServer())
+    .tags("location", work.getLocation())
+    .register(meterRegistry)
+    .increment();
+    
+    
     WorkResult res = WorkResult.builder()
-        .id(id)
+        .id(work.getId())
         .rows(rows)
         .time(duration)
         .build();
 
     log.info("Send work status: {}", res);
 
-    workClient.status(id, res);
+    workClient.status(work.getId(), res);
   }
 
   public void stop() {
@@ -135,6 +151,14 @@ public class WorkService {
   }
 
 
+
+  /**
+   * Check for stalled processing
+   * @return true when currently processing file for > entrada.worker.stalled
+   */
+  public boolean isStalled() {
+    return startOfWork > 0 && (System.currentTimeMillis() - startOfWork) > stalledMillis;
+  }
 
   public long process(Work work) {
 
@@ -165,10 +189,8 @@ public class WorkService {
       s3Service.tag(work.getBucket(), work.getKey(), tags);
     }
 
-    workCounter.increment();
     return rowCount;
   }
-
 
   private Optional<PcapReader> createReader(String file, InputStream is) {
 

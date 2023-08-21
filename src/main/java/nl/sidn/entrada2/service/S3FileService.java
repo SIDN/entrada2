@@ -131,7 +131,9 @@ public class S3FileService {
     int fileSize = -1;
     try {
 
-      log.info("Size of file: {}", file.getInputStream().available());
+      if(log.isDebugEnabled()) {
+        log.debug("Size of file: {}", file.getInputStream().available());
+      }
 
       ObjectMetadata objectMetadata = new ObjectMetadata();
       fileSize = file.getInputStream().available();

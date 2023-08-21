@@ -195,8 +195,6 @@
 			<version>2.20.103</version>
 		</dependency>
 
-		<!-- hadoop not required but get ugly warning  with stacktrace during
-		startup, without hadoop -->
 		<dependency>
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-common</artifactId>
@@ -238,6 +236,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.googlecode.java-ipv6</groupId>
+			<artifactId>java-ipv6</artifactId>
+			<version>0.17</version>
+			<scope>test</scope>
 		</dependency>
 
 	</dependencies>

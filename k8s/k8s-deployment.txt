@@ -36,3 +36,5 @@ Create service for controller, so worker can cannot to it
 create ingress for controller service, so external client can upload pcap
  set an annotation on your ingress like this: nginx.ingress.kubernetes.io/proxy-body-size: "0"
  
+
+ 

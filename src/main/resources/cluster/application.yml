@@ -15,9 +15,9 @@ entrada:
   security:
     token:
       admin: '94591089610224297274859827590711'
-      user: '58142669728959819749433125069815'
+      worker: 
   privacy:
-    enabled: true
+    enabled: false
   directory:
     pcap: 'pcap'
     reference: 'reference'
@@ -27,6 +27,15 @@ entrada:
     secret-key: 'dNITppQxnZbjIHs1AOejZuPDnNOG5emYHhbj5ar2'
     region: 'eu-west-1'
     endpoint: 'https://s3-lb.sidnlabs.nl:9000'
+  metrics:
+    enabled: true
+    graphite:
+      host: entrada-mon.sidnlabs.nl
+      port: 2003
+      protocol: 'Plaintext'
+      step: 60 # secs
+      tags-as-prefix: 'prefix'
+      prefix: 'entrada2-test'  
     
 spring:
   flyway:
@@ -68,7 +77,7 @@ spring:
           workerClient:
             url: 'http://entrada2-controller-service.entrada.svc.cluster.local:8091/api/v1'
             defaultRequestHeaders:
-              'X-API-KEY': '${entrada.security.token.user}'
+              'X-API-KEY': '${entrada.security.token.admin}'
             dismiss404: true
           maxmindClient:
             url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
@@ -92,17 +101,7 @@ maxmind:
  license:
    paid: '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'
 
-management:
-  graphite:
-    metrics:
-      export:
-        enabled: true
-        host: entrada-mon.sidnlabs.nl
-        port: 2003
-        protocol: 'Plaintext'
-        step: '1m'
-        tags-as-prefix: 'prefix'
-        prefix: 'entrada2' 
+
 ---
 
 spring:

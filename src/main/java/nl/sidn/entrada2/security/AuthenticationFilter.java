@@ -23,25 +23,29 @@ import jakarta.servlet.http.HttpServletResponse;
 public class AuthenticationFilter extends GenericFilterBean {
 
 
-  @Autowired
-  private Environment env;
+//  @Autowired
+//  private Environment env;
+  
+//  @Autowired
+//  private ApplicationContext ctx;
   
   @Autowired
-  private ApplicationContext ctx;
+  private AuthenticationService authenticationService;
 
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
       throws IOException, ServletException {
 
-    if (Arrays.stream(env.getActiveProfiles()).anyMatch( p -> StringUtils.equalsIgnoreCase(p,"controller"))) {
+    //if (Arrays.stream(env.getActiveProfiles()).anyMatch( p -> StringUtils.equalsIgnoreCase(p,"controller"))) {
       try {
-        Authentication authentication = ctx.getBean(AuthenticationService.class).getAuthentication((HttpServletRequest) request);
+       //Authentication authentication = ctx.getBean(AuthenticationService.class).getAuthentication((HttpServletRequest) request);
+        Authentication authentication = authenticationService.getAuthentication((HttpServletRequest) request);
         SecurityContextHolder.getContext().setAuthentication(authentication);
       } catch (BadCredentialsException exp) {
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       }
-    }
+    //}
 
     filterChain.doFilter(request, response);
   }

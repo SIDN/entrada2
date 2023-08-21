@@ -13,7 +13,7 @@ public class MicrometerConfig {
 
   @Bean
   MeterRegistryCustomizer<MeterRegistry> commonTags(
-      @Value("${management.graphite.metrics.export.prefix:entrada}") String prefix) {
+      @Value("${management.graphite.metrics.export.prefix:entrada2}") String prefix) {
     return r -> r.config().commonTags("prefix", StringUtils.trim(prefix));
   }
   

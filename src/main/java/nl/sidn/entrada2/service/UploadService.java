@@ -1,6 +1,8 @@
 package nl.sidn.entrada2.service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,20 +32,23 @@ public class UploadService {
   @Autowired
   private FileInRepository fileRepository;
   
-  private Counter fileCounter;
-  private Counter fileErrorCounter;
-  
-  public UploadService(MeterRegistry meterRegistry) {
-    fileCounter = meterRegistry.counter("controller.files.upload.total");
-    fileErrorCounter = meterRegistry.counter("controller.files.upload.error");
-  }
-  
+  @Autowired
+  private MeterRegistry meterRegistry;
+
   public Optional<FileIn> save(String server, String location, MultipartFile file) {
     log.info("Uploading file: {}", file.getOriginalFilename());
-    fileCounter.increment();
+    
+    Counter.builder("controlle.files.upload.total")
+    .tags("server", server)
+    .tags("location", location)
+    .register(meterRegistry)
+    .increment();
+
     
     String key = directory + "/" + file.getOriginalFilename();
     if(s3FileService.save(bucket, key, file)) {
+      Map<String, String> tags = Map.of("server", server, "location", location);
+      s3FileService.tag(bucket, key, tags);
       
       FileIn fin = FileIn.builder()
           .name(file.getOriginalFilename())
@@ -55,7 +60,12 @@ public class UploadService {
       return Optional.of(fileRepository.save(fin));
     }
     
-    fileErrorCounter.increment();
+    Counter.builder("controller.file.upload.error")
+    .tags("server", server)
+    .tags("location", location)
+    .register(meterRegistry)
+    .increment();
+
     return Optional.empty();
   }
 
