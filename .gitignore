@@ -4,6 +4,7 @@ target/
 .settings/
 .project
 .classpath
+.mvn/
 
 HELP.md
 target/
