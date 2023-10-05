@@ -1,12 +1,20 @@
 entrada:
   parquet:
    file:
+     # max Parquet filesize (mb)
      max-size: 256
   worker:
+    # how long to sleep when no work (secs)
     sleep: 10
-    stalled: 15
+    # if worker time processing pcap > x min, it is marked as stalled
+    stalled: 10
   schedule:
-    updater: 1
+    # update reference data every x min
+    updater: 60
+    # check for stalled worker every x min
+    liveness: 1
+    # check for new iceberg data files to commit every x min
+    iceberg-comitter: 1
   security:
     token:
       admin: '94591089610224297274859827590711'
@@ -53,8 +61,8 @@ spring:
       client:
         config:
           default:
-            connectTimeout: 5000
-            readTimeout: 5000
+            connectTimeout: 10000
+            readTimeout: 10000
             loggerLevel: basic
           workerClient:
             # add entrada2-controller-service.entrada.svc.cluster.local to /etc/hosts for testing
@@ -78,11 +86,11 @@ iceberg:
   catalog:
     url: 'http://client4.sidnlabs.nl:8182'
     token: 'secret_token_change_me_fast'
-  bucket: 'testbucket1'
-  warehouse_dir: 'warehouse'
-  endpoint: 'http://localhost:9000'
-  access_key: 'minio666'
-  secret_key: 'minio666'
+  bucket: '${entrada.s3.bucket}'
+  warehouse-dir: 'warehouse'
+  endpoint: '${entrada.s3.endpoint}'
+  access-key: '${entrada.s3.access-key}'
+  secret-key: '${entrada.s3.secret-key}'
   compression: 'snappy'  
   
 

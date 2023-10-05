@@ -1,6 +1,13 @@
 package nl.sidn.entrada2.service;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -26,57 +33,25 @@ import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
-public class IcebergWriterService {
-  
+public class IcebergService {
+
   @Value("#{${entrada.parquet.file.max-size:256} * 1024 * 1024}")
   private int maxFileSizeMegabyte;
-  
+
   @Value("${iceberg.compression}")
   private String compressionAlgo;
-  
+
   @Autowired
-  private Schema schema;
-  @Autowired
-  private RESTCatalog catalog;
-  
   private Table table;
-  private PartitionSpec spec;
+
   private GenericRecord genericRecord;
   private WrappedPartitionedFanoutWriter partitionedFanoutWriter;
+  
+  private BlockingQueue<DataFile> datafileQueue = new LinkedBlockingQueue<>();
 
   @PostConstruct
   public void initialize() {
-
-    this.spec = PartitionSpec.builderFor(schema)
-        .day("time", "day")
-        .identity("server")
-        .build();
-    
-    Namespace namespace = Namespace.of("entrada");
-    if (!catalog.namespaceExists(namespace)) {
-      catalog.createNamespace(namespace);
-    }
-
-    TableIdentifier tableId = TableIdentifier.of(namespace, "dns");
-    if (!catalog.tableExists(tableId)) {
-      this.table = catalog.createTable(tableId, schema, spec);
-      this.table
-          .updateProperties()
-          .set("write.parquet.compression-codec", compressionAlgo)
-          .set("write.metadata.delete-after-commit.enabled", "true")
-          .set("write.metadata.previous-versions-max", "50")
-          .commit();
-    
-      // Sort disabled as writer does not sort 
-      // enable again when writer supports sort
-//      this.table.replaceSortOrder()
-//        .asc("domainname")
-//        .commit();
-    } else {
-      this.table = catalog.loadTable(tableId);
-    }
-
-    this.genericRecord = GenericRecord.create(this.table.schema());
+    this.genericRecord = GenericRecord.create(table.schema());
   }
 
 
@@ -86,17 +61,20 @@ public class IcebergWriterService {
     // iceberg will not generate the partitioning metadata
     GenericAppenderFactory fileAppenderFactory =
         new GenericAppenderFactory(table.schema(), table.spec());
-    
+
     fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
     fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
     fileAppenderFactory.set("write.metadata.previous-versions-max", "50");
+    
+    fileAppenderFactory.set("http-client.urlconnection.socket-timeout-ms", "5000");
+    fileAppenderFactory.set("http-client.urlconnection.connection-timeout-ms", "5000");
 
 
     int partitionId = 1, taskId = 1;
     OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
         .format(FileFormat.PARQUET).build();
 
-    // the WrappedPartitionedFanoutWriter will create multiple partitions if data in the pcap is 
+    // the WrappedPartitionedFanoutWriter will create multiple partitions if data in the pcap is
     // for multiple days
     partitionedFanoutWriter =
         new WrappedPartitionedFanoutWriter(table, fileAppenderFactory, outputFileFactory);
@@ -121,23 +99,37 @@ public class IcebergWriterService {
     }
   }
 
-  public long close() {
-    long rows = 0;
-    
+  public List<DataFile> close() {
+
     try {
+      List<DataFile> files = Arrays.stream(partitionedFanoutWriter.dataFiles()).toList();
+      partitionedFanoutWriter = null;
+      return files;
+    } catch (Exception e) {
+      log.error("Creating datafiles failed", e);
+    }
+
+    return Collections.emptyList();
+  }
+
+  public void commit() {
+    
+    List<DataFile> dataFiles = new ArrayList<>();
+    while (!datafileQueue.isEmpty()) {
+      dataFiles.add(datafileQueue.poll());
+    }
+
+    if (!dataFiles.isEmpty()) {
+      log.info("Commit {} new datafiles", dataFiles.size());
+
       AppendFiles appendFiles = table.newAppend();
-      for (DataFile dataFile : partitionedFanoutWriter.dataFiles()) {
-        rows = rows + dataFile.recordCount();
+      for (DataFile dataFile : dataFiles) {
+        log.info("Add file: " + dataFile.path());
         appendFiles.appendFile(dataFile);
       }
+
       appendFiles.commit();
-    } catch (Exception e) {
-      log.error("Cannot add new data files to table",e);
-    }finally {
-      partitionedFanoutWriter = null;
     }
-    
-    return rows;
   }
 
 
@@ -145,6 +137,18 @@ public class IcebergWriterService {
     return genericRecord.copy();
   }
 
+  
+  public void addDataFile(DataFile f) {
+    try {
+      datafileQueue.put(f);
+    } catch (InterruptedException e) {
+      log.error("Adding datafile to commit queue failed",e);
+    }
+  }
+
+  public boolean isDataFileToCommit() {
+    return !datafileQueue.isEmpty();
+  }
 
   private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
 
@@ -153,12 +157,13 @@ public class IcebergWriterService {
 
     public WrappedPartitionedFanoutWriter(Table table, FileAppenderFactory appenderFactory,
         OutputFileFactory fileFactory) {
-      super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(), maxFileSizeMegabyte);
+      super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(),
+          maxFileSizeMegabyte);
 
       partitionKey = new PartitionKey(table.spec(), table.spec().schema());
-      
-      //need to use wrapper for conversion datetime/long see:
-      //https://github.com/apache/iceberg/issues/6510#issuecomment-1377570948
+
+      // need to use wrapper for conversion datetime/long see:
+      // https://github.com/apache/iceberg/issues/6510#issuecomment-1377570948
       wrapper = new InternalRecordWrapper(table.schema().asStruct());
     }
 
@@ -167,9 +172,9 @@ public class IcebergWriterService {
       partitionKey.partition(wrapper.wrap(record));
       return partitionKey;
     }
-
   }
- 
+  
+  
 
 }
 

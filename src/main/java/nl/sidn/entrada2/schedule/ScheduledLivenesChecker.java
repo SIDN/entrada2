@@ -1,6 +1,7 @@
 package nl.sidn.entrada2.schedule;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.LivenessState;
 import org.springframework.context.ApplicationContext;
@@ -17,6 +18,8 @@ public class ScheduledLivenesChecker {
   
   @Autowired
   private ApplicationContext ctx;
+  @Autowired
+  private ApplicationAvailability applicationAvailability;
   
   @Autowired
   private WorkService workService;
@@ -32,6 +35,11 @@ public class ScheduledLivenesChecker {
     if(workService.isStalled()) {
       log.error("Worker is stalled, change liveness state to broken");
       AvailabilityChangeEvent.publish(ctx, LivenessState.BROKEN);
+    }else {
+      // not stalled, flip if needed
+      if(applicationAvailability.getLivenessState() ==  LivenessState.BROKEN) {
+        AvailabilityChangeEvent.publish(ctx, LivenessState.CORRECT);
+      }
     }
   }
 

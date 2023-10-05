@@ -10,12 +10,13 @@ entrada:
      max-size: 256
   worker:
     sleep: 10
+    stalled: 15
   schedule:
-    updater: 1
+    updater: 60
+    iceberg-comitter: 1
   security:
     token:
       admin: '94591089610224297274859827590711'
-      worker: 
   privacy:
     enabled: false
   directory:
@@ -88,11 +89,11 @@ iceberg:
   catalog:
     url: 'https://iceberg-catalog.sidnlabs.nl'
     token: 'secret-123'
-  bucket: 'maarten-dev'
-  warehouse_dir: 'warehouse'
-  endpoint: 'https://s3-lb.sidnlabs.nl:9000'
-  access_key: 'FnrCQc3JQXEM1OwAtrSg'
-  secret_key: 'dNITppQxnZbjIHs1AOejZuPDnNOG5emYHhbj5ar2'
+  bucket: '${entrada.s3.bucket}'
+  warehouse-dir: 'warehouse'
+  endpoint: '${entrada.s3.endpoint}'
+  access-key: '${entrada.s3.access-key}'
+  secret-key: '${entrada.s3.secret-key}'
   compression: 'snappy'  
 
 
@@ -120,5 +121,11 @@ spring:
   
 server:
  port: 8090
+ 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
 
  

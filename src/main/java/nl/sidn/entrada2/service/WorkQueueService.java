@@ -1,9 +1,11 @@
 package nl.sidn.entrada2.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.apache.iceberg.DataFile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -65,8 +67,10 @@ public class WorkQueueService {
 
     if (workQueue.isEmpty()) {
 
-      log.debug("Work queue is empty load new work");
-
+      if(log.isDebugEnabled()){
+        log.debug("Work queue is empty load new work");
+      }
+      
       Pageable pageable = PageRequest.of(0, 1000, Sort.by("created").ascending());
       fileInRepository.findByServedIsNull(pageable).forEach(row -> {
         Work w = Work.builder()
@@ -81,11 +85,11 @@ public class WorkQueueService {
             .build();
 
         workQueue.add(w);
-
-        log.info("Work queue size after loading: {}", workQueue);
-
       });
 
+      if(log.isDebugEnabled()){
+        log.debug("Work queue size after loading: {}", workQueue.size());
+      }
     }
 
     Work w = workQueue.poll();
@@ -105,7 +109,7 @@ public class WorkQueueService {
   }
 
   @Transactional
-  public synchronized void saveResult(WorkResult result) {
+  public synchronized void saveResult(WorkResult result, long rows) {
 
     Optional<FileIn> ofi = fileInRepository.findById(Long.valueOf(result.getId()));
     if (ofi.isPresent()) {
@@ -114,7 +118,7 @@ public class WorkQueueService {
       FileArchive fa = FileArchive.fromFileIn(fi)
           .served(LocalDateTime.now())
           .processed(LocalDateTime.now())
-          .rows((int) result.getRows())
+          .rows((int) rows)
           .time((int) result.getTime())
           .build();
 
@@ -125,5 +129,4 @@ public class WorkQueueService {
 
   }
 
-  // TODO: check if served files timeout and not getting moved to archive
 }

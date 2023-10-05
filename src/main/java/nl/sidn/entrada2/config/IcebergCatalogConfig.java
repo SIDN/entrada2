@@ -18,21 +18,21 @@ import org.springframework.context.annotation.Configuration;
 import nl.sidn.entrada2.load.FieldEnum;
 
 @Configuration
-public class IcebergConfig {
+public class IcebergCatalogConfig {
 
   @Value("${iceberg.catalog.url}")
   private String catalogUrl;
 
-  @Value("${iceberg.warehouse_dir}")
+  @Value("${iceberg.warehouse-dir}")
   private String catalogWarehouse;
 
   @Value("${iceberg.endpoint}")
   private String catalogEndpoint;
 
-  @Value("${iceberg.access_key}")
+  @Value("${iceberg.access-key}")
   private String catalogAccessKey;
 
-  @Value("${iceberg.secret_key}")
+  @Value("${iceberg.secret-key}")
   private String catalogSecretKey;
   
   @Value("${iceberg.catalog.token}")
@@ -63,6 +63,9 @@ public class IcebergConfig {
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, catalogSecretKey);
     properties.put(S3FileIOProperties.ACCESS_KEY_ID, catalogAccessKey);
     properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+    
+    properties.put("http-client.urlconnection.socket-timeout-ms", "5000");
+    properties.put("http-client.urlconnection.connection-timeout-ms", "5000");
     
     //properties.put(HadoopMetricsContext.SCHEME, "s3");
     

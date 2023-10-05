@@ -13,17 +13,14 @@ import nl.sidn.entrada2.service.WorkService;
 @Profile("worker")
 public class StartupListener {
 
-
-  
   @Autowired
-  private WorkService pcapReaderService;
-  
+  private WorkService workService;
 
-  
   @EventListener
   public void onApplicationEvent(ContextRefreshedEvent event) {
-      log.info("Start worker thread");
-      pcapReaderService.run();
+
+    log.info("Start worker processing thread");
+    workService.run();
   }
-  
+
 }

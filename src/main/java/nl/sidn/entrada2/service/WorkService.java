@@ -5,18 +5,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.SerializationUtils;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.api.BaseWork;
@@ -42,7 +45,7 @@ public class WorkService {
   @Autowired
   private PacketJoiner joiner;
   @Autowired
-  private IcebergWriterService writer;
+  private IcebergService writer;
   @Autowired
   private DNSRowBuilder rowBuilder;
   @Autowired
@@ -52,16 +55,16 @@ public class WorkService {
 
   @Value("#{${entrada.worker.sleep:10}*1000}")
   private int sleepMillis;
-  
-  @Value("#{${entrada.worker.stalled:15}*60*1000}")
+
+  @Value("#{${entrada.worker.stalled:10}*60*1000}")
   private int stalledMillis;
 
   private boolean keepRunning = true;
   private long startOfWork;
-  
+
   private MeterRegistry meterRegistry;
   private Counter workErrorCounter;
-  
+
   public WorkService(MeterRegistry meterRegistry) {
     this.meterRegistry = meterRegistry;
     workErrorCounter = meterRegistry.counter("worker.work.error");
@@ -75,7 +78,7 @@ public class WorkService {
       startOfWork = 0;
       try {
         workBatch();
-      } catch (Exception e) {
+      } catch (Throwable e) {
         log.error("Error processing work", e);
         workErrorCounter.increment();
         sleep();
@@ -92,45 +95,56 @@ public class WorkService {
     if (httpWork.getStatusCode().is2xxSuccessful()) {
 
       Work w = httpWork.getBody();
-      log.info("Received work: {}", w);
-
       if (w.getState() == APP_STATE.STOPPED) {
         // if stopped then do not perform work
-        log.debug("Worker is stopped");
+        if(log.isDebugEnabled()) {
+          log.debug("Worker is stopped");
+        }
         sleep();
         return;
       }
+      
+      log.info("Received new work: {}", w);
 
       startOfWork = System.currentTimeMillis();
-      long rows = process(w);
+      List<DataFile> dataFiles = process(w);
       long duration = System.currentTimeMillis() - startOfWork;
       // startOfWork is also use to check for stalled processing, reset after done with file
       startOfWork = 0;
 
       log.info("Processed file: {} in {}ms", w.getName(), duration);
 
-      reportResults(w, rows, duration);
+      reportResults(w, dataFiles, duration);
       metrics.flush(w.getServer());
+    } else {
+      if(log.isDebugEnabled()) {
+        log.debug("Received no work, feeling sleepy");
+      }
+      // no work sleep for while before trying again
+      sleep();
     }
-
-    log.info("Received no work, feeling sleepy");
-    // no work sleep for while before trying again
-    sleep();
   }
 
-  private void reportResults(Work work, long rows, long duration) {
-    
+  private void reportResults(Work work, List<DataFile> dataFiles, long duration) {
+
     Counter.builder("worker.work.files")
-    .tags("server", work.getServer())
-    .tags("location", work.getLocation())
-    .register(meterRegistry)
-    .increment();
-    
-    
+        .tags("server", work.getServer())
+        .tags("location", work.getLocation())
+        .register(meterRegistry)
+        .increment();
+
+    List<byte[]> byteList = new ArrayList<byte[]>();
+    for (DataFile df : dataFiles) {
+      byteList.add(SerializationUtils.serialize(df));
+      log.info("Send datafile to controller for commit to table: {}", df.path());
+    }
+
     WorkResult res = WorkResult.builder()
         .id(work.getId())
-        .rows(rows)
+        .dataFiles(byteList)
         .time(duration)
+        .filename(work.getName())
+        .worker(System.getenv("HOSTNAME"))
         .build();
 
     log.info("Send work status: {}", res);
@@ -154,20 +168,22 @@ public class WorkService {
 
   /**
    * Check for stalled processing
+   * 
    * @return true when currently processing file for > entrada.worker.stalled
    */
   public boolean isStalled() {
     return startOfWork > 0 && (System.currentTimeMillis() - startOfWork) > stalledMillis;
   }
 
-  public long process(Work work) {
+  public List<DataFile> process(Work work) {
 
-    long rowCount = 0;
+    List<DataFile> datafiles = null;
 
     Optional<InputStream> ois = s3Service.read(work.getBucket(), work.getKey());
     if (ois.isPresent()) {
       Optional<PcapReader> oreader = createReader(work.getName(), ois.get());
       if (oreader.isPresent()) {
+
         oreader.get().stream().forEach(p -> {
 
           joiner.join(p).forEach(rd -> {
@@ -177,11 +193,34 @@ public class WorkService {
 
             // update metrics
             metrics.update(rowPair.getValue());
-
           });
         });
 
-        rowCount = writer.close();
+        if(log.isDebugEnabled()) {
+          log.debug("Extracted all data from file, now clear joiner cache");
+        }
+        
+        // clear joiner cache, unmatched queries will get rcode -1
+        joiner.clearCache().forEach(rd -> {
+          Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, work.getServer(),
+              work.getLocation(), writer.newGenericRecord());
+          writer.write(rowPair.getKey());
+
+          // update metrics
+          metrics.update(rowPair.getValue());
+        });
+
+        if(log.isDebugEnabled()) {
+          log.debug("Close parquet writer");
+        }  
+
+        datafiles = writer.close();
+        
+        if(log.isDebugEnabled()) {
+          log.debug("Close pcap reader");
+        }
+
+        oreader.get().close();
       }
 
       Map<String, String> tags = Map.of("process_ts",
@@ -189,7 +228,7 @@ public class WorkService {
       s3Service.tag(work.getBucket(), work.getKey(), tags);
     }
 
-    return rowCount;
+    return datafiles;
   }
 
   private Optional<PcapReader> createReader(String file, InputStream is) {

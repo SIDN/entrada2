@@ -229,7 +229,7 @@ public class PacketJoiner {
     this.requestCache = requestCache;
   }
   
-  private List<RowData> clearCache() {
+  public List<RowData> clearCache() {
     int purgeCounter = 0;
 
 
@@ -253,7 +253,7 @@ public class PacketJoiner {
       }
     }
     
-    log.info("Not matched query's with rcode -1 (no response/request): {}", Integer.valueOf(purgeCounter));
+    log.info("Could not match {} queries, these will be assigned rcode -1 (no response/request)", Integer.valueOf(purgeCounter));
 
     registry.counter("entrada.dns.packets.expired").increment(purgeCounter);
     requestCache.clear();

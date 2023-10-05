@@ -39,7 +39,7 @@ public class S3FileService {
       S3Object obj = amazonS3.getObject(bucket, key);
       return Optional.of(obj.getObjectContent());
     } catch (SdkClientException e) {
-      log.error("Errow file getting {} from bucket {}", key, bucket, e);
+      log.error("Error file getting {} from bucket {}", key, bucket, e);
       return Optional.empty();
     }
   }
@@ -50,7 +50,7 @@ public class S3FileService {
       return Optional.of(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
 
     } catch (Exception e) {
-      log.error("Errow file getting {} from bucket {}", key, bucket, e);
+      log.error("Error file getting {} from bucket {}", key, bucket, e);
     }
     return Optional.empty();
   }

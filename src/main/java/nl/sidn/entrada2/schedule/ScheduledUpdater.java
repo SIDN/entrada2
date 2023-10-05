@@ -20,7 +20,7 @@ public class ScheduledUpdater {
    * Check if reference data needs to be updated.
    * No need to do this during startup
    */
-  @Scheduled(initialDelayString = "#{${entrada.schedule.updater}*60*60*1000}", fixedDelayString = "#{${entrada.schedule.updater}*60*60*1000}")
+  @Scheduled(initialDelayString = "#{${entrada.schedule.updater}*60*1000}", fixedDelayString = "#{${entrada.schedule.updater}*60*1000}")
   public void execute() {
     geoIPService.load();
     resolverChecks.stream().forEach( c -> c.load());

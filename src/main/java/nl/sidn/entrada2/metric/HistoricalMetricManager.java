@@ -190,10 +190,12 @@ public class HistoricalMetricManager {
 
     int oldSize = metricCache.size();
 
-    metricCache
-        .entrySet()
-        .stream()
-        .forEach(e -> log.info("Metric: {}  datapoints: {}", e.getKey(), e.getValue().size()));
+    if(log.isDebugEnabled()) {
+      metricCache
+          .entrySet()
+          .stream()
+          .forEach(e -> log.debug("Metric: {}  datapoints: {}", e.getKey(), e.getValue().size()));
+    }
 
     GraphiteSender graphite = new Graphite(host, port);
     try {
@@ -219,10 +221,10 @@ public class HistoricalMetricManager {
 
     int newSize = metricCache.size();
 
-    log.info("-------------- Metrics Manager Stats ---------------------");
-    log.info("Metrics processed: {}", metricCounter);
-    log.info("Metrics count before flush: {}", oldSize);
-    log.info("Metrics count after flush: {}", newSize);
+    log.debug("-------------- Metrics Manager Stats ---------------------");
+    log.debug("Metrics processed: {}", metricCounter);
+    log.debug("Metrics count before flush: {}", oldSize);
+    log.debug("Metrics count after flush: {}", newSize);
   }
 
   public void clear() {
