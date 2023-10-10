@@ -2,7 +2,6 @@ package nl.sidn.entrada2.load;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.stereotype.Component;
@@ -11,13 +10,9 @@ import nl.sidnlabs.dnslib.message.Header;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.dnslib.message.Question;
 import nl.sidnlabs.dnslib.message.records.edns0.ClientSubnetOption;
-import nl.sidnlabs.dnslib.message.records.edns0.DNSSECOption;
+import nl.sidnlabs.dnslib.message.records.edns0.EDEOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDNS0Option;
-import nl.sidnlabs.dnslib.message.records.edns0.KeyTagOption;
-import nl.sidnlabs.dnslib.message.records.edns0.NSidOption;
 import nl.sidnlabs.dnslib.message.records.edns0.OPTResourceRecord;
-import nl.sidnlabs.dnslib.message.records.edns0.PaddingOption;
-import nl.sidnlabs.dnslib.message.records.edns0.PingOption;
 import nl.sidnlabs.dnslib.util.NameUtil;
 import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
@@ -70,7 +65,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
         record.set(FieldEnum.req_len.ordinal(), Integer.valueOf(reqMessage.getBytes()));
 
         // only add IP DF flag for server response packet
-        record.set(FieldEnum.req_ip_df.ordinal(), Boolean.valueOf(reqTransport.isDoNotFragment()));
+        record.set(FieldEnum.ip_req_df.ordinal(), Boolean.valueOf(reqTransport.isDoNotFragment()));
 
         if (reqTransport.getTcpHandshakeRTT() != -1) {
           // found tcp handshake info
@@ -89,14 +84,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
       record.set(FieldEnum.z.ordinal(), Boolean.valueOf(requestHeader.isZ()));
       record.set(FieldEnum.cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
       record.set(FieldEnum.qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
-      record.set(FieldEnum.q_tc.ordinal(), Boolean.valueOf(requestHeader.isTc()));
-      record.set(FieldEnum.q_ra.ordinal(), Boolean.valueOf(requestHeader.isRa()));
-      record.set(FieldEnum.q_ad.ordinal(), Boolean.valueOf(requestHeader.isAd()));
+      record.set(FieldEnum.query_f_tc.ordinal(), Boolean.valueOf(requestHeader.isTc()));
+      record.set(FieldEnum.query_f_ra.ordinal(), Boolean.valueOf(requestHeader.isRa()));
+      record.set(FieldEnum.query_f_ad.ordinal(), Boolean.valueOf(requestHeader.isAd()));
 
       // ip fragments in the request
       if (reqTransport.isFragmented()) {
         record
-            .set(FieldEnum.frag.ordinal(), Integer.valueOf(reqTransport.getReassembledFragments()));
+            .set(FieldEnum.ip_frag.ordinal(), Integer.valueOf(reqTransport.getReassembledFragments()));
       }
 
       if (metricsEnabled) {
@@ -124,7 +119,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
         record.set(FieldEnum.res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 
         // only add IP DF flag for server response packet
-        record.set(FieldEnum.res_ip_df.ordinal(), Boolean.valueOf(rspTransport.isDoNotFragment()));
+        record.set(FieldEnum.ip_res_df.ordinal(), Boolean.valueOf(rspTransport.isDoNotFragment()));
 
         // these are the values that are retrieved from the response
         rcode = responseHeader.getRawRcode();
@@ -141,11 +136,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
         // ip fragments in the response
         if (rspTransport.isFragmented()) {
           int frags = rspTransport.getReassembledFragments();
-          record.set(FieldEnum.resp_frag.ordinal(), Integer.valueOf(frags));
+          record.set(FieldEnum.ip_resp_frag.ordinal(), Integer.valueOf(frags));
         }
 
         // EDNS0 for response
         writeResponseOptions(rspMessage, record);
+        
         if (metricsEnabled) {
           metricsBuilder.dnsResponse(true);
 
@@ -260,10 +256,9 @@ public class DNSRowBuilder extends AbstractRowBuilder {
     OPTResourceRecord opt = message.getPseudo();
     if (opt != null) {
       for (EDNS0Option option : opt.getOptions()) {
-        if (option instanceof NSidOption) {
-          String id = ((NSidOption) option).getId();
-          record.set(FieldEnum.edns_nsid.ordinal(), id != null ? id : "");
-
+        if (option instanceof EDEOption) {
+          int code = ((EDEOption) option).getCode();
+          record.set(FieldEnum.edns_ext_error.ordinal(), code);
           // this is the only server edns data we support, stop processing other options
           break;
         }
@@ -280,26 +275,30 @@ public class DNSRowBuilder extends AbstractRowBuilder {
    */
   private void writeRequestOptions(Message message, GenericRecord record) {
 
+    
     OPTResourceRecord opt = message.getPseudo();
     if (opt != null) {
-
+      List<Integer> ednsOptions = new ArrayList<>();
       record.set(FieldEnum.edns_udp.ordinal(), Integer.valueOf(opt.getUdpPlayloadSize()));
       record.set(FieldEnum.edns_version.ordinal(), Integer.valueOf(opt.getVersion()));
       record.set(FieldEnum.edns_do.ordinal(), Boolean.valueOf(opt.isDnssecDo()));
 
-      List<Integer> otherEdnsOptions = null;
+     
       for (EDNS0Option option : opt.getOptions()) {
-        if (option instanceof PingOption) {
-          record.set(FieldEnum.edns_ping.ordinal(), Boolean.TRUE);
-        } else if (option instanceof DNSSECOption) {
-          if (option.getCode() == DNSSECOption.OPTION_CODE_DAU) {
-            record.set(FieldEnum.edns_dnssec_dau.ordinal(), ((DNSSECOption) option).export());
-          } else if (option.getCode() == DNSSECOption.OPTION_CODE_DHU) {
-            record.set(FieldEnum.edns_dnssec_dhu.ordinal(), ((DNSSECOption) option).export());
-          } else { // N3U
-            record.set(FieldEnum.edns_dnssec_n3u.ordinal(), ((DNSSECOption) option).export());
-          }
-        } else if (option instanceof ClientSubnetOption) {
+        
+        ednsOptions.add(option.getCode());
+//        if (option instanceof PingOption) {
+//          record.set(FieldEnum.edns_ping.ordinal(), Boolean.TRUE);
+//        } else if (option instanceof DNSSECOption) {
+//          if (option.getCode() == DNSSECOption.OPTION_CODE_DAU) {
+//            record.set(FieldEnum.edns_dnssec_dau.ordinal(), ((DNSSECOption) option).export());
+//          } else if (option.getCode() == DNSSECOption.OPTION_CODE_DHU) {
+//            record.set(FieldEnum.edns_dnssec_dhu.ordinal(), ((DNSSECOption) option).export());
+//          } else { // N3U
+//            record.set(FieldEnum.edns_dnssec_n3u.ordinal(), ((DNSSECOption) option).export());
+//          }
+//        } else
+          if (option instanceof ClientSubnetOption) {
           ClientSubnetOption scOption = (ClientSubnetOption) option;
           // get client country and asn
 
@@ -309,51 +308,56 @@ public class DNSRowBuilder extends AbstractRowBuilder {
           }
 
           if (!privacy) {
-            record.set(FieldEnum.edns_client_subnet.ordinal(), scOption.export());
+            record.set(FieldEnum.edns_client_subnet.ordinal(), scOption.getAddress() + "/" + scOption.getSourcenetmask());
           }
 
-
-        } else if (option instanceof PaddingOption) {
-          record
-              .set(FieldEnum.edns_padding.ordinal(),
-                  Integer.valueOf(((PaddingOption) option).getLength()));
-        } else if (option instanceof KeyTagOption) {
-          KeyTagOption kto = (KeyTagOption) option;
-          record
-              .set(FieldEnum.edns_keytag_count.ordinal(), Integer.valueOf(kto.getKeytags().size()));
-
-          if (!kto.getKeytags().isEmpty()) {
-            record
-                .set(FieldEnum.edns_keytag_list.ordinal(),
-                    kto
-                        .getKeytags()
-                        .stream()
-                        .map(Object::toString)
-                        .collect(Collectors.joining(",")));
-          }
-        } else {
-          // other
-          if (otherEdnsOptions == null) {
-            otherEdnsOptions = new ArrayList<>();
-          }
-          otherEdnsOptions.add(Integer.valueOf(option.getCode()));
-        }
+//        } else if (option instanceof PaddingOption) {
+//          record
+//              .set(FieldEnum.edns_padding.ordinal(),
+//                  Integer.valueOf(((PaddingOption) option).getLength()));
+//        } else if (option instanceof KeyTagOption) {
+//          KeyTagOption kto = (KeyTagOption) option;
+//          record
+//              .set(FieldEnum.edns_keytag_count.ordinal(), Integer.valueOf(kto.getKeytags().size()));
+//
+//          if (!kto.getKeytags().isEmpty()) {
+//            record
+//                .set(FieldEnum.edns_keytag_list.ordinal(),
+//                    kto
+//                        .getKeytags()
+//                        .stream()
+//                        .map(Object::toString)
+//                        .collect(Collectors.joining(",")));
+//          }
+//        }
+//        else {
+//          // other
+//          if (otherEdnsOptions == null) {
+//            otherEdnsOptions = new ArrayList<>();
+//          }
+//          otherEdnsOptions.add(Integer.valueOf(option.getCode()));
+//        }
+         }
       }
-
-      if (otherEdnsOptions != null && !otherEdnsOptions.isEmpty()) {
-        if (otherEdnsOptions.size() == 1) {
-          record.set(FieldEnum.edns_other.ordinal(), otherEdnsOptions.get(0).toString());
-        } else {
-          StringBuilder sb = new StringBuilder();
-          for (Integer option : otherEdnsOptions) {
-            sb.append(option.toString());
-          }
-
-          record.set(FieldEnum.edns_other.ordinal(), sb.toString());
-        }
-
-      }
+//      if (!ednsOptions.isEmpty()) {
+//       // if (otherEdnsOptions.size() == 1) {
+//          record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
+////        } else {
+////          StringBuilder sb = new StringBuilder();
+////          for (Integer option : otherEdnsOptions) {
+////            sb.append(option.toString());
+////          }
+////
+////          record.set(FieldEnum.edns_other.ordinal(), sb.toString());
+////        }
+//
+//      }
+      
+      record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
     }
+    
+    
+
   }
 
 }

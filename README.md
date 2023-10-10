@@ -9,8 +9,8 @@ Use spring-boot:build-image target to build the Docker image and then tag and pu
 
 ```
 ./mvnw spring-boot:build-image
-docker tag entrada2:0.0.1-SNAPSHOT sidnlabs/entrada2:latest
-docker push sidnlabs/entrada2:latest
+docker tag entrada2:0.0.1-SNAPSHOT sidnlabs/entrada2:0.0.1-SNAPSHOT
+docker push sidnlabs/entrada2:0.0.1-SNAPSHOT
 ```
 
 

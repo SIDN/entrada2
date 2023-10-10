@@ -3,6 +3,9 @@ entrada:
    file:
      # max Parquet filesize (mb)
      max-size: 256
+  table:
+    sorting:
+      enabled: false #sort increases resource usage on servers
   worker:
     # how long to sleep when no work (secs)
     sleep: 10
@@ -15,6 +18,11 @@ entrada:
     liveness: 1
     # check for new iceberg data files to commit every x min
     iceberg-comitter: 1
+     # check for files being stuck in served state every x min
+    input-monitor: 1
+  input:
+    # if a input file takes > max-proc-time (min) to process, it is considered stuck/failed
+    max-proc-time: 1
   security:
     token:
       admin: '94591089610224297274859827590711'

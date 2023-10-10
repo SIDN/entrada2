@@ -57,7 +57,7 @@ public class WorkService {
   private int sleepMillis;
 
   @Value("#{${entrada.worker.stalled:10}*60*1000}")
-  private int stalledMillis;
+  private int stalledMillis; 
 
   private boolean keepRunning = true;
   private long startOfWork;

@@ -36,6 +36,9 @@ public class WorkQueueService {
 
   @Value("${entrada.directory.pcap}")
   private String directory;
+  
+  @Value("#{${entrada.input.max-proc-time:10}*60}")
+  private int maxProcTimeSecs;
 
   @Autowired
   private FileArchiveRepository fileArchiveRepository;
@@ -50,11 +53,13 @@ public class WorkQueueService {
 
   private Gauge queueGauge;
   private Counter workServedCounter;
+  private Counter expireCounter;
 
   public WorkQueueService(MeterRegistry meterRegistry) {
     queueGauge =
         Gauge.builder("controller.queue.size", workQueue, q -> q.size()).register(meterRegistry);
-    workServedCounter =meterRegistry.counter("controller.worked.served.total");
+    workServedCounter = meterRegistry.counter("controller.served.total");
+    expireCounter = meterRegistry.counter("controller.expired.total");
   }
 
   public synchronized Optional<Work> getWork() {
@@ -102,6 +107,8 @@ public class WorkQueueService {
       });
       
       workServedCounter.increment();
+      
+      log.info("Serving work: {}", w);
       return Optional.ofNullable(w);
     }
 
@@ -127,6 +134,13 @@ public class WorkQueueService {
 
     }
 
+  }
+
+  @Transactional
+  public int resetExpired() {   
+    int rows = fileInRepository.resetExpired(LocalDateTime.now().minusSeconds(maxProcTimeSecs));  
+    expireCounter.increment(rows);
+    return rows;
   }
 
 }

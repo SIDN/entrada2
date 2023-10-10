@@ -65,10 +65,6 @@ public class IcebergService {
     fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
     fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
     fileAppenderFactory.set("write.metadata.previous-versions-max", "50");
-    
-    fileAppenderFactory.set("http-client.urlconnection.socket-timeout-ms", "5000");
-    fileAppenderFactory.set("http-client.urlconnection.connection-timeout-ms", "5000");
-
 
     int partitionId = 1, taskId = 1;
     OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
@@ -95,7 +91,7 @@ public class IcebergService {
     try {
       partitionedFanoutWriter.write(record);
     } catch (Exception e) {
-      log.error("Error writing row: {}", record);
+      log.error("Error writing row: {}", record,e);
     }
   }
 

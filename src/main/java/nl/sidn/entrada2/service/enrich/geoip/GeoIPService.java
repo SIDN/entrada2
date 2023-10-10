@@ -65,15 +65,23 @@ public class GeoIPService extends AbstractMaxmind {
 
   @Autowired
   private Environment env;
+  
+  private boolean needUpdate;
 
+  public void update() {
+    // only set update flag to to, let processing thread do the actual update
+    // action to prevent thread conflicts
+    needUpdate = true;
+  }
+  
   @PostConstruct
   public void load() {
     
-    if(Arrays.stream(env.getActiveProfiles()).anyMatch( p -> StringUtils.equalsIgnoreCase(p,"controller"))) {
+    if(env.acceptsProfiles(org.springframework.core.env.Profiles.of("controller"))) {
       // only 1 controller will download data and save to s3
       downloadWhenRequired();
     }else {
-      //  only load data when running as worker
+      //  only load data from s3 when running as worker
       geoReader = loadDatabase(DB_TYPE.COUNTRY).get();
       asnReader = loadDatabase(DB_TYPE.ASN).get();
       
@@ -82,7 +90,7 @@ public class GeoIPService extends AbstractMaxmind {
     }
   }
   
-  public void downloadWhenRequired() {
+  private void downloadWhenRequired() {
     s3Databases = s3FileService.ls(bucket, directory);
     
     for(Pair<String, LocalDateTime> db: s3Databases) {
@@ -121,6 +129,12 @@ public class GeoIPService extends AbstractMaxmind {
 
   
   public Optional<CountryResponse> lookupCountry(InetAddress ip) {
+    
+    if(needUpdate) {
+      load();
+      needUpdate = false;
+    }
+    
     try {
       return geoReader.tryCountry(ip);
     } catch (Exception e) {
@@ -131,6 +145,12 @@ public class GeoIPService extends AbstractMaxmind {
 
 
   public Optional<? extends AsnResponse> lookupASN(InetAddress ip) {
+    
+    if(needUpdate) {
+      load();
+      needUpdate = false;
+    }
+    
     try {
       if (usePaidVersion) {
         // paid version returns IspResponse
@@ -147,8 +167,7 @@ public class GeoIPService extends AbstractMaxmind {
     return Optional.empty();
   }
   
-  //@PostConstruct
-  public void download() {
+  private void download() {
 
     if (StringUtils.isBlank(licenseKeyFree) && StringUtils.isBlank(licenseKeyPaid)) {
       throw new RuntimeException(

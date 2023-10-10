@@ -71,6 +71,8 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
   
   @Autowired
   private Environment env;
+  
+  private boolean needToReload;
 
   @PostConstruct
   public void load() {
@@ -79,7 +81,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
        download();
     }else {
       //  only load data when running as worker
-      loadData();
+      needToReload = true;
     }
   }
 
@@ -111,17 +113,6 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
     log.info("Created IPv4 filter table with size: {}", ipv4Set.size());
   }
 
-  // private void update(File file) {
-  // // load new subnets from source
-  // List<String> subnets = fetch();
-  //
-  // if (!subnets.isEmpty()) {
-  // // write subnets to file so we do not need to get them from source every time the app starts
-  // writeToFile(subnets, file);
-  // }
-  // log.info("Fetched {} resolver addresses from file: {}", subnets.size(), file);
-  // }
-
   @Override
   public List<String> loadFromFile() {
     
@@ -139,12 +130,6 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
   public void download() {
     List<String> subnets = fetch();
     s3.write(bucket, directory + "/" + getFilename(), Joiner.on("\n").join(subnets));
-    
-    // try {
-    // Files.write(file.toPath(), subnets, CREATE, TRUNCATE_EXISTING);
-    // } catch (IOException e) {
-    // log.error("Problem while writing to file: {}", file);
-    // }
   }
 
 
@@ -184,31 +169,6 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
     return null;
   }
 
-  // protected abstract List<String> fetch();
-
-  // private boolean isFileAvailable(File file) {
-  // log.info("Load resolver addresses from file: " + file);
-  //
-  // // if file does not exist or if it was not created today, then update resolvers ip's
-  // if (!file.exists()) {
-  // return false;
-  // }
-  //
-  // Date lastModifiedDate = new Date(file.lastModified());
-  // Date currentDate = new Date();
-  //
-  // if (!DateUtils.isSameDay(lastModifiedDate, currentDate)) {
-  // log.info("File {} is too old", file);
-  // return false;
-  // }
-  //
-  // return true;
-  // }
-
-
-  // protected abstract String getFilename();
-
-
   private boolean isIpv4(String address) {
     return address.indexOf('.') != -1;
   }
@@ -219,6 +179,12 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
   @Override
   public boolean match(String address, InetAddress inetAddress) {
+    
+    if(needToReload) {
+      // reload inline to prevent concurrent mopdification exception
+      loadData();
+      needToReload = false;
+    }
 
     if (isIpv4(address)) {
       // do v4 check only
@@ -257,16 +223,6 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
   private int getMatcherCount() {
     return matchers4.size() + matchers6.size();
   }
-
-//  @Override
-//  public void done() {
-//    if (log.isDebugEnabled()) {
-//      log.debug("{} Clear match cache", getName());
-//    }
-//
-//    ipv4Filter = null;
-//  }
-
 
 
 }
