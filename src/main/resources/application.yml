@@ -3,9 +3,6 @@ entrada:
    file:
      # max Parquet filesize (mb)
      max-size: 256
-  table:
-    sorting:
-      enabled: false #sort increases resource usage on servers
   worker:
     # how long to sleep when no work (secs)
     sleep: 10
@@ -45,7 +42,31 @@ entrada:
       protocol: 'Plaintext'
       step: 60 # secs
       tags-as-prefix: 'prefix'
-      prefix: 'entrada2-test'  
+      prefix: 'entrada2-test'
+    data:
+      input:
+	      - name: s3 input provider 1
+	        access-key: 'minio666'
+	        secret-key: 'minio666'
+	        region: 'eu-west-1'
+	        endpoint: 'http://localhost:9000'
+	        bucket: 'test-input-bucket-1'
+	      - name: s3 input provider 2
+	        access-key: 'minio666'
+	        secret-key: 'minio666'
+	        region: 'eu-west-1'
+	        endpoint: 'http://localhost:9000'
+	        bucket: 'test-input-bucket-2'
+	    output:
+	      name: s3 output location
+        access-key: 'minio666'
+        secret-key: 'minio666'
+        region: 'eu-west-1'
+        endpoint: 'http://localhost:9000'
+        bucket: 'test-output-bucket'
+	    
+	     
+        
   
 server:
  servlet:
@@ -99,7 +120,16 @@ iceberg:
   endpoint: '${entrada.s3.endpoint}'
   access-key: '${entrada.s3.access-key}'
   secret-key: '${entrada.s3.secret-key}'
-  compression: 'snappy'  
+  compression: 'snappy'
+  metadata:
+    version:
+      max: 50
+  table:
+    namespace: 'entrada2'
+    name: 'dns'
+    location: 's3://testbucket1/entrada2'
+    sorting:
+      enabled: false #sort increases resource usage on servers
   
 
 #########################

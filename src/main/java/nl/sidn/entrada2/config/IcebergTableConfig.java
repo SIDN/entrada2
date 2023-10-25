@@ -1,5 +1,7 @@
 package nl.sidn.entrada2.config;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -23,6 +25,14 @@ public class IcebergTableConfig {
   private String compressionAlgo;
   @Value("${iceberg.table.sorting.enabled:false}")
   private boolean enableSorting;
+  @Value("${iceberg.metadata.version.max:50}")
+  private int metadataVersionMax;
+  @Value("${iceberg.table.location}")
+  private String tableLocation;
+  @Value("${iceberg.table.namespace}")
+  private String tableNamespace;
+  @Value("${iceberg.table.name}")
+  private String tableName;
   
   @Autowired
   private Environment env; 
@@ -34,8 +44,8 @@ public class IcebergTableConfig {
 
   @Bean Table table() {
 
-    Namespace namespace = Namespace.of("entrada");
-    TableIdentifier tableId = TableIdentifier.of(namespace, "dns");
+    Namespace namespace = Namespace.of(tableNamespace);
+    TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
     
     if(env.acceptsProfiles(org.springframework.core.env.Profiles.of("controller"))) {
             
@@ -53,13 +63,20 @@ public class IcebergTableConfig {
             .identity("server")
             .build();
         
-        Table table = catalog.createTable(tableId, schema, spec);
-        table
-            .updateProperties()
-            .set("write.parquet.compression-codec", compressionAlgo)
-            .set("write.metadata.delete-after-commit.enabled", "true")
-            .set("write.metadata.previous-versions-max", "50")
-            .commit();
+        Map<String, String> props = new HashMap<>();
+        props.put("write.parquet.compression-codec", compressionAlgo);
+        props.put("write.metadata.delete-after-commit.enabled", "true");
+        props.put("write.metadata.previous-versions-max", ""+metadataVersionMax);
+        
+        Table table = catalog.createTable(tableId, schema, spec, tableLocation, props);
+        
+//        table
+//            .updateProperties()
+//            .set("write.parquet.compression-codec", compressionAlgo)
+//            .set("write.metadata.delete-after-commit.enabled", "true")
+//            .set("write.metadata.previous-versions-max", ""+metadataVersionMax)
+//            .set("location", tableLocation)
+//            .commit();
 
         if(enableSorting) {
           table
