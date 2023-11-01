@@ -22,8 +22,8 @@ public class AwsConfig {
 	@Value("${entrada.s3.region}")
 	private String region;
 	
-	@Value("${entrada.s3.endpoint}")
-	private String endpoint;
+//	@Value("${entrada.s3.endpoint}")
+//	private String endpoint;
 
    @Bean
     AmazonS3 s3() {
@@ -33,7 +33,7 @@ public class AwsConfig {
        
         return AmazonS3ClientBuilder
                 .standard()
-                .withEndpointConfiguration(new EndpointConfiguration(endpoint, region))
+                //.withEndpointConfiguration(new EndpointConfiguration(endpoint, region))
                 .withPathStyleAccessEnabled(true)
                 .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
                 .build();

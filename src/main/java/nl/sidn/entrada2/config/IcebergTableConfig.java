@@ -5,6 +5,8 @@ import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.RESTCatalog;
@@ -23,8 +25,6 @@ public class IcebergTableConfig {
   
   @Value("${iceberg.compression}")
   private String compressionAlgo;
-  @Value("${iceberg.table.sorting.enabled:false}")
-  private boolean enableSorting;
   @Value("${iceberg.metadata.version.max:50}")
   private int metadataVersionMax;
   @Value("${iceberg.table.location}")
@@ -33,13 +33,15 @@ public class IcebergTableConfig {
   private String tableNamespace;
   @Value("${iceberg.table.name}")
   private String tableName;
+//  @Value("${iceberg.table.sorted:true}")
+//  private boolean enableSorting;
   
   @Autowired
   private Environment env; 
   @Autowired
   private Schema schema; 
   @Autowired
-  private RESTCatalog catalog;
+  private GlueCatalog catalog;
   
 
   @Bean Table table() {
@@ -67,28 +69,34 @@ public class IcebergTableConfig {
         props.put("write.parquet.compression-codec", compressionAlgo);
         props.put("write.metadata.delete-after-commit.enabled", "true");
         props.put("write.metadata.previous-versions-max", ""+metadataVersionMax);
+        props.put("format-version", "2");
+      //  props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "domainname","true");
         
-        Table table = catalog.createTable(tableId, schema, spec, tableLocation, props);
+       
         
-//        table
-//            .updateProperties()
-//            .set("write.parquet.compression-codec", compressionAlgo)
-//            .set("write.metadata.delete-after-commit.enabled", "true")
-//            .set("write.metadata.previous-versions-max", ""+metadataVersionMax)
-//            .set("location", tableLocation)
-//            .commit();
+        
+       catalog.createTable(tableId, schema, spec, tableLocation, props);
+        
 
-        if(enableSorting) {
-          table
-          .replaceSortOrder()
-          .asc("time")
-          .commit(); 
-        }
+//        if(enableSorting) {
+//          t
+//          .replaceSortOrder()
+//          .asc("domainname")
+//          .commit(); 
+//        }
+        
+        return catalog.loadTable(tableId);
+        
+//        t.updateProperties().
+//        	set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "domainname", "true").
+//        commit();
+        
+     //   return t;
          
       }   
     }
     
-    return  catalog.loadTable(tableId);
+    return catalog.loadTable(tableId);
   }
 
 }

@@ -7,6 +7,7 @@ import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.hadoop.HadoopMetricsContext;
 import org.apache.iceberg.rest.RESTCatalog;
@@ -20,23 +21,23 @@ import nl.sidn.entrada2.load.FieldEnum;
 @Configuration
 public class IcebergCatalogConfig {
 
-  @Value("${iceberg.catalog.url}")
-  private String catalogUrl;
+//  @Value("${iceberg.catalog.url}")
+//  private String catalogUrl;
 
   @Value("${iceberg.warehouse-dir}")
   private String catalogWarehouse;
 
-  @Value("${iceberg.endpoint}")
-  private String catalogEndpoint;
+//  @Value("${iceberg.endpoint}")
+//  private String catalogEndpoint;
 
-  @Value("${iceberg.access-key}")
+  @Value("${entrada.s3.access-key}")
   private String catalogAccessKey;
 
-  @Value("${iceberg.secret-key}")
+  @Value("${entrada.s3.secret-key}")
   private String catalogSecretKey;
   
-  @Value("${iceberg.catalog.token}")
-  private String catalogSecurityToken;
+//  @Value("${iceberg.catalog.token}")
+//  private String catalogSecurityToken;
 
   @Bean
   Schema schema() {
@@ -51,15 +52,42 @@ public class IcebergCatalogConfig {
   }
 
 
+  //@Bean
+//  RESTCatalog catalog() {
+//    Map<String, String> properties = new HashMap<>();
+//    properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
+//
+//    
+//    properties.put(CatalogProperties.URI, catalogUrl);
+//    properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogWarehouse);
+//    properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
+//    properties.put(OAuth2Properties.TOKEN, catalogSecurityToken);
+//    properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
+//    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, catalogSecretKey);
+//    properties.put(S3FileIOProperties.ACCESS_KEY_ID, catalogAccessKey);
+//    properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+//    
+//    properties.put("http-client.urlconnection.socket-timeout-ms", "5000");
+//    properties.put("http-client.urlconnection.connection-timeout-ms", "5000");
+//    
+//    //properties.put(HadoopMetricsContext.SCHEME, "s3");
+//    
+//    RESTCatalog catalog = new RESTCatalog();
+//    catalog.initialize("entrada", properties);
+//    return catalog;
+//
+//  }
+  
   @Bean
-  RESTCatalog catalog() {
+  GlueCatalog gllueCatalog() {
     Map<String, String> properties = new HashMap<>();
-    properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
-    properties.put(CatalogProperties.URI, catalogUrl);
+    properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.aws.glue.GlueCatalog");
+    
+  //  properties.put(CatalogProperties.URI, catalogUrl);
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogWarehouse);
     properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
-    properties.put(OAuth2Properties.TOKEN, catalogSecurityToken);
-    properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
+   // properties.put(OAuth2Properties.TOKEN, catalogSecurityToken);
+  //  properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, catalogSecretKey);
     properties.put(S3FileIOProperties.ACCESS_KEY_ID, catalogAccessKey);
     properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
@@ -69,8 +97,8 @@ public class IcebergCatalogConfig {
     
     //properties.put(HadoopMetricsContext.SCHEME, "s3");
     
-    RESTCatalog catalog = new RESTCatalog();
-    catalog.initialize("entrada", properties);
+    GlueCatalog catalog = new GlueCatalog();
+    catalog.initialize("entrada2", properties);
     return catalog;
 
   }

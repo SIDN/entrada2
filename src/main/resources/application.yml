@@ -32,8 +32,8 @@ entrada:
     access-key: 'minio666'
     secret-key: 'minio666'
     region: 'eu-west-1'
-    endpoint: 'http://localhost:9000'
-    bucket: 'testbucket1'
+    #endpoint: 'http://localhost:9000'
+    bucket: 'sidnlabs-iceberg-data'
   metrics:
     graphite:
       enabled: false
@@ -43,29 +43,6 @@ entrada:
       step: 60 # secs
       tags-as-prefix: 'prefix'
       prefix: 'entrada2-test'
-    data:
-      input:
-	      - name: s3 input provider 1
-	        access-key: 'minio666'
-	        secret-key: 'minio666'
-	        region: 'eu-west-1'
-	        endpoint: 'http://localhost:9000'
-	        bucket: 'test-input-bucket-1'
-	      - name: s3 input provider 2
-	        access-key: 'minio666'
-	        secret-key: 'minio666'
-	        region: 'eu-west-1'
-	        endpoint: 'http://localhost:9000'
-	        bucket: 'test-input-bucket-2'
-	    output:
-	      name: s3 output location
-        access-key: 'minio666'
-        secret-key: 'minio666'
-        region: 'eu-west-1'
-        endpoint: 'http://localhost:9000'
-        bucket: 'test-output-bucket'
-	    
-	     
         
   
 server:
@@ -112,24 +89,27 @@ logging:
     nl.sidn.entrada2.worker.client: DEBUG
  
 iceberg:
-  catalog:
-    url: 'http://client4.sidnlabs.nl:8182'
-    token: 'secret_token_change_me_fast'
+  #catalog:
+  #  url: 'http://client6.sidnlabs.nl:8182'
+  # token: 'secret_token_change_me_fast'
   bucket: '${entrada.s3.bucket}'
   warehouse-dir: 'warehouse'
-  endpoint: '${entrada.s3.endpoint}'
-  access-key: '${entrada.s3.access-key}'
-  secret-key: '${entrada.s3.secret-key}'
-  compression: 'snappy'
+  #endpoint: '${entrada.s3.endpoint}'
+  #access-key: '${entrada.s3.access-key}'
+  #secret-key: '${entrada.s3.secret-key}'
+  compression: 'gzip'
   metadata:
     version:
       max: 50
   table:
     namespace: 'entrada2'
     name: 'dns'
-    location: 's3://testbucket1/entrada2'
-    sorting:
-      enabled: false #sort increases resource usage on servers
+    location: 's3://${entrada.s3.bucket}/entrada2'
+    sorted: true #sort increases resource usage on servers
+  parquet:
+    dictionary-max-bytes: 10240
+    page-limit: 20000
+    bloomfilter: true
   
 
 #########################

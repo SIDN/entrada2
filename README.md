@@ -26,3 +26,12 @@ curl -X POST -F file=@trace_london_1_2023-08-16_13:56:14.pcap.gz \
 https://entrada-api.sidnlabs.nl/api/v1/upload
 ```
 
+
+# Create more efficient Parquet data files
+
+- qname only prefix or null when same as domainname
+- use gzip for better column compression, not snappy
+- use small 10k dictionary size, to prevent domainname column using dict
+  we want bloomfilter for domainname column whichs is much
+  more efficient when selecting domainnames in sql
+- use sort by domainname for better gzip compression
