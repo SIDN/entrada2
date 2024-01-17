@@ -1,10 +1,10 @@
 ---
 entrada:
   db:
-    host: 'labs-db1.sidnlabs.nl'
+    host: ''
     name: 'entrada2'
     user: 'entrada2'
-    password: 'Soz25jdvW6PuPGps'
+    password: ''
   parquet:
    file:
      max-size: 256
@@ -24,10 +24,10 @@ entrada:
     reference: 'reference'
   s3:
     bucket: 'maarten-dev'
-    access-key: 'FnrCQc3JQXEM1OwAtrSg'
-    secret-key: 'dNITppQxnZbjIHs1AOejZuPDnNOG5emYHhbj5ar2'
+    access-key: ''
+    secret-key: ''
     region: 'eu-west-1'
-    endpoint: 'https://s3-lb.sidnlabs.nl:9000'
+    endpoint: ''
   metrics:
     enabled: true
     graphite:
@@ -100,7 +100,7 @@ iceberg:
 maxmind:
  max-age: 24
  license:
-   paid: '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'
+   paid: ''
 
 
 ---

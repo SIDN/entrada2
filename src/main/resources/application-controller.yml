@@ -11,8 +11,8 @@ spring:
 
   datasource:
     url: 'jdbc:postgresql://localhost:5432/entrada2'
-    username: 'entrada2'
-    password: 'entrada2'
+    username: ''
+    password: ''
 
   jpa:
     properties:
