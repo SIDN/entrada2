@@ -5,7 +5,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.cache2k.Cache;
+import org.cache2k.Cache2kBuilder;
 import org.springframework.stereotype.Component;
+
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +30,8 @@ public class PacketJoiner {
 
   private Map<RequestCacheKey, RequestCacheValue> requestCache = new HashMap<>();
   // keep list of active zone transfers
-  private Map<RequestCacheKey, Integer> activeZoneTransfers = new HashMap<>();
+ // private Map<RequestCacheKey, Integer> activeZoneTransfers = new HashMap<>();
+  private Cache<RequestCacheKey, Integer> activeZoneTransferCache;
 
   // stats counters
   private int counter = 0;
@@ -34,10 +40,12 @@ public class PacketJoiner {
   private int responsePacketCounter = 0;
 
   private final MeterRegistry registry;
-
+  private Counter packetsCounter;
 
   public PacketJoiner(MeterRegistry registry) {
     this.registry = registry;
+    packetsCounter = registry.counter("pcap.packets");
+    activeZoneTransferCache = new Cache2kBuilder<RequestCacheKey, Integer>() {}.entryCapacity(300).build();
   }
 
 
@@ -55,7 +63,7 @@ public class PacketJoiner {
     List<RowData> results = new ArrayList<>();
 
     counter++;
-    registry.counter("entrada.pcap.packets.processed").increment();
+    packetsCounter.increment();
 
     if (counter % 100000 == 0 && log.isDebugEnabled()) {
       log.debug("Received {} packets to join", Integer.valueOf(counter));
@@ -99,7 +107,7 @@ public class PacketJoiner {
 
   private void handDnsRequest(DNSPacket dnsPacket, Message msg, String fileName) {
     requestPacketCounter++;
-    registry.counter("entrada.dns.packets.requests").increment();
+  //  registry.counter("dns.packets.requests").increment();
     // check for ixfr/axfr request
     if (!msg.getQuestions().isEmpty()
         && (msg.getQuestions().get(0).getQType() == ResourceRecordType.AXFR
@@ -110,7 +118,7 @@ public class PacketJoiner {
       }
       // keep track of ongoing zone transfer, we do not want to store all the response
       // packets for an ixfr/axfr.
-      activeZoneTransfers
+      activeZoneTransferCache
           .put(new RequestCacheKey(msg.getHeader().getId(), null, dnsPacket.getSrc(),
               dnsPacket.getSrcPort(), 0), Integer.valueOf(0));
     }
@@ -128,28 +136,28 @@ public class PacketJoiner {
 
   private RowData handDnsResponse(DNSPacket dnsPacket, Message msg, String fileName) {
     responsePacketCounter++;
-    registry.counter("entrada.dns.packets.responses").increment();
+   // registry.counter("entrada.dns.packets.responses").increment();
     // try to find the request
 
     // check for ixfr/axfr response, the query might be missing from the response
     // so we cannot use the qname for matching.
     RequestCacheKey key = new RequestCacheKey(msg.getHeader().getId(), null, dnsPacket.getDst(),
         dnsPacket.getDstPort(), 0);
-    if (activeZoneTransfers.containsKey(key)) {
+    if (activeZoneTransferCache.containsKey(key)) {
       if (log.isDebugEnabled()) {
         log.debug("Ignore {} zone transfer response(s)", Integer.valueOf(msg.getAnswer().size()));
       }
       // this response is part of an active zonetransfer.
       // only let the first response continue, reuse the "time" field of the RequestKey to
       // keep track of this.
-      Integer ztResponseCounter = activeZoneTransfers.get(key);
+      Integer ztResponseCounter = activeZoneTransferCache.get(key);
       if (ztResponseCounter.intValue() > 0) {
         // do not save this msg, drop it here, continue with next msg.
         return null;
       } else {
         // 1st response msg let it continue, add 1 to the map the indicate 1st resp msg
         // has been processed
-        activeZoneTransfers.put(key, Integer.valueOf(1));
+    	  activeZoneTransferCache.put(key, Integer.valueOf(1));
       }
     }
     String qname = qname(msg);
@@ -255,9 +263,9 @@ public class PacketJoiner {
     
     log.info("Could not match {} queries, these will be assigned rcode -1 (no response/request)", Integer.valueOf(purgeCounter));
 
-    registry.counter("entrada.dns.packets.expired").increment(purgeCounter);
+   // registry.counter("entrada.dns.packets.expired").increment(purgeCounter);
     requestCache.clear();
-    activeZoneTransfers.clear();
+   // activeZoneTransfers.clear();
     
     counter = 0;
     matchedCounter = 0;

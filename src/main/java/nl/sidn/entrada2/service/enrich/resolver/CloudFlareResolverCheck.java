@@ -22,14 +22,17 @@ package nl.sidn.entrada2.service.enrich.resolver;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
+
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
+
 import lombok.extern.log4j.Log4j2;
 
 /**
@@ -56,9 +59,7 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
     int timeoutInMillis = timeout * 1000;
     RequestConfig config = RequestConfig
         .custom()
-        .setConnectTimeout(timeoutInMillis)
-        .setConnectionRequestTimeout(timeoutInMillis)
-        .setSocketTimeout(timeoutInMillis)
+        .setConnectionRequestTimeout(Timeout.ofMilliseconds(timeoutInMillis))
         .build();
     CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
 

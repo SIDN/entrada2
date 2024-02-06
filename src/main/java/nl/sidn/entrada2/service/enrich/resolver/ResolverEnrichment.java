@@ -4,6 +4,8 @@ import java.net.InetAddress;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import nl.sidn.entrada2.load.FieldEnum;
 import nl.sidn.entrada2.service.enrich.AddressEnrichment;
 
 @Component
@@ -37,7 +39,7 @@ public class ResolverEnrichment implements AddressEnrichment {
 
   @Override
   public String getColumn() {
-    return "pub_resolver";
+    return FieldEnum.dns_pub_resolver.name();
   }
 
 

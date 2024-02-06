@@ -5,17 +5,13 @@ import java.util.List;
 
 public interface DnsResolverCheck {
 
-  void load();
+  void download();
 
   String getName();
 
   boolean match(String address, InetAddress inetAddress);
 
- // int getMatcherCount();
-
- // void done();
-  
-  void download();
+  void update();
   
   List<String> fetch();
   

@@ -28,7 +28,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	private static final int ID_UNKNOWN = -1;
 	private static final int OPCODE_UNKNOWN = -1;
 
-	// @Override
 	public Pair<GenericRecord, DnsMetricValues> build(RowData combo, String server, String location,
 			GenericRecord record) {
 		// try to be as efficient as possible, every object created here or expensive
@@ -68,14 +67,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 				question = reqMessage.getQuestions().get(0);
 
-				record.set(FieldEnum.req_len.ordinal(), Integer.valueOf(reqMessage.getBytes()));
+				record.set(FieldEnum.dns_req_len.ordinal(), Integer.valueOf(reqMessage.getBytes()));
 
 				// only add IP DF flag for server response packet
-				record.set(FieldEnum.ip_req_df.ordinal(), Boolean.valueOf(reqTransport.isDoNotFragment()));
+				//record.set(FieldEnum.ip_req_df.ordinal(), Boolean.valueOf(reqTransport.isDoNotFragment()));
 
 				if (reqTransport.getTcpHandshakeRTT() != -1) {
 					// found tcp handshake info
-					record.set(FieldEnum.tcp_hs_rtt.ordinal(), Integer.valueOf(reqTransport.getTcpHandshakeRTT()));
+					record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(reqTransport.getTcpHandshakeRTT()));
 
 					if (metricsEnabled) {
 						metricsBuilder.tcpHandshake(reqTransport.getTcpHandshakeRTT());
@@ -83,19 +82,19 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 			}
 
-			record.set(FieldEnum.ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
-			record.set(FieldEnum.rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
-			record.set(FieldEnum.z.ordinal(), Boolean.valueOf(requestHeader.isZ()));
-			record.set(FieldEnum.cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
-			record.set(FieldEnum.qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
-			record.set(FieldEnum.query_f_tc.ordinal(), Boolean.valueOf(requestHeader.isTc()));
-			record.set(FieldEnum.query_f_ra.ordinal(), Boolean.valueOf(requestHeader.isRa()));
-			record.set(FieldEnum.query_f_ad.ordinal(), Boolean.valueOf(requestHeader.isAd()));
+			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
+			record.set(FieldEnum.dns_rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
+			//record.set(FieldEnum.z.ordinal(), Boolean.valueOf(requestHeader.isZ()));
+			record.set(FieldEnum.dns_cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
+			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
+//			record.set(FieldEnum.query_f_tc.ordinal(), Boolean.valueOf(requestHeader.isTc()));
+//			record.set(FieldEnum.query_f_ra.ordinal(), Boolean.valueOf(requestHeader.isRa()));
+//			record.set(FieldEnum.query_f_ad.ordinal(), Boolean.valueOf(requestHeader.isAd()));
 
 			// ip fragments in the request
-			if (reqTransport.isFragmented()) {
-				record.set(FieldEnum.ip_frag.ordinal(), Integer.valueOf(reqTransport.getReassembledFragments()));
-			}
+//			if (reqTransport.isFragmented()) {
+//				record.set(FieldEnum.ip_frag.ordinal(), Integer.valueOf(reqTransport.getReassembledFragments()));
+//			}
 
 			if (metricsEnabled) {
 				metricsBuilder.dnsQuery(true);
@@ -119,28 +118,28 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 					question = rspMessage.getQuestions().get(0);
 				}
 
-				record.set(FieldEnum.res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
+				record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 
 				// only add IP DF flag for server response packet
-				record.set(FieldEnum.ip_res_df.ordinal(), Boolean.valueOf(rspTransport.isDoNotFragment()));
+				//record.set(FieldEnum.ip_res_df.ordinal(), Boolean.valueOf(rspTransport.isDoNotFragment()));
 
 				// these are the values that are retrieved from the response
 				rcode = responseHeader.getRawRcode();
 
-				record.set(FieldEnum.aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
-				record.set(FieldEnum.tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
-				record.set(FieldEnum.ra.ordinal(), Boolean.valueOf(responseHeader.isRa()));
-				record.set(FieldEnum.ad.ordinal(), Boolean.valueOf(responseHeader.isAd()));
-				record.set(FieldEnum.ancount.ordinal(), Integer.valueOf(responseHeader.getAnCount()));
-				record.set(FieldEnum.arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
-				record.set(FieldEnum.nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
-				record.set(FieldEnum.qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
+				record.set(FieldEnum.dns_aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
+				record.set(FieldEnum.dns_tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
+				record.set(FieldEnum.dns_ra.ordinal(), Boolean.valueOf(responseHeader.isRa()));
+				record.set(FieldEnum.dns_ad.ordinal(), Boolean.valueOf(responseHeader.isAd()));
+				record.set(FieldEnum.dns_ancount.ordinal(), Integer.valueOf(responseHeader.getAnCount()));
+				record.set(FieldEnum.dns_arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
+				record.set(FieldEnum.dns_nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
+				record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
 
 				// ip fragments in the response
-				if (rspTransport.isFragmented()) {
-					int frags = rspTransport.getReassembledFragments();
-					record.set(FieldEnum.ip_resp_frag.ordinal(), Integer.valueOf(frags));
-				}
+//				if (rspTransport.isFragmented()) {
+//					int frags = rspTransport.getReassembledFragments();
+//					record.set(FieldEnum.ip_resp_frag.ordinal(), Integer.valueOf(frags));
+//				}
 
 				// EDNS0 for response
 				writeResponseOptions(rspMessage, record);
@@ -160,14 +159,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		if (question != null) {
 			// question can be from req or resp
 			// unassigned, private or unknown, get raw value
-			record.set(FieldEnum.qtype.ordinal(), Integer.valueOf(question.getQTypeValue()));
+			record.set(FieldEnum.dns_qtype.ordinal(), Integer.valueOf(question.getQTypeValue()));
 			
 			if (metricsEnabled) {
-				metricsBuilder.dnsQtype(question.getQTypeValue());
+				metricsBuilder.dnsQtype(question.getQType());
 			}
 			
 			// unassigned, private or unknown, get raw value
-			record.set(FieldEnum.qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
+			record.set(FieldEnum.dns_qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
 
 			// remove non asccii chars
 			qname = CharMatcher.ascii().negate().or(CharMatcher.invisible()).removeFrom(question.getQName());
@@ -194,33 +193,33 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		// if no domainname found in qname, then save full qname
 		if (domainname == null) {
-			record.set(FieldEnum.qname.ordinal(), qname);
+			record.set(FieldEnum.dns_qname.ordinal(), qname);
 		} else {
-			record.set(FieldEnum.domainname.ordinal(), domainname);
+			record.set(FieldEnum.dns_domainname.ordinal(), domainname);
 			// check if qname and domain are same length, if same then qname is not saved.
 			if (domainname.length() != qname.length() - 1) {
 				// get substring, include 2 dots. 1 at the end and 1 between qname part and domain part
-				record.set(FieldEnum.qname.ordinal(), qname.substring(0, qname.length() - (domainname.length() + 2)));
+				record.set(FieldEnum.dns_qname.ordinal(), qname.substring(0, qname.length() - (domainname.length() + 2)));
 			}
 		}
 
 		if (labels > -1) {
-			record.set(FieldEnum.labels.ordinal(), Integer.valueOf(labels));
+			record.set(FieldEnum.dns_labels.ordinal(), Integer.valueOf(labels));
 		}
 
 		record.set(FieldEnum.server_location.ordinal(), location);
 
 		// add file name, makes it easier to find the original input pcap
 		// in case of of debugging.
-		record.set(FieldEnum.pcap_file.ordinal(), transport.getFilename());
+		//record.set(FieldEnum.pcap_file.ordinal(), transport.getFilename());
 
 		// values from request OR response now
 		// if no request found in the request then use values from the response.
-		record.set(FieldEnum.id.ordinal(), Integer.valueOf(id));
-		record.set(FieldEnum.opcode.ordinal(), Integer.valueOf(opcode));
-		record.set(FieldEnum.rcode.ordinal(), Integer.valueOf(rcode));
+		record.set(FieldEnum.dns_id.ordinal(), Integer.valueOf(id));
+		record.set(FieldEnum.dns_opcode.ordinal(), Integer.valueOf(opcode));
+		record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
 		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(transport.getTsMilli()));
-		record.set(FieldEnum.ipv.ordinal(), Integer.valueOf(transport.getIpVersion()));
+		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(transport.getIpVersion()));
 
 		int prot = transport.getProtocol();
 		record.set(FieldEnum.prot.ordinal(), Integer.valueOf(prot));
@@ -229,30 +228,30 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		if (reqTransport != null) {
 			enrich(reqTransport.getSrc(), reqTransport.getSrcAddr(), "", record, false);
 
-			record.set(FieldEnum.dst.ordinal(), reqTransport.getDst());
-			record.set(FieldEnum.dstp.ordinal(), Integer.valueOf(reqTransport.getDstPort()));
-			record.set(FieldEnum.srcp.ordinal(), Integer.valueOf(reqTransport.getSrcPort()));
+			record.set(FieldEnum.ip_dst.ordinal(), reqTransport.getDst());
+			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(reqTransport.getDstPort()));
+			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(reqTransport.getSrcPort()));
 
 			if (!privacy) {
-				record.set(FieldEnum.src.ordinal(), reqTransport.getSrc());
+				record.set(FieldEnum.ip_src.ordinal(), reqTransport.getSrc());
 			}
 		} else {
 
 			// only response packet is found
 			enrich(rspTransport.getDst(), rspTransport.getDstAddr(), "", record, false);
 
-			record.set(FieldEnum.dst.ordinal(), rspTransport.getDst());
-			record.set(FieldEnum.dstp.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
-			record.set(FieldEnum.srcp.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
+			record.set(FieldEnum.ip_dst.ordinal(), rspTransport.getDst());
+			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
+			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
 
 			if (!privacy) {
-				record.set(FieldEnum.src.ordinal(), rspTransport.getSrc());
+				record.set(FieldEnum.ip_src.ordinal(), rspTransport.getSrc());
 			}
 		}
 
 		// calculate the processing time
 		if (reqTransport != null && rspTransport != null) {
-			record.set(FieldEnum.proc_time.ordinal(),
+			record.set(FieldEnum.dns_proc_time.ordinal(),
 					Integer.valueOf((int) (rspTransport.getTsMilli() - reqTransport.getTsMilli())));
 		}
 
@@ -262,7 +261,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			metricsBuilder.dnsOpcode(opcode);
 			metricsBuilder.ipV4(transport.getIpVersion() == 4);
 			metricsBuilder.ProtocolUdp(prot == PacketFactory.PROTOCOL_UDP);
-			metricsBuilder.country((String) record.get(FieldEnum.country.ordinal()));
+			metricsBuilder.country((String) record.get(FieldEnum.ip_geo_country.ordinal()));
 		}
 
 		return Pair.of(record, metricsBuilder.build());
@@ -311,71 +310,22 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			for (EDNS0Option option : opt.getOptions()) {
 
 				ednsOptions.add(option.getCode());
-//        if (option instanceof PingOption) {
-//          record.set(FieldEnum.edns_ping.ordinal(), Boolean.TRUE);
-//        } else if (option instanceof DNSSECOption) {
-//          if (option.getCode() == DNSSECOption.OPTION_CODE_DAU) {
-//            record.set(FieldEnum.edns_dnssec_dau.ordinal(), ((DNSSECOption) option).export());
-//          } else if (option.getCode() == DNSSECOption.OPTION_CODE_DHU) {
-//            record.set(FieldEnum.edns_dnssec_dhu.ordinal(), ((DNSSECOption) option).export());
-//          } else { // N3U
-//            record.set(FieldEnum.edns_dnssec_n3u.ordinal(), ((DNSSECOption) option).export());
-//          }
-//        } else
+
 				if (option instanceof ClientSubnetOption) {
 					ClientSubnetOption scOption = (ClientSubnetOption) option;
 					// get client country and asn
 
 					if (scOption.getAddress() != null) {
-						enrich(scOption.getAddress(), scOption.getInetAddress(), "edns_client_subnet_", record, true);
+						enrich(scOption.getAddress(), scOption.getInetAddress(), "edns_ecs_", record, true);
 					}
 
 					if (!privacy) {
-						record.set(FieldEnum.edns_client_subnet.ordinal(),
+						record.set(FieldEnum.edns_ecs.ordinal(),
 								scOption.getAddress() + "/" + scOption.getSourcenetmask());
 					}
-
-//        } else if (option instanceof PaddingOption) {
-//          record
-//              .set(FieldEnum.edns_padding.ordinal(),
-//                  Integer.valueOf(((PaddingOption) option).getLength()));
-//        } else if (option instanceof KeyTagOption) {
-//          KeyTagOption kto = (KeyTagOption) option;
-//          record
-//              .set(FieldEnum.edns_keytag_count.ordinal(), Integer.valueOf(kto.getKeytags().size()));
-//
-//          if (!kto.getKeytags().isEmpty()) {
-//            record
-//                .set(FieldEnum.edns_keytag_list.ordinal(),
-//                    kto
-//                        .getKeytags()
-//                        .stream()
-//                        .map(Object::toString)
-//                        .collect(Collectors.joining(",")));
-//          }
-//        }
-//        else {
-//          // other
-//          if (otherEdnsOptions == null) {
-//            otherEdnsOptions = new ArrayList<>();
-//          }
-//          otherEdnsOptions.add(Integer.valueOf(option.getCode()));
-//        }
 				}
 			}
-//      if (!ednsOptions.isEmpty()) {
-//       // if (otherEdnsOptions.size() == 1) {
-//          record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
-////        } else {
-////          StringBuilder sb = new StringBuilder();
-////          for (Integer option : otherEdnsOptions) {
-////            sb.append(option.toString());
-////          }
-////
-////          record.set(FieldEnum.edns_other.ordinal(), sb.toString());
-////        }
-//
-//      }
+
 
 			record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
 		}

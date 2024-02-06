@@ -1,5 +1,10 @@
 package nl.sidn.entrada2.metric;
 
+import java.time.Instant;
+import java.util.Map;
+import java.util.Objects;
+
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,29 +14,28 @@ import lombok.Setter;
 @Setter
 public class SumMetric implements Metric {
 
-  protected String name;
+  protected String label;
   protected double value;
   protected int samples;
-  protected long time;
-  protected boolean cached;
-  protected boolean updated;
+  protected Instant time;
+  protected Map<String, String> tags;
 
 
-  public SumMetric(String name, int value, long time) {
-    this.name = name;
+  public SumMetric(String label, int value, Instant time,  Map<String, String> tags) {
+    this.label = label;
     this.time = time;
+    this.tags = tags;
     update(value);
   }
 
   public void update(int value) {
     this.value += value;
     samples++;
-    updated = true;
   }
 
   @Override
   public String toString() {
-    return name + " " + value + " " + time;
+    return label + " " + value + " " + time;
   }
 
   @Override
@@ -39,19 +43,6 @@ public class SumMetric implements Metric {
     return samples;
   }
 
-  @Override
-  public boolean isCached() {
-    return cached;
-  }
 
-  @Override
-  public boolean isUpdated() {
-    return updated;
-  }
-
-  @Override
-  public void setCached() {
-    cached = true;
-  }
 
 }

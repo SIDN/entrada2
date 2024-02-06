@@ -1,5 +1,8 @@
 package nl.sidn.entrada2.metric;
 
+import java.time.Instant;
+import java.util.Map;
+
 public interface Metric {
 
   void update(int value);
@@ -11,16 +14,22 @@ public interface Metric {
    */
   int getSamples();
 
-  boolean isCached();
+//  boolean isCached();
+//
+//  boolean isUpdated();
 
-  boolean isUpdated();
+  Instant getTime();
+  
+  void setTime(Instant time);
 
-  long getTime();
-
-  String getName();
+//  String getName();
+  
+  String getLabel();
 
   double getValue();
 
-  void setCached();
+ // void setCached();
+  
+  Map<String, String> getTags();
 
 }

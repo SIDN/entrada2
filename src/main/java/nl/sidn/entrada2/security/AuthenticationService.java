@@ -1,34 +1,25 @@
 package nl.sidn.entrada2.security;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Optional;
-import org.apache.commons.lang3.RandomStringUtils;
+
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.stereotype.Service;
+
 import jakarta.servlet.http.HttpServletRequest;
-import nl.sidn.entrada2.data.AuthTokenRepository;
-import nl.sidn.entrada2.data.model.AuthToken;
 
 @Service
 public class AuthenticationService {
 
   private static final String AUTH_TOKEN_HEADER_NAME = "X-API-KEY";
 
-  @Value("${entrada.security.token.admin}")
+  @Value("${entrada.security.token}")
   private String adminToken;
-
-  @Autowired(required = false)
-  private AuthTokenRepository authRepository;
-
 
   public Authentication getAuthentication(HttpServletRequest request) {
     String apiKey = request.getHeader(AUTH_TOKEN_HEADER_NAME);
@@ -37,34 +28,12 @@ public class AuthenticationService {
       if (StringUtils.equals(apiKey, adminToken)) {
         return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
       }
-      
-      if(authRepository != null) {
-        // auth repo only works for controller, for worker need to use admintoken.
-        Optional<AuthToken> optAt = authRepository.findByToken(apiKey);
-        if (optAt.isPresent() && StringUtils.equals(apiKey, optAt.get().getToken())) {
-          return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_USER"));
-        }
-      }
+
     }
 
     throw new BadCredentialsException("Invalid API Key");
   }
   
-  
-  public String createToken(String name) {
-    
-    AuthToken token = AuthToken.builder()
-        .name(name)
-        .token( RandomStringUtils.random(32, true, true))
-        .created(LocalDateTime.now())
-        .enabled(true)
-        .build();
-    
-    token = authRepository.save(token);
-    return token.getToken();
-  }
-
-
 
   public class ApiKeyAuthentication extends AbstractAuthenticationToken {
 

@@ -1,3 +1,7 @@
+server:
+ servlet:
+   contextPath: '/api/v1'
+
 entrada:
   parquet:
    file:
@@ -13,48 +17,54 @@ entrada:
     updater: 60
     # check for stalled worker every x min
     liveness: 1
-    # check for new iceberg data files to commit every x min
-    iceberg-comitter: 1
-     # check for files being stuck in served state every x min
-    input-monitor: 1
-  input:
-    # if a input file takes > max-proc-time (min) to process, it is considered stuck/failed
-    max-proc-time: 1
   security:
-    token:
-      admin: '94591089610224297274859827590711'
+    token: '94591089610224297274859827590711'
   privacy:
     enabled: false
   directory:
     pcap: 'pcap'
     reference: 'reference'
   s3:
-    access-key: 'minio666'
-    secret-key: 'minio666'
+    access-key: '${AWS_ACCESS_KEY_ID}'
+    secret-key: '${AWS_SECRET_ACCESS_KEY}'
     region: 'eu-west-1'
-    #endpoint: 'http://localhost:9000'
+    endpoint:
     bucket: 'sidnlabs-iceberg-data'
+  messaging:
+    request-queue: 'entrada-s3-event'
+    command-queue: 'entrada-command'
+    leader-queue: 'entrada-leader'
+  leader: true # leader setting for non k8s deployments
   metrics:
-    graphite:
-      enabled: false
-      host: entrada-mon.sidnlabs.nl
-      port: 2003
-      protocol: 'Plaintext'
-      step: 60 # secs
-      tags-as-prefix: 'prefix'
-      prefix: 'entrada2-test'
-        
-  
-server:
- servlet:
-   contextPath: '/api/v1'
+    enabled: true
+    influxdb:
+      org: SIDN
+      bucket: entrada
+      token: '${INFLUXDB_AUTH_TOKEN}'
+      url: '${INFLUXDB_URL}'
+      env: test
 
 spring:
+ main:
+   allow-circular-references: true
  application: 
    name: 'entrada2'
- flyway:
-   enabled: false
+ rabbitmq:
+    enabled: true
+    host: '${RABBITMQ_HOST}'
+    password: '${RABBITMQ_PASSWORD}'
+    username: '${RABBITMQ_USER}'
+    request-queue: entrada-s3-events
+    retry-attempts: 3
+    backoff-interval: 1000
+    backoff-multiplier: 2
+    backoff-max-interval: 5000
+    concurrent-consumers: 1
+    max-concurrent-consumers: 1
  cloud:
+ #   config:
+ #     import-check:
+ #       enabled: false
     bootstrap:
       enabled: false
     kubernetes:
@@ -63,19 +73,19 @@ spring:
       enabled: false
       reload:
         enabled: false
+      leader:
+        config-map-name: entrada-leader
+        role: master 
+    aws:
+      sqs:
+        enabled: false
     openfeign:
       client:
         config:
           default:
-            connectTimeout: 10000
-            readTimeout: 10000
+            connectTimeout: 5000
+            readTimeout: 5000
             loggerLevel: basic
-          workerClient:
-            # add entrada2-controller-service.entrada.svc.cluster.local to /etc/hosts for testing
-            url: 'http://entrada2-controller-service.entrada.svc.cluster.local:8091/api/v1'
-            defaultRequestHeaders:
-              'X-API-KEY': '${entrada.security.token.admin}'
-            dismiss404: true
           maxmindClient:
             url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
             dismiss404: false
@@ -84,23 +94,19 @@ spring:
 #  level:
 #    root: DEBUG
    
-logging:
-  level:
-    nl.sidn.entrada2.worker.client: DEBUG
+#logging:
+#  level:
+#    nl.sidn.entrada2: DEBUG
  
 iceberg:
-  #catalog:
-  #  url: 'http://client6.sidnlabs.nl:8182'
-  # token: 'secret_token_change_me_fast'
-  bucket: '${entrada.s3.bucket}'
+  catalog:
+    url: 
+    token: secret_token_change_me_fast
   warehouse-dir: 'warehouse'
-  #endpoint: '${entrada.s3.endpoint}'
-  #access-key: '${entrada.s3.access-key}'
-  #secret-key: '${entrada.s3.secret-key}'
   compression: 'gzip'
   metadata:
     version:
-      max: 50
+      max: 100
   table:
     namespace: 'entrada2'
     name: 'dns'
@@ -110,6 +116,8 @@ iceberg:
     dictionary-max-bytes: 10240
     page-limit: 20000
     bloomfilter: true
+  connection:
+    timeout: 5000
   
 
 #########################
@@ -154,10 +162,8 @@ maxmind:
      
 
 management:
-  graphite:
-    metrics:
-      export:
-        enabled: false # do not auto enable graphite
+  influx.metrics.export:
+    enabled: false
   endpoints:
     web:
       exposure:

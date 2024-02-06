@@ -1,0 +1,164 @@
+version: '3'
+
+services:
+  influxdb:
+    image: influxdb:latest
+    profiles: ["dev","test"]
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_ORG=SIDN
+      - DOCKER_INFLUXDB_INIT_BUCKET=entrada
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=my-secret-test-password
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-test-token
+      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=test-config
+    volumes:
+      # Mount for influxdb data directory and configuration
+      - dataVolume:/var/lib/influxdb2:rw
+    ports:
+      - "8086:8086"
+    depends_on:
+      - minio
+      - trino
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=my-secret-test-password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+  minio:
+    image: quay.io/minio/minio:latest
+    profiles: ["dev","test"]
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=my-secret-test-password
+      - MINIO_NOTIFY_AMQP_ENABLE_ENTRADA=on
+      - MINIO_NOTIFY_AMQP_URL_ENTRADA=amqp://admin:my-secret-test-password@rabbitmq:5672
+      - MINIO_NOTIFY_AMQP_EXCHANGE_ENTRADA=entrada-s3-event-exchange
+      - MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_ENTRADA=direct
+      - MINIO_NOTIFY_AMQP_ROUTING_KEY_ENTRADA=entrada-s3-event
+      - MINIO_NOTIFY_AMQP_DURABLE_ENTRADA=on
+    volumes:
+      - dataVolume:/data:rw
+    ports:
+      - "9000:9000"
+      - "9090:9090"
+    command: server /data --console-address ":9090"
+    links:
+      - rabbitmq
+    depends_on:
+      - rabbitmq
+  createbucket:
+    image: minio/mc
+    profiles: ["dev","test"]
+    depends_on:
+      - minio
+    links:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc config host add myminio http://minio:9000 admin my-secret-test-password;
+      /usr/bin/mc admin user add myminio entrada my-secret-test-password;
+      /usr/bin/mc admin policy attach myminio readwrite --user entrada;
+      /usr/bin/mc config host add entrada http://minio:9000 entrada my-secret-test-password;
+      /usr/bin/mc mb --region eu-west-1 entrada/sidnlabs-iceberg-data;
+      /usr/bin/mc event add entrada/sidnlabs-iceberg-data arn:minio:sqs::ENTRADA:amqp -p --event put --prefix pcap/;
+      exit 0;
+      "
+  trino:
+    image: trinodb/trino:438
+    profiles: ["dev","test"]
+    environment:
+      - ICEBERG_REST_URL=http://iceberg-rest-catalog:8182
+      - ICEBERG_REST_WAREHOUSE=s3://sidnlabs-iceberg-data/warehouse/
+      - ICEBERG_REST_TOKEN=secret_token_change_me_fast
+      - ICEBERG_S3_ENDPOINT=http://minio:9000
+      - ICEBERG_S3_ACCESS_KEY=admin
+      - ICEBERG_S3_SECRET_KEY=my-secret-test-password
+      - ICEBERG_S3_REGION=eu-west-1     
+    volumes:
+      - ./iceberg_entrada.properties:/etc/trino/catalog/iceberg_entrada.properties
+    ports:
+      - "8085:8080"
+    links:
+      - minio  
+      - iceberg-rest-catalog
+    depends_on:
+      - minio
+      - iceberg-rest-catalog
+  postgresql:
+    image: postgres:16
+    profiles: ["dev","test"]
+    restart: always
+    environment:
+      - PGDATA=/pgdata
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=my-secret-test-password
+      - POSTGRES_ICEBERG_DB=iceberg
+      - POSTGRES_ICEBERG_USER=iceberg
+      - POSTGRES_ICEBERG_PASSWORD=my-secret-test-password
+    ports:
+      - "5433:5432" 
+    volumes:
+      - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
+      - pgVolume:/pgdata:rw
+  iceberg-rest-catalog:
+    image: sidnlabs/iceberg-restcatalog-server:0.0.1
+    profiles: ["dev","test"]
+    restart: always
+    environment:
+      - ICEBERG_CATALOG_DB_URL=jdbc:postgresql://postgresql:5432/iceberg
+      - ICEBERG_CATALOG_DB_USER=iceberg
+      - ICEBERG_CATALOG_DB_PASSWORD=my-secret-test-password
+      - AWS_ACCESS_KEY_ID=entrada
+      - AWS_SECRET_ACCESS_KEY=my-secret-test-password
+      - AWS_REGION=eu-west-1
+      - CATALOG_S3_ENDPOINT=http://minio:9000
+      - CATALOG_SECURITY_TOKEN=secret_token_change_me_fast
+    ports:
+      - "8182:8182" 
+    links:
+      - postgresql
+      - minio
+    depends_on:
+      - postgresql
+      - minio
+  entrada:
+    image: sidnlabs/entrada2:0.0.1
+    profiles: ["test"]
+    restart: always
+    environment:
+      - AWS_ACCESS_KEY_ID=entrada
+      - AWS_SECRET_ACCESS_KEY=my-secret-test-password
+      - AWS_REGION=eu-west-1
+      - ENTRADA_S3_ENDPOINT=http://minio:9000
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_AUTH_TOKEN=my-super-secret-test-token
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PASSWORD=my-secret-test-password
+      - RABBITMQ_USER=admin
+      - MAXMIND_LICENSE_FREE=${MAXMIND_LICENSE_FREE}
+      - MAXMIND_LICENSE_PAID=${MAXMIND_LICENSE_PAID}
+      - ICEBERG_CATALOG_URL=http://iceberg-rest-catalog:8182
+      - ICEBERG_CATALOG_TOKEN=secret_token_change_me_fast
+    ports:
+      - "8080:8080" 
+    links:
+      - influxdb
+      - rabbitmq
+      - iceberg-rest-catalog
+      - minio
+    depends_on:
+      - postgresql
+      - minio
+      - rabbitmq
+      - iceberg-rest-catalog
+    dns:
+       - 8.8.8.8
+volumes:
+  dataVolume:
+  pgVolume:
+  
+

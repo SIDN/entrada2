@@ -3,27 +3,25 @@ kind: Deployment
 metadata:
   creationTimestamp: null
   labels:
-    app: entrada-worker-service
-  name: entrada-worker-service
+    app: entrada2
+  name: entrada2
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: entrada-worker-service
+      app: entrada2
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        app: entrada-worker-service
+        app: entrada2
     spec:
       containers:
-      - image: entrada-worker:0.0.1-SNAPSHOT
-        name: entrada-worker-service
+      - image: sidnlabs/entrada-worker:0.0.1
+        name: entrada2
         resources: {}
-        env:
-          - name: SPRING_PROFILES_ACTIVE
-            value: prod
+
 status: {}
 
 ---
@@ -32,8 +30,8 @@ kind: Service
 metadata:
   creationTimestamp: null
   labels:
-    app: entrada-worker-service
-  name: entrada-worker-service
+    app: entrada2
+  name: entrada2
 spec:
   ports:
   - name: http
@@ -41,6 +39,6 @@ spec:
     protocol: TCP
     targetPort: 8081
   selector:
-    app: entrada-worker-service
+    app: entrada2
   type: NodePort
 status: {}

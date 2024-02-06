@@ -3,16 +3,16 @@ package nl.sidn.entrada2.load;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.iceberg.data.GenericRecord;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import lombok.extern.log4j.Log4j2;
+
 import nl.sidn.entrada2.service.enrich.AddressEnrichment;
 import nl.sidn.entrada2.service.enrich.resolver.ResolverEnrichment;
 
-@Log4j2
 public abstract class AbstractRowBuilder {
 
   protected static final int STATUS_COUNT = 100000;
@@ -71,7 +71,6 @@ public abstract class AbstractRowBuilder {
           continue;
         }
 
-        // addColumn(record, prefix, ev.name, ev.value, metrics, time);
         record.setField(prefix + ev.name, ev.value);
       }
 
@@ -89,7 +88,6 @@ public abstract class AbstractRowBuilder {
 
       String value = e.match(address, inetAddress);
       if (value != null) {
-        // addColumn(record, prefix, e.getColumn(), value, metrics, time);
 
         record.setField(prefix + e.getColumn(), value);
 

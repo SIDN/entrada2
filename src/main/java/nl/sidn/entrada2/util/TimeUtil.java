@@ -19,11 +19,6 @@ public class TimeUtil {
         .ofEpochMilli(millis)
         .atZone(UTC)
         .toLocalDateTime();
-
-    // return LocalDateTime.ofEpochSecond(
-    // TimeUnit.MILLISECONDS.toSeconds(micros),
-    // (int) TimeUnit.MICROSECONDS.toNanos(micros % 1000),
-    // ZoneOffset.UTC);
   }
 
 

@@ -36,7 +36,5 @@ public class RowData {
   private Message requestMessage;
   private Packet response;
   private Message responseMessage;
-  // false if this packet could not be matched
- // private boolean match;
 
 }

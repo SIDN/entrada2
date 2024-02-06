@@ -1,6 +1,7 @@
 package nl.sidn.entrada2.service;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -23,6 +24,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -41,7 +43,7 @@ public class IcebergService {
 
 	@Value("${iceberg.table.sorted:true}")
 	private boolean enableSorting;
-
+	
 	@Value("${iceberg.parquet.page-limit:20000}")
 	private int parquetPageLimit;
 
@@ -51,15 +53,18 @@ public class IcebergService {
 	@Value("${iceberg.table.bloomfilter:true}")
 	private boolean enableBloomFilter;
 
+	private long currentRecCount;
+
 	@Autowired
 	private Table table;
 
 	private GenericRecord genericRecord;
 	private WrappedPartitionedFanoutWriter partitionedFanoutWriter;
 
-	private BlockingQueue<DataFile> datafileQueue = new LinkedBlockingQueue<>();
-
 	private List<SortableGenericRecord> records;
+
+	@Autowired
+	private LeaderQueueService leaderQueueService;
 
 	@PostConstruct
 	public void initialize() {
@@ -77,16 +82,19 @@ public class IcebergService {
 		// user gzip to create smaller files to limit athena io cost
 		fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
 		fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
-		fileAppenderFactory.set("write.metadata.previous-versions-max", "50");
+		fileAppenderFactory.set("write.metadata.previous-versions-max", "10");
 
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "domainname", "true");
 		}
-		
-		// use small dict size otherwize the domainname column will use dictionary ecoding and parquet
+
+		// use small dict size otherwize the domainname column will use dictionary
+		// ecoding and parquet
 		// will only write a bloomfilter when dict encoding is NOT used for the column.
-		// not using dict encoding for domainname will increase size of file but at query time we can 
-		// potentially skip many files/rowgroups that do not contain records for a domain
+		// not using dict encoding for domainname will increase size of file but at
+		// query time we can
+		// potentially skip many files/rowgroups that do not contain records for a
+		// domain
 		fileAppenderFactory.set(TableProperties.PARQUET_DICT_SIZE_BYTES, "" + parquetDictMaxBytes);
 
 		// keep rowgroups relatively small (20k) so they are easier to sort
@@ -104,6 +112,8 @@ public class IcebergService {
 
 	public void write(GenericRecord record) {
 
+		currentRecCount++;
+
 		if (partitionedFanoutWriter == null) {
 
 			try {
@@ -113,13 +123,17 @@ public class IcebergService {
 			}
 		}
 
+		// check parquet page limits
 		if (enableSorting) {
-
-			records.add(new SortableGenericRecord(record, (String) record.get(FieldEnum.domainname.ordinal())));
-			if (records.size() == parquetPageLimit) {
+			// do not write record to file until minimum number of records has been
+			// collected.
+			records.add(new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
+			if (currentRecCount % parquetPageLimit == 0) {
+				// have min # of record, write batch to new page in file
 				writeBatch();
 			}
 		} else {
+			// just write unsorted recs to file now
 			try {
 				partitionedFanoutWriter.write(record);
 			} catch (Exception e) {
@@ -127,20 +141,11 @@ public class IcebergService {
 			}
 		}
 
-//			Collections.sort(records);
-//
-//		try {
-//			partitionedFanoutWriter.write(record);
-//		} catch (Exception e) {
-//			log.error("Error writing row: {}", record, e);
-//		}
-//
-//			records.clear();
-//		}
 	}
 
 	private void writeBatch() {
-		// sort all rows in a datapsge, this will help compression algo to better compress the data
+		// sort all rows, this will help compression algo to better
+		// compress the data
 		Collections.sort(records);
 
 		records.stream().forEach(r -> {
@@ -154,57 +159,46 @@ public class IcebergService {
 		records.clear();
 	}
 
-	public List<DataFile> close() {
+	private List<DataFile> close() {
 
 		if (enableSorting) {
+			// make sure to write all rows when using sorting
 			writeBatch();
 		}
 
-		try {
-			List<DataFile> files = Arrays.stream(partitionedFanoutWriter.dataFiles()).toList();
-			partitionedFanoutWriter = null;
-			return files;
-		} catch (Exception e) {
-			log.error("Creating datafiles failed", e);
+		if (partitionedFanoutWriter != null) {
+			try {
+				// close writer and get datafiles
+				List<DataFile> files = Arrays.stream(partitionedFanoutWriter.dataFiles()).toList();
+				partitionedFanoutWriter = null;
+				return files;
+			} catch (Exception e) {
+				log.error("Creating datafiles failed", e);
+			}
 		}
-
 		return Collections.emptyList();
+	}
+
+	public void commit(DataFile dataFile) {
+		log.info("Add new datafile to Iceberg table: " + dataFile.path());
+		
+		AppendFiles appendFiles = table.newAppend();
+		appendFiles.appendFile(dataFile);
+		appendFiles.commit();
 	}
 
 	public void commit() {
 
-		List<DataFile> dataFiles = new ArrayList<>();
-		while (!datafileQueue.isEmpty()) {
-			dataFiles.add(datafileQueue.poll());
+		for (DataFile dataFile : close()) {
+			// send new datafile to leader
+			leaderQueueService.send(dataFile);
 		}
 
-		if (!dataFiles.isEmpty()) {
-			log.info("Commit {} new datafiles", dataFiles.size());
-
-			AppendFiles appendFiles = table.newAppend();
-			for (DataFile dataFile : dataFiles) {
-				log.info("Add file: " + dataFile.path());
-				appendFiles.appendFile(dataFile);
-			}
-
-			appendFiles.commit();
-		}
+		currentRecCount = 0;
 	}
 
 	public GenericRecord newGenericRecord() {
 		return genericRecord.copy();
-	}
-
-	public void addDataFile(DataFile f) {
-		try {
-			datafileQueue.put(f);
-		} catch (InterruptedException e) {
-			log.error("Adding datafile to commit queue failed", e);
-		}
-	}
-
-	public boolean isDataFileToCommit() {
-		return !datafileQueue.isEmpty();
 	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
@@ -230,34 +224,6 @@ public class IcebergService {
 		}
 	}
 
-//  public class GenericAppenderFactory2 extends GenericAppenderFactory{
-//	  
-//	  private final Schema schema;
-//	  private final PartitionSpec spec;
-//
-//	public GenericAppenderFactory2(Schema schema, PartitionSpec spec) {
-//		super(schema, spec);
-//		this.schema = schema;
-//		this.spec = spec;
-//	}
-//	  
-//	
-//	  @Override
-//	  public org.apache.iceberg.io.DataWriter<Record> newDataWriter(
-//	      EncryptedOutputFile file, FileFormat format, StructLike partition) {
-//		  
-//		  SortOrder so =  SortOrder.builderFor(schema).asc("domainname").build();
-//		  
-//	    return new org.apache.iceberg.io.DataWriter<>(
-//	        newAppender(file.encryptingOutputFile(), format),
-//	        format,
-//	        file.encryptingOutputFile().location(),
-//	        spec,
-//	        partition,
-//	        file.keyMetadata(),
-//	        so);
-//	  }
-//  }
 
 	@lombok.Value
 	public class SortableGenericRecord implements Comparable<SortableGenericRecord> {
@@ -266,7 +232,6 @@ public class IcebergService {
 
 		@Override
 		public int compareTo(SortableGenericRecord o) {
-			// TODO Auto-generated method stub
 			return StringUtils.compare(domain, o.getDomain());
 		}
 	}

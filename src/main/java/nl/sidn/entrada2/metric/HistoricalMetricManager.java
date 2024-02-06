@@ -19,258 +19,223 @@
  */
 package nl.sidn.entrada2.metric;
 
-import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.Optional;
+
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import com.codahale.metrics.graphite.Graphite;
-import com.codahale.metrics.graphite.GraphiteSender;
+
+import com.influxdb.client.WriteApi;
+import com.influxdb.client.domain.WritePrecision;
+import com.influxdb.client.write.Point;
+
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.DnsMetricValues;
 
-
-
 /**
- * MetricManager is used to recreate metrics for DNS packets found in PCAP files. The timestamp of a
- * packets in the PCAP file is used when generating the metrics and NOT the timestamp at the point
- * in time when the packet was read from the PCAP.
+ * MetricManager is used to recreate metrics for DNS packets found in PCAP
+ * files. The timestamp of a packets in the PCAP file is used when generating
+ * the metrics and NOT the timestamp at the point in time when the packet was
+ * read from the PCAP.
  */
 @Slf4j
 @Component
 public class HistoricalMetricManager {
 
-  // dns stats
-  public static final String METRIC_IMPORT_DNS_QUERY_COUNT = "dns.query";
-  public static final String METRIC_IMPORT_DNS_RESPONSE_COUNT = "dns.response";
+	// dns stats
+	public static final String METRIC_IMPORT_DNS_QUERY_COUNT = "dns.request";
+	public static final String METRIC_IMPORT_DNS_RESPONSE_COUNT = "dns.response";
 
-  public static final String METRIC_IMPORT_DNS_QTYPE = "dns.request.qtype";
-  public static final String METRIC_IMPORT_DNS_RCODE = "dns.request.rcode";
-  public static final String METRIC_IMPORT_DNS_OPCODE = "dns.request.opcode";
+	public static final String METRIC_IMPORT_DNS_QTYPE = "dns.qtype";
+	public static final String METRIC_IMPORT_DNS_RCODE = "dns.rcode";
+	public static final String METRIC_IMPORT_DNS_OPCODE = "dns.opcode";
 
-  // layer 4 stats
-  public static final String METRIC_IMPORT_TCP_COUNT = "tcp";
-  public static final String METRIC_IMPORT_UDP_COUNT = "udp";
-  public static final String METRIC_IMPORT_ICMP_COUNT = "icmp";
+	// layer 4 stats
+	public static final String METRIC_IMPORT_TCP_COUNT = "tcp";
+	public static final String METRIC_IMPORT_UDP_COUNT = "udp";
 
-  public static final String METRIC_IMPORT_IP_VERSION_4_COUNT = "ip.4";
-  public static final String METRIC_IMPORT_IP_VERSION_6_COUNT = "ip.6";
+	public static final String METRIC_IMPORT_IP_V4_COUNT = "ip.version";
+	public static final String METRIC_IMPORT_IP_V6_COUNT = "ip.version";
 
-  public static final String METRIC_IMPORT_COUNTRY_COUNT = "geo.country";
+	public static final String METRIC_IMPORT_COUNTRY_COUNT = "geo.country";
 
-  public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "tcp.rtt.handshake.avg";
-  public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT_SAMPLES = "tcp.rtt.handshake.samples";
+	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "tcp.rtt";
 
+	@Value("${entrada.metrics.enabled:true}")
+	protected boolean metricsEnabled;
 
-  @Value("${entrada.metrics.enabled:true}")
-  protected boolean metricsEnabled;
-  
-  private int metricCounter = 0;
+	private Map<String, List<Metric>> metricCache = new HashMap<>(1000);
 
-  private Map<String, TreeMap<Long, Metric>> metricCache = new ConcurrentHashMap<>(1000);
+	@Value("${entrada.metrics.influxdb.env}")
+	private String env;
 
-  @Value("${entrada.metrics.graphite.prefix}")
-  private String prefix;
+	private static final Map<String, String> EMPTY_MAP = new HashMap<>();
 
-  @Value("${entrada.metrics.graphite.host}")
-  private String host;
+	@Autowired
+	private WriteApi influxApi;
 
-  @Value("${entrada.metrics.graphite.port}")
-  private int port;
+	private boolean isMetricsEnabled() {
+		return metricsEnabled;
+	}
 
-  @Value("${entrada.metrics.graphite.step:60}")
-  private int step;
+	public void update(DnsMetricValues dmv) {
 
-  private String createMetricName(String metric, String server) {
-    // replace dot in the server name with underscore otherwise graphite will assume nesting
-    
-    return new StringBuilder()
-        .append(prefix)
-        .append(".")
-        .append(metric)
-        .append(".ns.")
-        .append(StringUtils.defaultIfBlank(server.replaceAll("[^A-Za-z0-9]", "_"), "all"))
-        .toString();
-  }
-  
-  private boolean isMetricsEnabled() {
-    return metricsEnabled;
-  }
+		if (!isMetricsEnabled() || dmv == null) {
+			// do nothing
+			return;
+		}
 
-  public void update(DnsMetricValues dmv) {
+		Instant time = Instant.ofEpochSecond(dmv.time / 1000);
 
-    if (!isMetricsEnabled() || dmv == null) {
-      // do nothing
-      return;
-    }
+		if (dmv.dnsQuery) {
+			update(METRIC_IMPORT_DNS_QUERY_COUNT, time, 1, true);
+		}
 
-    Long time = Long.valueOf(roundToRetention(dmv.time));
+		if (dmv.dnsResponse) {
+			update(METRIC_IMPORT_DNS_RESPONSE_COUNT, time, 1, true);
+		}
 
-    if (dmv.dnsQuery) {
-      update(METRIC_IMPORT_DNS_QUERY_COUNT, time, 1, true);
-    }
+		if(dmv.dnsQtype != null) {
+		update(METRIC_IMPORT_DNS_QTYPE + "." + dmv.dnsQtype.name(), METRIC_IMPORT_DNS_QTYPE, time, 1, true,
+				Map.of("qtype", dmv.dnsQtype.name()));
+		}
+		
+		update(METRIC_IMPORT_DNS_RCODE + "." + dmv.dnsRcode, METRIC_IMPORT_DNS_RCODE, time, 1, true,
+				Map.of("rcode", String.valueOf(dmv.dnsRcode)));
+		update(METRIC_IMPORT_DNS_OPCODE + "." + dmv.dnsOpcode, METRIC_IMPORT_DNS_OPCODE, time, 1, true,
+				Map.of("opcode", String.valueOf(dmv.dnsOpcode)));
 
-    if (dmv.dnsResponse) {
-      update(METRIC_IMPORT_DNS_RESPONSE_COUNT, time, 1, true);
-    }
+		if (StringUtils.isNotEmpty(dmv.country)) {
+			update(METRIC_IMPORT_COUNTRY_COUNT + "." + dmv.country, METRIC_IMPORT_COUNTRY_COUNT, time, 1, true,
+					Map.of("name", dmv.country));
+		}
 
-    update(METRIC_IMPORT_DNS_QTYPE + "." + dmv.dnsQtype, time, 1, true);
-    update(METRIC_IMPORT_DNS_RCODE + "." + dmv.dnsRcode, time, 1, true);
-    update(METRIC_IMPORT_DNS_OPCODE + "." + dmv.dnsOpcode, time, 1, true);
-    update(METRIC_IMPORT_COUNTRY_COUNT + "." + dmv.country, time, 1, true);
+		if (dmv.ProtocolUdp) {
+			update(METRIC_IMPORT_UDP_COUNT, time, 1, true);
+		} else {
+			update(METRIC_IMPORT_TCP_COUNT, time, 1, true);
+			if (dmv.hasTcpHandshake()) {
+				update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false);
+			}
+		}
 
-    if (dmv.ProtocolUdp) {
-      update(METRIC_IMPORT_UDP_COUNT, time, 1, true);
-    } else {
-      update(METRIC_IMPORT_TCP_COUNT, time, 1, true);
-      if (dmv.tcpHandshake != -1) {
-        update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false);
-      }
-    }
+		if (dmv.ipV4) {
+			update(METRIC_IMPORT_IP_V4_COUNT + ".4", METRIC_IMPORT_IP_V4_COUNT, time, 1, true, Map.of("version", "4"));
+		} else {
+			update(METRIC_IMPORT_IP_V6_COUNT + ".6", METRIC_IMPORT_IP_V6_COUNT, time, 1, true, Map.of("version", "6"));
+		}
+	}
 
-    if (dmv.ipV4) {
-      update(METRIC_IMPORT_IP_VERSION_4_COUNT, time, 1, true);
-    } else {
-      update(METRIC_IMPORT_IP_VERSION_6_COUNT, time, 1, true);
-    }
-  }
+	private void update(String name, Instant time, int value, boolean counter) {
+		update(name, name, time, value, counter, EMPTY_MAP);
+	}
 
-  private void update(String name, Long time, int value, boolean counter) {
+	private void update(String name, String label, Instant time, int value, boolean counter, Map<String, String> tags) {
 
-    TreeMap<Long, Metric> metricValues = metricCache.get(name);
+		List<Metric> metricValues = metricCache.get(name);
 
-    if (metricValues == null) {
-      // create new treemap
-      metricValues = new TreeMap<>();
-      Metric m = createMetric(name, value, time.longValue(), counter);
-      metricValues.put(time, m);
-      metricCache.put(m.getName(), metricValues);
-    } else {
+		if (metricValues == null) {
+			metricValues = new ArrayList<Metric>();
+			Metric m = createMetric(label, value, time, counter, tags);
+			metricValues.add(m);
+			metricCache.put(name, metricValues);
+		} else {
+			Optional<Metric> opt = lookupByLabelAndTime(label, time, metricValues);
+			if (opt.isEmpty()) {
+				Metric m = createMetric(label, value, time, counter, tags);
+				metricValues.add(m);
+			} else {
+				opt.get().update(value);
+			}
+		}
+	}
 
-      Metric mHist = metricValues.get(time);
-      if (mHist != null) {
-        mHist.update(value);
-      } else {
-        Metric m = createMetric(name, value, time.longValue(), counter);
-        metricValues.put(time, m);
-      }
-    }
-  }
+	private Optional<Metric> lookupByLabelAndTime(String label, Instant time, List<Metric> metricValues) {
+		return metricValues.stream().filter(m -> m.getLabel().equals(label) && m.getTime().equals(time)).findFirst();
+	}
 
-  public static Metric createMetric(String metric, int value, long timestamp, boolean counter) {
-    if (counter) {
-      return new SumMetric(metric, value, timestamp);
-    }
-    return new AvgMetric(metric, value, timestamp);
-  }
+	public static Metric createMetric(String label, int value, Instant timestamp, boolean counter,
+			Map<String, String> labels) {
+		if (counter) {
+			return new SumMetric(label, value, timestamp, labels);
+		}
+		return new AvgMetric(label, value, timestamp, labels);
+	}
 
-  private long roundToRetention(long millis) {
-    // get retention from config
-    long secs = (millis / 1000);
-    return secs - (secs % step);
-  }
+	/**
+	 * Uses a threshhold to determine if the value should be sent to graphite low
+	 * values may indicate trailing queries in later pcap files. duplicate
+	 * timestamps get overwritten by graphite and only the last timestamp value is
+	 * used by graphite.
+	 */
+	public void flush(String server) {
+		if (!isMetricsEnabled()) {
+			// do nothing
+			return;
+		}
 
-  /**
-   * Uses a threshhold to determine if the value should be sent to graphite low values may indicate
-   * trailing queries in later pcap files. duplicate timestamps get overwritten by graphite and only
-   * the last timestamp value is used by graphite.
-   */
-  public void flush(String server) {
-    if (!isMetricsEnabled()) {
-      // do nothing
-      return;
-    }
-    
-    log.info("Flushing metrics to Graphite, size: {}", metricCache.size());
+		try {
+			metricCache.entrySet().stream().map(Entry::getValue).forEach(m -> send(m, server));
+		} catch (Exception e) {
+			// cannot connect connect to influxdb?
+			log.error("Error sending metrics", e);
+		}
 
-    int oldSize = metricCache.size();
+		metricCache.clear();
+		log.info("Flushed metrics");
+	}
 
-    if(log.isDebugEnabled()) {
-      metricCache
-          .entrySet()
-          .stream()
-          .forEach(e -> log.debug("Metric: {}  datapoints: {}", e.getKey(), e.getValue().size()));
-    }
+	private void send(List<Metric> metricValues, String server) {
+		if (metricValues.isEmpty()) {
+			// no metrics to send
+			return;
+		}
 
-    GraphiteSender graphite = new Graphite(host, port);
-    try {
-      graphite.connect();
-      // send each metrics to graphite
-      metricCache.entrySet().stream().map(Entry::getValue).forEach(m -> send(graphite, m, server));
-    } catch (Exception e) {
-      // cannot connect connect to graphite
-      log.error("Could not connect to Graphite", e);
-    } finally {
-      // remove sent metric, avoiding sending them again.
-      metricCache.values().stream().forEach(this::trunc);
-      // check if any metric has an empty list of time-buckets, if so the list
-      metricCache.entrySet().removeIf(e -> e.getValue().size() == 0);
+		// add 1 nanosec to the last metric to prevent the next pcap from overwriting
+		// the same second
+		Metric last = metricValues.get(metricValues.size() - 1);
+		last.setTime(last.getTime().plusNanos(1));
 
-      try {
-        // close will also do a flush
-        graphite.close();
-      } catch (Exception e) {
-        // ignore
-      }
-    }
+		metricValues.stream().forEach(e -> send(e, server, WritePrecision.S));
+	}
 
-    int newSize = metricCache.size();
+	private void send(Metric m, String server, WritePrecision p) {
 
-    log.debug("-------------- Metrics Manager Stats ---------------------");
-    log.debug("Metrics processed: {}", metricCounter);
-    log.debug("Metrics count before flush: {}", oldSize);
-    log.debug("Metrics count after flush: {}", newSize);
-  }
+		if (m instanceof AvgMetric) {
 
-  public void clear() {
-    metricCache = new ConcurrentHashMap<>(1000);
-  }
+			Point point = Point.measurement(m.getLabel() + ".avg").time(m.getTime(), p).addTags(m.getTags())
+					.addTag("server", server).addTag("env", env).addField("value", m.getValue());
 
-  private void trunc(TreeMap<Long, Metric> metricValues) {
-    int limit = metricValues.size() - 1;
-    if (limit == 0) {
-      // no metrics to send
-      return;
-    }
-    List<Long> toDelete = metricValues.keySet().stream().limit(limit).collect(Collectors.toList());
-    toDelete.stream().forEach(metricValues::remove);
-  }
+			influxApi.writePoint(point);
 
-  private void send(GraphiteSender graphite, TreeMap<Long, Metric> metricValues, String server) {
-    // do not send the last timestamp to prevent duplicate timestamp
-    // being sent to graphite. (only the last will count) and will cause dips in charts
-    int limit = metricValues.size() - 1;
-    if (limit == 0) {
-      // no metrics to send
-      return;
-    }
-    metricValues.entrySet().stream().limit(limit).forEach(e -> send(graphite, e.getValue(), server));
-  }
+			point = Point.measurement(m.getLabel() + ".samples").time(m.getTime(), p).addTag("server", server)
+					.addTag("env", env).addField("value", m.getSamples());
 
-  private void send(GraphiteSender graphite, Metric m, String server) {
-    if (m.isCached() && !m.isUpdated()) {
-      // old cached metric from previous run, was not updated this run
-      // most likely due to wrong order in pcaps.
-      // ignore this metric, otherwise we get dips in the charts
-      return;
-    }
+			influxApi.writePoint(point);
 
-    String fqMetricName = createMetricName(m.getName(), server);
-    try {
-      graphite.send(fqMetricName, String.valueOf(m.getValue()), m.getTime());
-      if (m instanceof AvgMetric) {
-        graphite
-            .send(StringUtils.replace(fqMetricName, ".avg", ".samples"),
-                String.valueOf(m.getSamples()), m.getTime());
-      }
-    } catch (IOException e) {
-      log.error("Error while sending metric: {}", m, e);
-    }
-  }
+			point = Point.measurement(m.getLabel() + ".min").time(m.getTime(), p).addTag("server", server)
+					.addTag("env", env).addField("value", ((AvgMetric) m).getMin());
+
+			influxApi.writePoint(point);
+
+			point = Point.measurement(m.getLabel() + ".max").time(m.getTime(), p).addTag("server", server)
+					.addTag("env", env).addField("value", ((AvgMetric) m).getMax());
+
+			influxApi.writePoint(point);
+		} else {
+			Point point = Point.measurement(m.getLabel()).time(m.getTime(), p).addTags(m.getTags())
+					.addTag("server", server).addTag("env", env).addField("value", m.getValue());
+
+			influxApi.writePoint(point);
+		}
+
+	}
 
 }

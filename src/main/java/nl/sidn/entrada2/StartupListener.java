@@ -1,26 +1,41 @@
 package nl.sidn.entrada2;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Profile;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+
+import com.influxdb.client.InfluxDBClient;
+
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.service.WorkService;
+import nl.sidn.entrada2.service.LeaderQueueService;
+import nl.sidn.entrada2.service.LeaderService;
 
 @Component
 @Slf4j
-@Profile("worker")
 public class StartupListener {
+	
+	@Autowired
+	private LeaderService leaderService;
+	@Autowired
+	private LeaderQueueService leaderQueueService;
+	@Autowired
+	private InfluxDBClient influxClient;
 
-  @Autowired
-  private WorkService workService;
+	@EventListener
+	public void onApplicationEvent(ContextRefreshedEvent event) {
 
-  @EventListener
-  public void onApplicationEvent(ContextRefreshedEvent event) {
+		if(leaderService.isleader()) {
+			log.info("This is the leader, start listening to leader queue");
+			leaderQueueService.start();
+		}
+	}
+	
+	@EventListener
+	public void onApplicationEvent(ContextClosedEvent event) {
 
-    log.info("Start worker processing thread");
-    workService.run();
-  }
+		influxClient.close();
+	}
 
 }

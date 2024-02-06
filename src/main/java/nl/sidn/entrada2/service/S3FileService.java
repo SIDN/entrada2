@@ -2,85 +2,90 @@ package nl.sidn.entrada2.service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
-import org.springframework.web.multipart.MultipartFile;
-import com.amazonaws.SdkClientException;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.ObjectTagging;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.SetObjectTaggingRequest;
-import com.amazonaws.services.s3.model.Tag;
+
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.data.model.FileIn;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
+import software.amazon.awssdk.services.s3.waiters.S3Waiter;
 
 @Service
 @Slf4j
 public class S3FileService {
 
-  @Autowired
-  private AmazonS3 amazonS3;
+	@Autowired
+	private S3Client s3Client;
 
-  public Optional<InputStream> read(String bucket, String key) {
-    try {
-      S3Object obj = amazonS3.getObject(bucket, key);
-      return Optional.of(obj.getObjectContent());
-    } catch (SdkClientException e) {
-      log.error("Error file getting {} from bucket {}", key, bucket, e);
-      return Optional.empty();
-    }
-  }
+	public Optional<InputStream> read(String bucket, String key) {
 
-  public Optional<String> readObectAsString(String bucket, String key) {
-    
-    try (InputStream is = read(bucket, key).get()) {
-      return Optional.of(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
+		GetObjectRequest objectRequest = GetObjectRequest.builder().key(key).bucket(bucket).build();
 
-    } catch (Exception e) {
-      log.error("Error file getting {} from bucket {}", key, bucket, e);
-    }
-    return Optional.empty();
-  }
-  
-  public boolean write(String bucket, String key, String content) {
-    log.info("Save file: {}", key);
+		try {
+			return Optional.of(s3Client.getObject(objectRequest));
+		} catch (Exception e) {
+			log.error("Error file getting {} from bucket {}", key, bucket, e);
+			return Optional.empty();
+		}
+	}
 
-    try {
-      amazonS3.putObject(bucket, key, content);
-    } catch (Exception e) {
-      log.error("Write error", e);
-      return false;
-    }
 
-    return true;
-  }
+
+	public Optional<String> readObectAsString(String bucket, String key) {
+
+		try (InputStream is = read(bucket, key).get()) {
+			return Optional.of(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
+
+		} catch (Exception e) {
+			log.error("Error file getting {} from bucket {}", key, bucket, e);
+		}
+		return Optional.empty();
+	}
+
+	public boolean write(String bucket, String key, String content) {
+		log.info("Save file: {}", key);
+
+		PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
+
+		try {
+			s3Client.putObject(putOb, RequestBody.fromString(content));
+		} catch (Exception e) {
+			log.error("Write error", e);
+			return false;
+		}
+
+		return true;
+	}
 
   public boolean write(InputStream is, String bucket, String key) {
     log.info("Save file: {}", key);
 
-    int fileSize = -1;
     try {
 
       log.info("Size of file: {}", is.available());
-
-      ObjectMetadata objectMetadata = new ObjectMetadata();
-      fileSize = is.available();
-      objectMetadata.setContentLength(fileSize);
-      amazonS3.putObject(bucket, key, is,
-          objectMetadata);
+      
+      PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
+      s3Client.putObject(putOb, RequestBody.fromInputStream(is, is.available()));
 
     } catch (Exception e) {
       log.error("Write error", e);
@@ -90,65 +95,59 @@ public class S3FileService {
     return true;
   }
 
-  public List<Pair<String, LocalDateTime>> ls(String bucket, String key) {
-    try {
-      ListObjectsV2Result lsResult = amazonS3.listObjectsV2(bucket, key);
-      return lsResult.getObjectSummaries().stream()
-          .map(o -> Pair.of(o.getKey(), convertDate(o.getLastModified())))
-          .collect(Collectors.toList());
+	public List<Pair<String, Instant>> ls(String bucket, String key) {
 
-    } catch (Exception e) {
-      log.error("Read error", e);
-    }
+		ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key).build();
 
-    return Collections.emptyList();
-  }
+		try {
+			ListObjectsResponse res = s3Client.listObjects(listObjects);
+			
+			return res.contents().stream().map( o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
+			
+		} catch (Exception e) {
+			log.error("Read error", e);
+		}
 
-  private LocalDateTime convertDate(Date src) {
-    return LocalDateTime.ofInstant(src.toInstant(),
-        ZoneId.systemDefault());
-  }
+		return Collections.emptyList();
+	}
 
+	public boolean tag(String bucket, String key, Map<String, String> tags) {
+		
+		List<Tag> s3Tags = tags.entrySet().stream().map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+				.collect(Collectors.toList());
 
-  public boolean tag(String bucket, String key, Map<String, String> tags) {
-    
-    List<Tag> s3Tags = tags.entrySet().stream().map( e -> new Tag(e.getKey(), e.getValue())).collect(Collectors.toList());
-    
-    try {
-      ObjectTagging t = new ObjectTagging(s3Tags);
-      SetObjectTaggingRequest otr = new SetObjectTaggingRequest(bucket, key, t);
+		try {
+			Tagging tagging = Tagging.builder().tagSet(s3Tags).build();
+			PutObjectTaggingRequest tagReq = PutObjectTaggingRequest.builder().bucket(bucket).key(key).tagging(tagging).build();
+			s3Client.putObjectTagging(tagReq);
+			return true;
+		} catch (Exception e) {
+			log.error("Error setting tag on key: {}", key, e);
+		}
+		return false;
+	}
+	
+	public Map<String, String> tags(String bucket, String key) {
+		GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();
+		GetObjectTaggingResponse resp = s3Client.getObjectTagging(otr);
+		return resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));
+	}
 
-      amazonS3.setObjectTagging(otr);
-      return true;
-    } catch (Exception e) {
-      log.error("Error setting tag on key: {}", key, e);
-    }
-    return false;    
-  }
-  
-  public boolean save(String bucket, String key, MultipartFile file) {
+	public void createBucket(String bucket) {
+		S3Waiter s3Waiter = s3Client.waiter();
+        CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
+                .bucket(bucket)
+                .build();
 
-    int fileSize = -1;
-    try {
+        s3Client.createBucket(bucketRequest);
+        HeadBucketRequest bucketRequestWait = HeadBucketRequest.builder()
+                .bucket(bucket)
+                .build();
 
-      if(log.isDebugEnabled()) {
-        log.debug("Size of file: {}", file.getInputStream().available());
-      }
+        s3Waiter.waitUntilBucketExists(bucketRequestWait);
+        log.info("Created bucket: {}", bucket);
+		
+	}
 
-      ObjectMetadata objectMetadata = new ObjectMetadata();
-      fileSize = file.getInputStream().available();
-      objectMetadata.setContentLength(fileSize);
-
-      amazonS3.putObject(bucket, key, file.getInputStream(),
-          objectMetadata);
-      
-      return true;
-
-    } catch (Exception e) {
-      log.error("Error during uplouding to s3", e);
-    }
-
-    return false;
-  }
 
 }

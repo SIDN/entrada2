@@ -5,14 +5,13 @@ import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.LivenessState;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.WorkService;
 
 @Component
-@Profile("worker")
 @Slf4j
 public class ScheduledLivenesChecker {
   

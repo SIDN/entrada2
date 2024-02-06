@@ -52,177 +52,167 @@ import nl.sidn.entrada2.service.S3FileService;
 @Setter
 public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
-  private List<FastIpSubnet> matchers4 = new ArrayList<>();
-  private List<FastIpSubnet> matchers6 = new ArrayList<>();
+	private List<FastIpSubnet> matchers4 = new ArrayList<>();
+	private List<FastIpSubnet> matchers6 = new ArrayList<>();
 
-  @Value("${resolver.match.cache.size:10000}")
-  private int maxMatchCacheSize;
-  
-  @Autowired
-  protected S3FileService s3;
+	@Value("${resolver.match.cache.size:10000}")
+	private int maxMatchCacheSize;
 
-  @Value("${entrada.s3.bucket}")
-  protected String bucket;
+	@Autowired
+	protected S3FileService s3;
 
-  @Value("${entrada.directory.reference}")
-  protected String directory;
-  
-  private BloomFilter<String> ipv4Filter;
-  
-  @Autowired
-  private Environment env;
-  
-  private boolean needToReload;
+	@Value("${entrada.s3.bucket}")
+	protected String bucket;
 
-  @PostConstruct
-  public void load() {
-    if(Arrays.stream(env.getActiveProfiles()).anyMatch( p -> StringUtils.equalsIgnoreCase(p,"controller"))) {
-      // only 1 controller will download data and save to s3
-       download();
-    }else {
-      //  only load data when running as worker
-      needToReload = true;
-    }
-  }
+	@Value("${entrada.directory.reference}")
+	protected String directory;
+	
+	@Value("${spring.cloud.kubernetes.enabled}")
+	private boolean k8sEnabled;
 
-  private void createIpV4BloomFilter(List<String> subnets) {
-    Set<String> ipv4Set = new HashSet<>();
-    if (!subnets.isEmpty()) {
+	private BloomFilter<String> ipv4Filter;
 
-      for (String sn : subnets) {
-        if (sn.contains(".")) {
-          String cidr = StringUtils.substringAfter(sn, "/");
-          if (NumberUtils.isCreatable(cidr)) {
-            SubnetUtils utils = new SubnetUtils(sn);
-            for (String ip : utils.getInfo().getAllAddresses()) {
-              ipv4Set.add(ip);
-            }
-          } else {
-            log.info("Not adding invalid subnet {} to IPv4 bloomfilter", sn);
-          }
-        }
-      }
-    }
+	private boolean needToReload = true;
 
-    ipv4Filter = BloomFilter.create(Funnels.stringFunnel(Charsets.US_ASCII), ipv4Set.size(), 0.01);
+	@PostConstruct
+	public void init() {
+		if (!k8sEnabled) {
+			// only 1 pod will download data and save to s3
+			download();
+		} 
+	}
 
-    for (String addr : ipv4Set) {
-      ipv4Filter.put(addr);
-    }
+	public void update() {
+		needToReload = true;
+	}
 
-    log.info("Created IPv4 filter table with size: {}", ipv4Set.size());
-  }
+	private void createIpV4BloomFilter(List<String> subnets) {
+		Set<String> ipv4Set = new HashSet<>();
+		if (!subnets.isEmpty()) {
 
-  @Override
-  public List<String> loadFromFile() {
-    
-    Optional<String> os = s3.readObectAsString(bucket, directory + "/" + getFilename());
-    if(os.isPresent()) {
-      return Splitter.on("\n").splitToList(os.get());
-   
-    }
+			for (String sn : subnets) {
+				if (sn.contains(".")) {
+					String cidr = StringUtils.substringAfter(sn, "/");
+					if (NumberUtils.isCreatable(cidr)) {
+						SubnetUtils utils = new SubnetUtils(sn);
+						for (String ip : utils.getInfo().getAllAddresses()) {
+							ipv4Set.add(ip);
+						}
+					} else {
+						log.info("Not adding invalid subnet {} to IPv4 bloomfilter", sn);
+					}
+				}
+			}
+		}
 
-    return Collections.emptyList();
+		ipv4Filter = BloomFilter.create(Funnels.stringFunnel(Charsets.US_ASCII), ipv4Set.size(), 0.01);
 
-  }
+		for (String addr : ipv4Set) {
+			ipv4Filter.put(addr);
+		}
 
-  @Override
-  public void download() {
-    List<String> subnets = fetch();
-    s3.write(bucket, directory + "/" + getFilename(), Joiner.on("\n").join(subnets));
-  }
+		log.info("Created IPv4 filter table with size: {}", ipv4Set.size());
+	}
 
+	@Override
+	public List<String> loadFromFile() {
 
-  private void loadData() {
-    List<String> lines = loadFromFile();
+		Optional<String> os = s3.readObectAsString(bucket, directory + "/" + getFilename());
+		if (os.isPresent()) {
+			return Splitter.on("\n").splitToList(os.get());
 
+		}
 
-    createIpV4BloomFilter(lines);
+		return Collections.emptyList();
 
-    matchers4.clear();
-    matchers6.clear();
+	}
 
-    lines
-        .stream()
-        .filter(s -> s.contains("."))
-        .map(this::subnetFor)
-        .filter(Objects::nonNull)
-        .forEach(s -> matchers4.add(s));
+	@Override
+	public void download() {
+		List<String> subnets = fetch();
+		s3.write(bucket, directory + "/" + getFilename(), Joiner.on("\n").join(subnets));
+	}
 
-    lines
-        .stream()
-        .filter(s -> s.contains(":"))
-        .map(this::subnetFor)
-        .filter(Objects::nonNull)
-        .forEach(s -> matchers6.add(s));
+	private void loadData() {
+		List<String> lines = loadFromFile();
 
-    log.info("Loaded {} resolver addresses", getMatcherCount());
-  }
+		createIpV4BloomFilter(lines);
 
-  private FastIpSubnet subnetFor(String address) {
-    try {
-      return new FastIpSubnet(address);
-    } catch (UnknownHostException e) {
-      log.error("Cannot create subnet for: {}", address, e);
-    }
+		matchers4.clear();
+		matchers6.clear();
 
-    return null;
-  }
+		lines.stream().filter(s -> s.contains(".")).map(this::subnetFor).filter(Objects::nonNull)
+				.forEach(s -> matchers4.add(s));
 
-  private boolean isIpv4(String address) {
-    return address.indexOf('.') != -1;
-  }
+		lines.stream().filter(s -> s.contains(":")).map(this::subnetFor).filter(Objects::nonNull)
+				.forEach(s -> matchers6.add(s));
 
-  private boolean isIpv4InFilter(String address) {
-    return ipv4Filter.mightContain(address);
-  }
+		log.info("Loaded {} resolver addresses", getMatcherCount());
+	}
 
-  @Override
-  public boolean match(String address, InetAddress inetAddress) {
-    
-    if(needToReload) {
-      // reload inline to prevent concurrent mopdification exception
-      loadData();
-      needToReload = false;
-    }
+	private FastIpSubnet subnetFor(String address) {
+		try {
+			return new FastIpSubnet(address);
+		} catch (UnknownHostException e) {
+			log.error("Cannot create subnet for: {}", address, e);
+		}
 
-    if (isIpv4(address)) {
-      // do v4 check only
-      if (isIpv4InFilter(address)) {
-        return checkv4(address, inetAddress);
-      }
+		return null;
+	}
 
-      return false;
+	private boolean isIpv4(String address) {
+		return address.indexOf('.') != -1;
+	}
 
-    }
+	private boolean isIpv4InFilter(String address) {
+		return ipv4Filter.mightContain(address);
+	}
 
-    // do v6 check only
-    return checkv6(address, inetAddress);
-  }
+	@Override
+	public boolean match(String address, InetAddress inetAddress) {
 
-  private boolean checkv4(String address, InetAddress inetAddress) {
-    for (FastIpSubnet sn : matchers4) {
-      if (sn.contains(inetAddress)) {
-        // addToCache(address);
-        return true;
-      }
-    }
-    return false;
-  }
+		if (needToReload) {
+			// reload inline to prevent concurrent mopdification exception
+			loadData();
+			needToReload = false;
+		}
 
-  private boolean checkv6(String address, InetAddress inetAddress) {
-    for (FastIpSubnet sn : matchers6) {
-      if (sn.contains(inetAddress)) {
-        // addToCache(address);
-        return true;
-      }
-    }
-    return false;
-  }
+		if (isIpv4(address)) {
+			// do v4 check only
+			if (isIpv4InFilter(address)) {
+				return checkv4(address, inetAddress);
+			}
 
-  private int getMatcherCount() {
-    return matchers4.size() + matchers6.size();
-  }
+			return false;
 
+		}
+
+		// do v6 check only
+		return checkv6(address, inetAddress);
+	}
+
+	private boolean checkv4(String address, InetAddress inetAddress) {
+		for (FastIpSubnet sn : matchers4) {
+			if (sn.contains(inetAddress)) {
+				// addToCache(address);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean checkv6(String address, InetAddress inetAddress) {
+		for (FastIpSubnet sn : matchers6) {
+			if (sn.contains(inetAddress)) {
+				// addToCache(address);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private int getMatcherCount() {
+		return matchers4.size() + matchers6.size();
+	}
 
 }

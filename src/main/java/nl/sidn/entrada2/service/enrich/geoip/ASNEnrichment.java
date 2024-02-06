@@ -2,13 +2,15 @@ package nl.sidn.entrada2.service.enrich.geoip;
 
 import java.net.InetAddress;
 import java.util.Optional;
-import org.springframework.context.annotation.Profile;
+
 import org.springframework.stereotype.Component;
+
 import com.maxmind.geoip2.model.AsnResponse;
+
+import nl.sidn.entrada2.load.FieldEnum;
 import nl.sidn.entrada2.service.enrich.AddressEnrichment;
 
 @Component
-@Profile("worker")
 public class ASNEnrichment implements AddressEnrichment {
 
   private GeoIPService geoLookup;
@@ -39,7 +41,7 @@ public class ASNEnrichment implements AddressEnrichment {
 
   @Override
   public String getColumn() {
-    return "asn";
+    return FieldEnum.ip_asn.name();
   }
 
 
