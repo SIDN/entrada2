@@ -67,8 +67,8 @@ docker-compose --profile test up
 ```
 
 ## Uploading pcap file
-When all components have started up, you may upload a pcap file to s3 and processing of the file will start automatically.  
-The default bucket name is `sidnlabs-iceberg-data` and pcap files need to be uploaded in the directory `pcap/`.
+When all components have started up, you may upload a pcap file to s3, processing of the new pcap file will start automatically.  
+The default bucket name is `sidnlabs-iceberg-data` and pcap files need to be uploaded to the directory `pcap/`.  
 
 Use the the following s3 tags when uploading file to S3:
 
@@ -78,10 +78,22 @@ Use the the following s3 tags when uploading file to S3:
 Example using MinIO:  
 
 ```
+# connect to Minio Docker container
+docker exec -it docker-minio-1 /bin/bash
 
+# create a new minio alias for use with mc command
+mc alias set minio http://minio:9000 entrada <get password from docker-compose file>
+
+# goto pcap directory
+# The /pcap directory in the Minio container is mapped to a pcap sub-directory on the host.  
+cd /pcap
+
+# upload a pcap (add pcap file first to directory on host)
 mc cp --tags "entrada-ns-server=ns1.example.nl&entrada-ns-anycast-site=ams"  \
 ams-ns1-150_2023-10-04-11:09:51.pcap.gz minio/sidnlabs-iceberg-data/pcap/ams-ns1-150_2023-10-04-11:09:51.pcap.gz
 ```
+
+After uploading the pcap file, see the docker logging for information about the processed file. 
 
 
 ## Analysing results
@@ -127,6 +139,10 @@ TODO
 TODO
 
 ## Table schema
+
+TODO
+
+## Metrics
 
 TODO
 

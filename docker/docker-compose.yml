@@ -42,6 +42,7 @@ services:
       - MINIO_NOTIFY_AMQP_DURABLE_ENTRADA=on
     volumes:
       - dataVolume:/data:rw
+      - ./pcap:/pcap
     ports:
       - "9000:9000"
       - "9090:9090"
@@ -134,11 +135,11 @@ services:
       - AWS_SECRET_ACCESS_KEY=my-secret-test-password
       - AWS_REGION=eu-west-1
       - ENTRADA_S3_ENDPOINT=http://minio:9000
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_AUTH_TOKEN=my-super-secret-test-token
+      - ENTRADA_METRICS_INFLUXDB_URL=http://influxdb:8086
+      - ENTRADA_METRICS_INFLUXDB_TOKEN=my-super-secret-test-token
       - SPRING_RABBITMQ_HOST=rabbitmq
       - SPRING_RABBITMQ_PASSWORD=my-secret-test-password
-      - SPRING_RABBITMQ_USER=admin
+      - SPRING_RABBITMQ_USERNAME=admin
       - MAXMIND_LICENSE_FREE=${MAXMIND_LICENSE_FREE}
       - MAXMIND_LICENSE_PAID=${MAXMIND_LICENSE_PAID}
       - ICEBERG_CATALOG_URL=http://iceberg-rest-catalog:8182
