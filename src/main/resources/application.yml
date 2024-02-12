@@ -7,9 +7,7 @@ entrada:
    file:
      # max Parquet filesize (mb)
      max-size: 256
-  worker:
-    # how long to sleep when no work (secs)
-    sleep: 10
+  process:
     # if worker time processing pcap > x min, it is marked as stalled
     stalled: 10
   schedule:
@@ -18,43 +16,60 @@ entrada:
     # check for stalled worker every x min
     liveness: 1
   security:
+    # token used for access to REST API (use X-API-KEY HTTP header)
     token: '94591089610224297274859827590711'
   privacy:
+    # when enabled the IP addresses are not written to parquet file
     enabled: false
   directory:
+    # s3 directory/prefix for pcap files and reference data
     pcap: 'pcap'
     reference: 'reference'
   s3:
     access-key: '${AWS_ACCESS_KEY_ID}'
     secret-key: '${AWS_SECRET_ACCESS_KEY}'
     region: 'eu-west-1'
+    # only use endpoint when not using aws 
     endpoint:
     bucket: 'sidnlabs-iceberg-data'
+    pcap-directory: 'pcap'
   messaging:
-    request-queue: 'entrada-s3-event'
-    command-queue: 'entrada-command'
-    leader-queue: 'entrada-leader'
-  leader: true # leader setting for non k8s deployments
+    # names of messaging queues
+    request:
+      name: 'entrada-s3-event'
+      retention: 86400
+      visibility-timeout: 600
+    command:
+      name: 'entrada-command'
+      retention: 60
+      visibility-timeout: 1
+    leader:
+      name: 'entrada-leader'
+      retention: 86400
+      visibility-timeout: 300
+  # set leader to true for 1 container when using non k8s deployment
+  leader: true
   metrics:
+    # write metics to influxdb
     enabled: true
     influxdb:
       org: SIDN
       bucket: entrada
-      token: '${INFLUXDB_AUTH_TOKEN}'
-      url: '${INFLUXDB_URL}'
+      token: 
+      url:
       env: test
 
 spring:
  main:
+   # workaround, do not remove
    allow-circular-references: true
  application: 
+   # name of container/pod
    name: 'entrada2'
  rabbitmq:
-    enabled: true
-    host: '${RABBITMQ_HOST}'
-    password: '${RABBITMQ_PASSWORD}'
-    username: '${RABBITMQ_USER}'
-    request-queue: entrada-s3-events
+    host:
+    password:
+    username:
     retry-attempts: 3
     backoff-interval: 1000
     backoff-multiplier: 2
@@ -62,9 +77,6 @@ spring:
     concurrent-consumers: 1
     max-concurrent-consumers: 1
  cloud:
- #   config:
- #     import-check:
- #       enabled: false
     bootstrap:
       enabled: false
     kubernetes:
@@ -74,11 +86,19 @@ spring:
       reload:
         enabled: false
       leader:
+        # name of k8s configmap to use to write leader pod name to
         config-map-name: entrada-leader
         role: master 
     aws:
       sqs:
+        # when using aws, enable sqs for messaging
         enabled: false
+ #       listener:
+ #         visibility-timeout: 600
+ #         wait-timeout: 10
+ #         max-number-of-messages: 1
+ #     sns:
+ #       enabled: false
     openfeign:
       client:
         config:
@@ -99,22 +119,33 @@ spring:
 #    nl.sidn.entrada2: DEBUG
  
 iceberg:
+  # only use catalog when using the REST catalog server, not when using aws Glue
   catalog:
     url: 
     token: secret_token_change_me_fast
   warehouse-dir: 'warehouse'
+  # see iceberg docs for: write.parquet.compression-codec
   compression: 'gzip'
   metadata:
     version:
+      # see iceberg docs for: write.metadata.previous-versions-max
       max: 100
   table:
     namespace: 'entrada2'
     name: 'dns'
     location: 's3://${entrada.s3.bucket}/entrada2'
-    sorted: true #sort increases resource usage on servers
+    # sorting allows for better gzip compression but increases resource(cpu/ram) usage
+    sorted: true
   parquet:
-    dictionary-max-bytes: 10240
+    # keep dictionary size low, to force parquet to use bloomfilter when bloomfilter is enabled
+    # but also do not use a to low number of bytes or none of the columns will be abke to use
+    # dictionary encoding.
+    # see iceberg docs for: write.parquet.dict-size-bytes
+    dictionary-max-bytes: 102400 #10240
+    # see iceberg docs for: write.parquet.page-row-limit
     page-limit: 20000
+    # see iceberg docs for: write.parquet.bloom-filter-enabled.column.dns_domainname
+    # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
   connection:
     timeout: 5000

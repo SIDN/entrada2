@@ -29,10 +29,10 @@ public class ScheduledLivenesChecker {
    * When LivenessState.BROKEN is set then k8s will restart te container
    * 
    */
-  @Scheduled(initialDelayString = "#{${entrada.schedule.liveness:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.liveness:10}*60*1000}")
+  @Scheduled(initialDelayString = "#{${entrada.schedule.liveness:1}*60*1000}", fixedDelayString = "#{${entrada.schedule.liveness:3}*60*1000}")
   public void execute() {
     if(workService.isStalled()) {
-      log.error("Worker is stalled, change liveness state to broken");
+      log.error("Application is stalled, change liveness state to broken");
       AvailabilityChangeEvent.publish(ctx, LivenessState.BROKEN);
     }else {
       // not stalled, flip if needed

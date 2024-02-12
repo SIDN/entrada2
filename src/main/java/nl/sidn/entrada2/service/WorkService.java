@@ -34,7 +34,7 @@ public class WorkService {
 	private int bufferSizeConfig;
 
 	@Autowired
-	private S3FileService s3Service;
+	private S3Service s3Service;
 	@Autowired
 	private PacketJoiner joiner;
 	@Autowired
@@ -45,10 +45,7 @@ public class WorkService {
 	@Autowired
 	private HistoricalMetricManager metrics;
 
-	@Value("#{${entrada.worker.sleep:10}*1000}")
-	private int sleepMillis;
-
-	@Value("#{${entrada.worker.stalled:10}*60*1000}")
+	@Value("#{${entrada.process.stalled:10}*60*1000}")
 	private int stalledMillis;
 
 	private long startOfWork;
@@ -62,22 +59,19 @@ public class WorkService {
 	}
 
 	public void stop() {
-		// make sure to wait until current file is completely processed
-
-		for (int i = 0; i < 120; i++) {
-			if (working) {
-				TimeUtil.sleep(1000);
-				continue;
-			}
-			break;
+		if(isStalled()) {
+			// do nothing, process is hanging
+			return;
+		}
+		// still working on pcap file, make sure to wait until file is completely processed		
+		while(working) {
+			TimeUtil.sleep(1000);
 		}
 		icebergService.commit();
 	}
 
 	public void process(String bucket, String key) {
 		
-		log.info("Start processing {}/{}", bucket, key );
-
 		Map<String, String> tags = s3Service.tags(bucket, key);
 		String server = "unknown";
 		if(tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
@@ -88,6 +82,7 @@ public class WorkService {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
 
+		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
 		try {
 			working = true;
@@ -118,7 +113,6 @@ public class WorkService {
 		}
 
 		s3Service.tag(bucket, key, tags);
-
 	}
 
 

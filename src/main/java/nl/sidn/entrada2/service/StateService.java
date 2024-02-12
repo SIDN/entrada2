@@ -11,6 +11,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.Command;
 import nl.sidn.entrada2.messaging.Command.CommandType;
+import nl.sidn.entrada2.service.messaging.CommandQueue;
 
 @Service
 @Data
@@ -26,15 +27,15 @@ public class StateService {
 	@Getter(AccessLevel.NONE)
 	@Setter(AccessLevel.NONE)
 	@Autowired
-	private CommandQueueService commandQueueService;
+	private CommandQueue commandQueue;
 
 	public void start() {
-		commandQueueService.send(new Command(CommandType.START));
+		commandQueue.send(new Command(CommandType.START));
 	}
 
 	@PutMapping(path = "/stop")
 	public void stop() {
-		commandQueueService.send(new Command(CommandType.STOP));
+		commandQueue.send(new Command(CommandType.STOP));
 	}
 
 	public void setState(APP_STATE state) {

@@ -17,15 +17,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @Slf4j
 @Configuration
-@DependsOn("icebergCatalogConfig")
+@DependsOn({"icebergCatalogConfig","s3Config"})
 public class IcebergTableConfig {
 
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
-	@Value("${iceberg.metadata.version.max:50}")
+	@Value("${iceberg.metadata.version.max:100}")
 	private int metadataVersionMax;
 	@Value("${iceberg.table.location}")
 	private String tableLocation;

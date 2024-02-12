@@ -18,12 +18,17 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
+import software.amazon.awssdk.services.s3.model.EventBridgeConfiguration;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.NotificationConfiguration;
+import software.amazon.awssdk.services.s3.model.PutBucketNotificationConfigurationRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.Tag;
@@ -32,7 +37,7 @@ import software.amazon.awssdk.services.s3.waiters.S3Waiter;
 
 @Service
 @Slf4j
-public class S3FileService {
+public class S3Service {
 
 	@Autowired
 	private S3Client s3Client;
@@ -48,8 +53,6 @@ public class S3FileService {
 			return Optional.empty();
 		}
 	}
-
-
 
 	public Optional<String> readObectAsString(String bucket, String key) {
 
@@ -77,23 +80,23 @@ public class S3FileService {
 		return true;
 	}
 
-  public boolean write(InputStream is, String bucket, String key) {
-    log.info("Save file: {}", key);
+	public boolean write(InputStream is, String bucket, String key) {
+		log.info("Save file: {}", key);
 
-    try {
+		try {
 
-      log.info("Size of file: {}", is.available());
-      
-      PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
-      s3Client.putObject(putOb, RequestBody.fromInputStream(is, is.available()));
+			log.info("Size of file: {}", is.available());
 
-    } catch (Exception e) {
-      log.error("Write error", e);
-      return false;
-    }
+			PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
+			s3Client.putObject(putOb, RequestBody.fromInputStream(is, is.available()));
 
-    return true;
-  }
+		} catch (Exception e) {
+			log.error("Write error", e);
+			return false;
+		}
+
+		return true;
+	}
 
 	public List<Pair<String, Instant>> ls(String bucket, String key) {
 
@@ -101,9 +104,9 @@ public class S3FileService {
 
 		try {
 			ListObjectsResponse res = s3Client.listObjects(listObjects);
-			
-			return res.contents().stream().map( o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
-			
+
+			return res.contents().stream().map(o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
+
 		} catch (Exception e) {
 			log.error("Read error", e);
 		}
@@ -112,13 +115,14 @@ public class S3FileService {
 	}
 
 	public boolean tag(String bucket, String key, Map<String, String> tags) {
-		
+
 		List<Tag> s3Tags = tags.entrySet().stream().map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
 				.collect(Collectors.toList());
 
 		try {
 			Tagging tagging = Tagging.builder().tagSet(s3Tags).build();
-			PutObjectTaggingRequest tagReq = PutObjectTaggingRequest.builder().bucket(bucket).key(key).tagging(tagging).build();
+			PutObjectTaggingRequest tagReq = PutObjectTaggingRequest.builder().bucket(bucket).key(key).tagging(tagging)
+					.build();
 			s3Client.putObjectTagging(tagReq);
 			return true;
 		} catch (Exception e) {
@@ -126,28 +130,13 @@ public class S3FileService {
 		}
 		return false;
 	}
-	
+
 	public Map<String, String> tags(String bucket, String key) {
 		GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();
 		GetObjectTaggingResponse resp = s3Client.getObjectTagging(otr);
 		return resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));
 	}
 
-	public void createBucket(String bucket) {
-		S3Waiter s3Waiter = s3Client.waiter();
-        CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
-                .bucket(bucket)
-                .build();
-
-        s3Client.createBucket(bucketRequest);
-        HeadBucketRequest bucketRequestWait = HeadBucketRequest.builder()
-                .bucket(bucket)
-                .build();
-
-        s3Waiter.waitUntilBucketExists(bucketRequestWait);
-        log.info("Created bucket: {}", bucket);
-		
-	}
 
 
 }

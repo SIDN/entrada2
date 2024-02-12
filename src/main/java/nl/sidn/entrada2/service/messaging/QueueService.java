@@ -1,4 +1,4 @@
-package nl.sidn.entrada2.service;
+package nl.sidn.entrada2.service.messaging;
 
 public interface QueueService {
 	

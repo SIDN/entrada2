@@ -11,13 +11,15 @@ List of changes:
 - Remove Hadoop dependencies
 - Add support for Kubernetes
 - Add support for Apache Iceberg
-- The qname column now only contains the query prefix or null when same as domainname
-- The row data is now sorted by domainname for better gzip compression
+- The qname column now only contains the labels preceding the domainname
+- Rows are now sorted by domainname for better gzip compression
 - Default column compression changed to gzip, not snappy
-- Use small 10k dictionary size, to prevent domainname column using dict
-- Use bloomfilter for domainname column whichs is more efficient when selecting domainnames in sql
+- Use small Parquet max dictionary size, to prevent domainname column using dict
+- Use bloomfilter for domainname column, performance boost when filtering on domainname 
 - Renamed table columns
 - Removed unused tables columns
+- Each Docker container can handle any pcap, not limited to configured server anymore
+- Upload of pcap file to S3 triggers ENTRADA2 processing via messaging events
 
 
 ENTRADA2 supports the following deployment modes:
@@ -32,13 +34,14 @@ ENTRADA2 is based on the following components:
 - Metadata Database (PostgreSQL)
 - Metrics (InfluxDB)
 - Query engine (Trino, AWS Athena, Spark)
-- REST based Iceberg catalog server
+- [REST based Iceberg catalog server](https://github.com/SIDN/iceberg-rest-catalog-server)
 
 # Build
 
 ```
-export ENTRADA_VERSION=0.1.1
-mvn package && docker build --tag=entrada2:$ENTRADA_VERSION .
+mvn package
+docker build --tag=sidnlabs/entrada2:0.0.1 .
+docker push sidnlabs/entrada2:0.0.1
 ```
 
 # Getting started
@@ -103,6 +106,14 @@ docker volume rm docker_dataVolume
 docker volume rm docker_pgVolume
 docker-compose --profile test up
 ```
+
+
+## API
+
+
+## Running multiple containers
+
+
 
 ## Components UI
 Some of the components provide a web interface, below are the URLs for the components started by the docker compose script.

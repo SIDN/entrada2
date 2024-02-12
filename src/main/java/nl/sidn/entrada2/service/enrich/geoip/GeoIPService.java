@@ -75,13 +75,13 @@ public class GeoIPService extends AbstractMaxmind {
 		needUpdate = true;
 	}
 
-	@PostConstruct
-	public void init() {
-
-		if (!k8sEnabled) {
-			downloadWhenRequired();
-		}
-	}
+//	@PostConstruct
+//	public void init() {
+//
+//		if (!k8sEnabled) {
+//			downloadWhenRequired();
+//		}
+//	}
 
 	public void load() {
 

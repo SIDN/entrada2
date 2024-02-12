@@ -136,9 +136,9 @@ services:
       - ENTRADA_S3_ENDPOINT=http://minio:9000
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_AUTH_TOKEN=my-super-secret-test-token
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PASSWORD=my-secret-test-password
-      - RABBITMQ_USER=admin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PASSWORD=my-secret-test-password
+      - SPRING_RABBITMQ_USER=admin
       - MAXMIND_LICENSE_FREE=${MAXMIND_LICENSE_FREE}
       - MAXMIND_LICENSE_PAID=${MAXMIND_LICENSE_PAID}
       - ICEBERG_CATALOG_URL=http://iceberg-rest-catalog:8182

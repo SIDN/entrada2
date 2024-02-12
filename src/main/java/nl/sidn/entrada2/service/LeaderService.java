@@ -15,7 +15,13 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.enrich.geoip.GeoIPService;
 import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
+import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
+/**
+ * LeaderService enables multiple instances to work together processing pcap files.
+ * Only the leader is allowed to make commits to the Iceberg table, this to prevent excessive 
+ * commit locking conficts when multiple container try to commit
+ */
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 @Slf4j
@@ -36,7 +42,7 @@ public class LeaderService {
 	private Context context;
 	
 	@Autowired
-	private LeaderQueueService leaderQueueService;
+	private LeaderQueue leaderQueue;
 
 	public boolean isleader() {
 		return leader || (this.context != null);
@@ -53,7 +59,7 @@ public class LeaderService {
 		log.info("leadership granted: {}", event.getRole());
 		this.context = event.getContext();
 		
-		leaderQueueService.start();
+		leaderQueue.start();
 		// make sure the reference data is downloaded first time by leader
 		// others will wait for data to be present
 		log.info("Leader is starting metadata downloads");
@@ -71,7 +77,7 @@ public class LeaderService {
 		log.info("leadership revoked: {}", event.getRole());
 		
 		this.context = null;
-		leaderQueueService.stop();
+		leaderQueue.stop();
 	}
 
 }

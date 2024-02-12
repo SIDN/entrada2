@@ -1,13 +1,10 @@
 package nl.sidn.entrada2.service;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.AppendFiles;
@@ -24,12 +21,12 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.FieldEnum;
+import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Service
 @Slf4j
@@ -52,6 +49,9 @@ public class IcebergService {
 
 	@Value("${iceberg.table.bloomfilter:true}")
 	private boolean enableBloomFilter;
+	
+	@Value("${iceberg.metadata.version.max:100}")
+	private int metadataVersionMax;
 
 	private long currentRecCount;
 
@@ -59,12 +59,12 @@ public class IcebergService {
 	private Table table;
 
 	private GenericRecord genericRecord;
-	private WrappedPartitionedFanoutWriter partitionedFanoutWriter;
+	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
 	private List<SortableGenericRecord> records;
 
 	@Autowired
-	private LeaderQueueService leaderQueueService;
+	private LeaderQueue leaderQueue;
 
 	@PostConstruct
 	public void initialize() {
@@ -72,7 +72,7 @@ public class IcebergService {
 		this.records = new ArrayList<SortableGenericRecord>(parquetPageLimit);
 	}
 
-	private void createWriter() throws IOException {
+	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
 
 		// make sure to also use the spec when creating a GenericAppenderFactory
 		// otherwise
@@ -82,10 +82,12 @@ public class IcebergService {
 		// user gzip to create smaller files to limit athena io cost
 		fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
 		fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
-		fileAppenderFactory.set("write.metadata.previous-versions-max", "10");
-
+		fileAppenderFactory.set("write.metadata.previous-versions-max", String.valueOf(metadataVersionMax));
+		fileAppenderFactory.set("write.target-file-size-bytes", String.valueOf(maxFileSizeMegabyte));
+		
 		if (enableBloomFilter) {
-			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "domainname", "true");
+			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
+			//fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_qname.name(), "true");
 		}
 
 		// use small dict size otherwize the domainname column will use dictionary
@@ -106,7 +108,7 @@ public class IcebergService {
 
 		// the WrappedPartitionedFanoutWriter will create multiple partitions if data in
 		// the pcap is for multiple days
-		partitionedFanoutWriter = new WrappedPartitionedFanoutWriter(table, fileAppenderFactory, outputFileFactory);
+		return new WrappedPartitionedFanoutWriter(table, fileAppenderFactory, outputFileFactory);
 
 	}
 
@@ -117,7 +119,7 @@ public class IcebergService {
 		if (partitionedFanoutWriter == null) {
 
 			try {
-				createWriter();
+				partitionedFanoutWriter = createWriter();
 			} catch (IOException e) {
 				throw new RuntimeException("Cannot create writer", e);
 			}
@@ -191,7 +193,7 @@ public class IcebergService {
 
 		for (DataFile dataFile : close()) {
 			// send new datafile to leader
-			leaderQueueService.send(dataFile);
+			leaderQueue.send(dataFile);
 		}
 
 		currentRecCount = 0;

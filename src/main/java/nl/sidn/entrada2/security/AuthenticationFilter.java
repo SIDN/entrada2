@@ -33,7 +33,6 @@ public class AuthenticationFilter extends GenericFilterBean {
 			HttpServletResponse httpResponse = (HttpServletResponse) response;
 			httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		}
-		// }
 
 		filterChain.doFilter(request, response);
 	}

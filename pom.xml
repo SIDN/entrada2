@@ -17,6 +17,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<spring-cloud.version>2023.0.0</spring-cloud.version>
+		<spring-cloud-aws.version>3.0.0</spring-cloud-aws.version>
 		<spring-amqp.version>3.1.1</spring-amqp.version>
 		<iceberg.version>1.4.3</iceberg.version>
 		<aws-java-sdk.version>2.23.12</aws-java-sdk.version>
@@ -32,7 +33,7 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
+		<!--
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-bootstrap</artifactId>
@@ -42,7 +43,7 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-config</artifactId>
 		</dependency>
-
+-->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
@@ -57,15 +58,15 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-
+		<!--
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-kubernetes-fabric8-config</artifactId>
 		</dependency>
-
+-->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-kubernetes-fabric8</artifactId>
+			<artifactId>spring-cloud-starter-kubernetes-fabric8-all</artifactId>
 		</dependency>
 
 		<dependency>
@@ -84,6 +85,11 @@
 		</dependency>
 
 		<dependency>
+			<groupId>io.awspring.cloud</groupId>
+			<artifactId>spring-cloud-aws-starter-sns</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>s3</artifactId>
 		</dependency>
@@ -96,6 +102,11 @@
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>sts</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>iam-policy-builder</artifactId>
 		</dependency>
 
 		<dependency>
@@ -310,7 +321,6 @@
 			<artifactId>spring-rabbit</artifactId>
 		</dependency>
 
-
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
@@ -342,7 +352,7 @@
 			<dependency>
 				<groupId>io.awspring.cloud</groupId>
 				<artifactId>spring-cloud-aws-dependencies</artifactId>
-				<version>3.0.0</version>
+				<version>${spring-cloud-aws.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>

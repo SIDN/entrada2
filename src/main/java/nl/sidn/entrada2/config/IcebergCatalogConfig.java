@@ -14,14 +14,18 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.types.Types.NestedField;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 
 import nl.sidn.entrada2.load.FieldEnum;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@DependsOn("s3Config")
 public class IcebergCatalogConfig {
 
 	@Value("${iceberg.catalog.url}")
@@ -30,6 +34,9 @@ public class IcebergCatalogConfig {
 	@Value("${iceberg.warehouse-dir}")
 	private String catalogWarehouse;
 
+	@Value("${entrada.s3.bucket}")
+	private String bucketName;
+	
 	@Value("${entrada.s3.endpoint}")
 	private String catalogEndpoint;
 
@@ -96,7 +103,7 @@ public class IcebergCatalogConfig {
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.aws.glue.GlueCatalog");
 
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogWarehouse);
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://" + bucketName + "/" + catalogWarehouse);
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 		// properties.put(OAuth2Properties.TOKEN, catalogSecurityToken);
 		// properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);

@@ -45,7 +45,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
-import nl.sidn.entrada2.service.S3FileService;
+import nl.sidn.entrada2.service.S3Service;
 
 @Log4j2
 @Getter
@@ -59,7 +59,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	private int maxMatchCacheSize;
 
 	@Autowired
-	protected S3FileService s3;
+	protected S3Service s3;
 
 	@Value("${entrada.s3.bucket}")
 	protected String bucket;
@@ -74,13 +74,13 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
 	private boolean needToReload = true;
 
-	@PostConstruct
-	public void init() {
-		if (!k8sEnabled) {
-			// only 1 pod will download data and save to s3
-			download();
-		} 
-	}
+//	@PostConstruct
+//	public void init() {
+//		if (!k8sEnabled) {
+//			// only 1 pod will download data and save to s3
+//			download();
+//		} 
+//	}
 
 	public void update() {
 		needToReload = true;
