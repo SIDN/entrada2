@@ -44,7 +44,6 @@ import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 
 import feign.Response;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.log4j.Log4j2;
 import nl.sidn.entrada2.util.TimeUtil;
 
@@ -75,14 +74,6 @@ public class GeoIPService extends AbstractMaxmind {
 		needUpdate = true;
 	}
 
-//	@PostConstruct
-//	public void init() {
-//
-//		if (!k8sEnabled) {
-//			downloadWhenRequired();
-//		}
-//	}
-
 	public void load() {
 
 		// only load data from s3 when running as worker
@@ -100,7 +91,6 @@ public class GeoIPService extends AbstractMaxmind {
 
 		usePaidVersion = isPaidVersion();
 		lastUpdateTime = Instant.now();
-		// }
 	}
 
 	public void downloadWhenRequired() {

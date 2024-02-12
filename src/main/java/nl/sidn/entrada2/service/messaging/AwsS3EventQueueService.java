@@ -10,8 +10,6 @@ import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.RequestMessage;
 import nl.sidn.entrada2.messaging.S3EventNotification;
-import nl.sidn.entrada2.messaging.SqsEventMessage;
-import nl.sidn.entrada2.service.WorkService;
 import nl.sidn.entrada2.util.ConditionalOnAws;
 import nl.sidn.entrada2.util.UrlUtil;
 
@@ -42,8 +40,6 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 			
 			message	.getRecords().stream().forEach( r -> process(r.getS3().getBucket().getName(),
 					UrlUtil.decode(r.getS3().getObject().getKey())));
-			
-			//process(message.getDetail().getBucket().getName(), message.getDetail().getObject().getKey());
 		}
 
 	}
@@ -55,11 +51,9 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	 */
 	private void process(String bucket, String key) {
 
-		SendResult<RequestMessage> result = sqsTemplate.send(to -> to.queue(requestQueue)
+		sqsTemplate.send(to -> to.queue(requestQueue)
 				.payload(new RequestMessage(bucket, key)).messageDeduplicationId(bucket + "/" + key));
 
-		System.out.println(result.messageId());
-		// sqsTemplate.send(requestQueue, new RequestMessage(bucket, key));
 	}
 
 	@Override

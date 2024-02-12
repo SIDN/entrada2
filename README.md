@@ -22,10 +22,11 @@ Based on the following components:
 List of changes:
 
 - Removed Hadoop support
-- Improved sopport for s3 object storage
+- Improved support for s3 object storage
+- Automaticly create required resources (s3 bucks and messaging queues)
 - Added support for Kubernetes
-- Added support for Apache Iceberg
-- The qname column only contains the labels preceding the domainname
+- Added support for Apache Iceberg table format
+- The dns_qname column only contains the labels preceding the domainname
 - Rows are now sorted by domainname for more efficient compression
 - Default column compression changed to gzip, was Snappy
 - Use small Parquet max dictionary size, to prevent domainname column using dict

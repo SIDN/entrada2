@@ -33,8 +33,6 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	@Autowired
 	private WorkService workService;
 	
-//	private URLCodec urlCodec = new URLCodec();
-
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
 	public void receiveMessageManual(S3EventNotification message) {
 		log.info("Received RabbitMQ message: {}", message);
@@ -50,16 +48,6 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 			}
 		}
 	}
-	
-//	private String urlDecode(String url) {
-//		try {
-//			return urlCodec.decode(url);
-//		} catch (DecoderException e) {
-//			log.error("Error decoding url: {}", url);
-//		}
-//		
-//		return "";
-//	}
 	
 	private void process(String bucket, String key) {
 		

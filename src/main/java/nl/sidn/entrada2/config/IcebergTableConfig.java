@@ -6,6 +6,7 @@ import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.load.FieldEnum;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Slf4j
@@ -59,18 +61,15 @@ public class IcebergTableConfig {
 			PartitionSpec spec = PartitionSpec.builderFor(schema).day("time", "day").identity("server").build();
 
 			Map<String, String> props = new HashMap<>();
-			props.put("write.parquet.compression-codec", compressionAlgo);
-			props.put("write.metadata.delete-after-commit.enabled", "true");
-			props.put("write.metadata.previous-versions-max", "" + metadataVersionMax);
-			props.put("format-version", "2");
-			// props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX +
-			// "domainname","true");
+			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
+			props.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
+			props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
+			props.put(TableProperties.FORMAT_VERSION, "2");
+			props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
 
 			catalog.createTable(tableId, schema, spec, tableLocation, props);
 
 		}
-
-		// }
 
 		return catalog.loadTable(tableId);
 	}

@@ -1,18 +1,9 @@
 package nl.sidn.entrada2.service.messaging;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.Base64;
-import java.util.zip.Deflater;
 
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.io.EncoderFactory;
-import org.apache.avro.io.JsonEncoder;
-import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.iceberg.DataFile;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +14,6 @@ import nl.sidn.entrada2.service.IcebergService;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidn.entrada2.util.ConditionalOnAws;
-import nl.sidn.entrada2.util.UrlUtil;
 
 @ConditionalOnAws
 @Service
@@ -34,7 +24,6 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 	private String queueName;
 
 	@Autowired
-	//@Qualifier("byteTemplate")
 	private SqsTemplate sqsTemplate;
 	
 
@@ -48,7 +37,6 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 			id="${entrada.messaging.leader.name}-queue.fifo",
 			factory = "leaderSqsListenerContainerFactory")
 	public void onMessage(String message) {
-		//log.info("Received SQS message, rows: {} path: {}", message);
 		
 		if (leaderService.isleader()) {
 			DataFile df = null;
@@ -91,18 +79,6 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 		log.info("size after url-encoded: " + encodedString.getBytes().length);
 		sqsTemplate.send(name(), encodedString);
 	}
-	
-//	public String toString(DataFile datafile) {
-//	  final DatumWriter<DataFile> evaluatorWriter = new SpecificDatumWriter<>(DataFile.class);
-//	  try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-//	    final JsonEncoder encoder = EncoderFactory.get().jsonEncoder(datafile..getSchema(), out);
-//	    evaluatorWriter.write(datafile, encoder);
-//	    encoder.flush();
-//	    return out.toString(Charset.defaultCharset());
-//	  } catch (final IOException e) {
-//	    throw new RuntimeException(e);
-//	  }
-//	}
 
 	@Override
 	public String name() {

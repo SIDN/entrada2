@@ -17,23 +17,15 @@ import org.springframework.util.StreamUtils;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
-import software.amazon.awssdk.services.s3.model.EventBridgeConfiguration;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
-import software.amazon.awssdk.services.s3.model.NotificationConfiguration;
-import software.amazon.awssdk.services.s3.model.PutBucketNotificationConfigurationRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
-import software.amazon.awssdk.services.s3.waiters.S3Waiter;
 
 @Service
 @Slf4j
@@ -85,7 +77,7 @@ public class S3Service {
 
 		try {
 
-			log.info("Size of file: {}", is.available());
+			log.info("Size of file: {} bytes", is.available());
 
 			PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
 			s3Client.putObject(putOb, RequestBody.fromInputStream(is, is.available()));

@@ -1,5 +1,5 @@
 version: '3'
-
+# NOTE: all credentials used in this file are for testing and do not pose a security risk
 services:
   influxdb:
     image: influxdb:latest
@@ -134,6 +134,7 @@ services:
       - AWS_ACCESS_KEY_ID=entrada
       - AWS_SECRET_ACCESS_KEY=my-secret-test-password
       - AWS_REGION=eu-west-1
+      - ENTRADA_LEADER=true
       - ENTRADA_S3_ENDPOINT=http://minio:9000
       - ENTRADA_METRICS_INFLUXDB_URL=http://influxdb:8086
       - ENTRADA_METRICS_INFLUXDB_TOKEN=my-super-secret-test-token

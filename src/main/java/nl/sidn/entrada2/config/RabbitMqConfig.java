@@ -17,8 +17,6 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.amqp.support.converter.SimpleMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
@@ -28,7 +26,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import nl.sidn.entrada2.util.ConditionalOnRabbitMQ;
 
 @Configuration
-//@ConditionalOnProperty(prefix = "spring.rabbitmq", name = "host",  matchIfMissing = false)
 @ConditionalOnRabbitMQ
 public class RabbitMqConfig {
 	

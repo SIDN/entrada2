@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.RequestMessage;
-import nl.sidn.entrada2.messaging.SqsEventMessage;
 import nl.sidn.entrada2.service.WorkService;
 import nl.sidn.entrada2.util.ConditionalOnAws;
 
@@ -27,7 +26,6 @@ public class AwsRequestQueueService extends AbstractAwsQueue implements RequestQ
 		log.info("Received SQS message: {}", message);
 		
 		process(message.getBucket(), message.getKey());
-		
 	}
 
 	

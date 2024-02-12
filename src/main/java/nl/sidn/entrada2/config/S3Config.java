@@ -31,11 +31,9 @@ public class S3Config {
 	}
 
 	@Bean
-	// @ConditionalOnProperty(value = "entrada.s3.endpoint", matchIfMissing = true)
 	public S3Client s3() {
 
 		if (isRunningOnAws()) {
-			// .region(Region.of(region))
 			return S3Client.builder().forcePathStyle(Boolean.TRUE).build();
 		}
 		return S3Client.builder().forcePathStyle(Boolean.TRUE).endpointOverride(URI.create(endpoint)).build();

@@ -29,6 +29,7 @@ public class RabbitCommandQueueService  extends AbstractRabbitQueue implements C
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")
 	public void receiveMessageManual(Command message){
+		log.info("Received RabbitMQ message: {}", message);
 		
 		commandService.execute(message);
 	}

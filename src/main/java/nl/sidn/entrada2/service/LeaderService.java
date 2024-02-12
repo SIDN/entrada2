@@ -12,6 +12,7 @@ import org.springframework.integration.leader.event.OnGrantedEvent;
 import org.springframework.integration.leader.event.OnRevokedEvent;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.enrich.geoip.GeoIPService;
 import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
@@ -47,6 +48,15 @@ public class LeaderService {
 	public boolean isleader() {
 		return leader || (this.context != null);
 	}
+	
+	@PostConstruct
+	private void init() {
+		if(leader) {
+			// manually configured to be the leader, so download metadata
+			// when running in k8s, the handleEvent method will be called by leader election 
+			downloadMetadata();
+		}
+	}
 
 
 	/**
@@ -62,6 +72,10 @@ public class LeaderService {
 		leaderQueue.start();
 		// make sure the reference data is downloaded first time by leader
 		// others will wait for data to be present
+		downloadMetadata();
+	}
+	
+	private void downloadMetadata() {
 		log.info("Leader is starting metadata downloads");
 		geoIPService.downloadWhenRequired();
 		resolverChecks.stream().forEach(c -> c.download());

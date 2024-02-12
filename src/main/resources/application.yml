@@ -48,7 +48,7 @@ entrada:
       retention: 86400
       visibility-timeout: 300
   # set leader to true for 1 container when using non k8s deployment
-  leader: true
+  leader: false
   metrics:
     # write metics to influxdb
     enabled: true

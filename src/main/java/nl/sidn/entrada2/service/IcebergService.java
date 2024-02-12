@@ -87,7 +87,6 @@ public class IcebergService {
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
-			//fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_qname.name(), "true");
 		}
 
 		// use small dict size otherwize the domainname column will use dictionary

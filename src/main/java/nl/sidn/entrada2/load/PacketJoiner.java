@@ -30,7 +30,6 @@ public class PacketJoiner {
 
   private Map<RequestCacheKey, RequestCacheValue> requestCache = new HashMap<>();
   // keep list of active zone transfers
- // private Map<RequestCacheKey, Integer> activeZoneTransfers = new HashMap<>();
   private Cache<RequestCacheKey, Integer> activeZoneTransferCache;
 
   // stats counters
@@ -263,10 +262,7 @@ public class PacketJoiner {
     
     log.info("Could not match {} queries, these will be assigned rcode -1 (no response/request)", Integer.valueOf(purgeCounter));
 
-   // registry.counter("entrada.dns.packets.expired").increment(purgeCounter);
-    requestCache.clear();
-   // activeZoneTransfers.clear();
-    
+    requestCache.clear();    
     counter = 0;
     matchedCounter = 0;
     requestPacketCounter = 0;

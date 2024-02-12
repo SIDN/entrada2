@@ -1,7 +1,5 @@
 package nl.sidn.entrada2.service.messaging;
 
-import java.time.LocalDateTime;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -45,30 +43,6 @@ public class AwsCommandQueueService extends AbstractAwsQueue implements CommandQ
 		TimeUtil.sleep(60*1000);
 	}
 
-//	@NotificationSubscriptionMapping
-//	public void handleSubscriptionMessage(NotificationStatus status) {
-//		// We subscribe to start receive the message
-//		status.confirmSubscription();
-//	}
-
-//	@NotificationMessageMapping
-//	public void handleNotificationMessage(@NotificationSubject String subject, @NotificationMessage String message) {
-//		log.info("Received SNS command message: {}", message);
-//		
-//		//commandService.execute(message);
-//	}
-//
-//	@NotificationUnsubscribeConfirmationMapping
-//	public void handleUnsubscribeMessage(NotificationStatus status) {
-//		// e.g. the client has been unsubscribed and we want to "re-subscribe"
-//		status.confirmSubscription();
-//	}
-
-	// @SqsListener("${entrada.messaging.command-queue}-queue.fifo")
-//	public void receiveMessage(Command message) {
-//
-//		commandService.execute(message);
-//	}
 
 	public void send(Command message) {
 		log.info("Sending Message to the Queue : " + message);

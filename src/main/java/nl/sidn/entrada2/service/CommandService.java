@@ -3,7 +3,6 @@ package nl.sidn.entrada2.service;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
@@ -16,10 +15,10 @@ import nl.sidn.entrada2.service.messaging.RequestQueue;
 @Slf4j
 public class CommandService{
 	
-//	@Value("${entrada.messaging.command.name}")
-//	private String queueName;
+	// aws uses 2 request queues
 	@Autowired
 	private List<RequestQueue> requestQueues;
+	
 	@Autowired
 	private StateService stateService;
 
