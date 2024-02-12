@@ -1,5 +1,6 @@
 package nl.sidn.entrada2.service.messaging;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -52,8 +53,12 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	private void process(String bucket, String key) {
 
 		sqsTemplate.send(to -> to.queue(requestQueue)
-				.payload(new RequestMessage(bucket, key)).messageDeduplicationId(bucket + "/" + key));
+				.payload(new RequestMessage(bucket, key)).messageDeduplicationId(dedupId(bucket, key)));
 
+	}
+	
+	private String dedupId(String bucket, String key) {
+		return StringUtils.deleteWhitespace(bucket + "/" + key);
 	}
 
 	@Override

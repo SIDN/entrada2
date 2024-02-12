@@ -80,10 +80,10 @@ public class IcebergService {
 		GenericAppenderFactory fileAppenderFactory = new GenericAppenderFactory(table.schema(), table.spec());
 
 		// user gzip to create smaller files to limit athena io cost
-		fileAppenderFactory.set("write.parquet.compression-codec", compressionAlgo);
-		fileAppenderFactory.set("write.metadata.delete-after-commit.enabled", "true");
-		fileAppenderFactory.set("write.metadata.previous-versions-max", String.valueOf(metadataVersionMax));
-		fileAppenderFactory.set("write.target-file-size-bytes", String.valueOf(maxFileSizeMegabyte));
+		fileAppenderFactory.set(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
+		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
+		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
+		fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeMegabyte));
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");

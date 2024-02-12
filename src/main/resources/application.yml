@@ -125,7 +125,7 @@ iceberg:
     token: secret_token_change_me_fast
   warehouse-dir: 'warehouse'
   # see iceberg docs for: write.parquet.compression-codec
-  compression: 'gzip'
+  compression: 'ZSTD'
   metadata:
     version:
       # see iceberg docs for: write.metadata.previous-versions-max

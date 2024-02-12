@@ -4,8 +4,6 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
 import org.springframework.context.event.EventListener;
 import org.springframework.integration.leader.Context;
 import org.springframework.integration.leader.event.OnGrantedEvent;
@@ -21,10 +19,9 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 /**
  * LeaderService enables multiple instances to work together processing pcap files.
  * Only the leader is allowed to make commits to the Iceberg table, this to prevent excessive 
- * commit locking conficts when multiple container try to commit
+ * commit locking conflicts when multiple containers try to commit
  */
 @Service
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 @Slf4j
 public class LeaderService {
 	
