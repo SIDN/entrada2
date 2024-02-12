@@ -120,6 +120,10 @@ TODO
 
 TODO
 
+## Table schema
+
+TODO
+
 
 ## Components UI
 Some of the components provide a web interface, below are the URLs for the components started by the docker compose script.
@@ -129,3 +133,17 @@ Login credentials can be found in the script.
 - [RabbitMQ](http://localhost:15672/)
 - [InfluxDB](http://localhost:8086/)
 - [Trino](http://localhost:8085/) 
+
+
+## License
+
+This project is distributed under the GPLv3, see [LICENSE](LICENSE).
+
+## Attribution
+
+When building a product or service using ENTRADA2, we kindly request that you include the following attribution text in all advertising and documentation.
+```
+This product includes ENTRADA2 created by <a href="https://www.sidnlabs.nl">SIDN Labs</a>, available from
+<a href="http://entrada.sidnlabs.nl">http://entrada.sidnlabs.nl</a>.
+```
+
