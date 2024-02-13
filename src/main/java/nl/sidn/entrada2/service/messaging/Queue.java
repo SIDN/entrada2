@@ -1,6 +1,6 @@
 package nl.sidn.entrada2.service.messaging;
 
-public interface QueueService {
+public interface Queue {
 	
 	public void start();
 	

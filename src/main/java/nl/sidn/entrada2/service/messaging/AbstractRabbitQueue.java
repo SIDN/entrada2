@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public abstract class AbstractRabbitQueue implements QueueService {
+public abstract class AbstractRabbitQueue implements Queue {
 
 	@Autowired(required = false)
 	private RabbitListenerEndpointRegistry listenerRegistry;

@@ -15,35 +15,32 @@ import nl.sidn.entrada2.util.ConditionalOnRabbitMQ;
 @ConditionalOnRabbitMQ
 @Service
 @Slf4j
-public class RabbitCommandQueueService  extends AbstractRabbitQueue implements CommandQueue {
-	
+public class RabbitCommandQueueService extends AbstractRabbitQueue implements CommandQueue {
+
 	@Value("${entrada.messaging.command.name}")
 	private String queueName;
 	@Autowired
 	private CommandService commandService;
-	
+
 	@Autowired(required = false)
 	@Qualifier("rabbitCommandTemplate")
-    private AmqpTemplate rabbitTemplate;
-
+	private AmqpTemplate rabbitTemplate;
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")
-	public void receiveMessageManual(Command message){
-		log.info("Received RabbitMQ message: {}", message);
-		
+	public void receiveMessageManual(Command message) {
+		log.info("\"Received command message: {}", message);
+
 		commandService.execute(message);
 	}
 
-	
-    public void send(Command message) {
-   		 rabbitTemplate.convertAndSend(queueName + "-exchange", queueName, message);
-    }
+	public void send(Command message) {
+		log.info("Sending command message: {}", message);
+		rabbitTemplate.convertAndSend(queueName + "-exchange", queueName, message);
+	}
 
 	@Override
 	public String name() {
 		return queueName;
 	}
-	
-
 
 }

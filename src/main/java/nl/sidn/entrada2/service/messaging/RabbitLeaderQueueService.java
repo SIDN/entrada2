@@ -41,7 +41,8 @@ public class RabbitLeaderQueueService extends AbstractRabbitQueue implements Lea
 	}
 
 	public void send(DataFile message) {
-
+		log.info("Send new file to commit to leader queue, file : " + message.path());
+		
 		rabbitTemplate.convertAndSend(queueName + "-exchange", queueName, message);
 	}
 

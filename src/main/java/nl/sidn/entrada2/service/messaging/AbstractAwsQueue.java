@@ -6,7 +6,7 @@ import io.awspring.cloud.sqs.listener.MessageListenerContainerRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public abstract class AbstractAwsQueue implements QueueService{
+public abstract class AbstractAwsQueue implements Queue{
 
 	@Autowired
 	private MessageListenerContainerRegistry listenerRegistry;

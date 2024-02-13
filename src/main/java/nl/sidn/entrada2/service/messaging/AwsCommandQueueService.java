@@ -34,7 +34,7 @@ public class AwsCommandQueueService extends AbstractAwsQueue implements CommandQ
 	@SqsListener(value= "${entrada.messaging.command.name}-queue", factory = "commandSqsListenerContainerFactory",
 			id="${entrada.messaging.command.name}")
 	public void onMessage(Command message, Acknowledgement ack) {
-		log.info("Received SQS message: {}", message);
+		log.info("Received command message: {}", message);
 		
 		// stop listening for new file events to process
 		commandService.execute(message);
@@ -45,7 +45,7 @@ public class AwsCommandQueueService extends AbstractAwsQueue implements CommandQ
 
 
 	public void send(Command message) {
-		log.info("Sending Message to the Queue : " + message);
+		log.info("Sending command message: {}", message);
 
 		// send command to pub/sub queue, this allows all entrada instances to
 		// receive the command, including this instance.

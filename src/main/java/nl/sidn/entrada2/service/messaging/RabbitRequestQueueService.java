@@ -35,7 +35,7 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
 	public void receiveMessageManual(S3EventNotification message) {
-		log.info("Received RabbitMQ message: {}", message);
+		log.info("Received s3 event: {}", message);
 		
 		for (S3EventNotificationRecord rec : message.getRecords()) {
 			// check the getEventName, updating the tags may also generate a put event and

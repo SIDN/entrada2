@@ -34,7 +34,7 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	 */
 	@SqsListener(value = "${entrada.messaging.request.name}-queue", id = "${entrada.messaging.request.name}-queue")
 	public void receiveMessage(S3EventNotification message) {
-		log.info("Received SQS message: {}", message);
+		log.info("Received s3 event: {}", message);
 
 		if (message.getRecords() != null) {
 			
