@@ -1,4 +1,4 @@
-FROM alpine:3.19
+FROM --platform=linux/amd64 alpine:3.19
 
 # Set environment variables for configuration
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk

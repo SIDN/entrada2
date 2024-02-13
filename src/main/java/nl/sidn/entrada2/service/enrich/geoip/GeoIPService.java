@@ -33,7 +33,6 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
@@ -54,9 +53,6 @@ import nl.sidn.entrada2.util.TimeUtil;
 @Log4j2
 @Component
 public class GeoIPService extends AbstractMaxmind {
-
-	@Value("${spring.cloud.kubernetes.enabled}")
-	private boolean k8sEnabled;
 
 	private DatabaseReader geoReader;
 	private DatabaseReader asnReader;

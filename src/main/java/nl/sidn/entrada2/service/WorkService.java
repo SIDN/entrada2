@@ -42,7 +42,7 @@ public class WorkService {
 	@Autowired
 	private DNSRowBuilder rowBuilder;
 
-	@Autowired
+	@Autowired(required = false)
 	private HistoricalMetricManager metrics;
 
 	@Value("#{${entrada.process.stalled:10}*60*1000}")
@@ -59,26 +59,27 @@ public class WorkService {
 	}
 
 	public void stop() {
-		if(isStalled()) {
+		if (isStalled()) {
 			// do nothing, process is hanging
 			return;
 		}
-		// still working on pcap file, make sure to wait until file is completely processed		
-		while(working) {
+		// still working on pcap file, make sure to wait until file is completely
+		// processed
+		while (working) {
 			TimeUtil.sleep(1000);
 		}
 		icebergService.commit();
 	}
 
 	public void process(String bucket, String key) {
-		
+
 		Map<String, String> tags = s3Service.tags(bucket, key);
 		String server = "unknown";
-		if(tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
+		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
 			server = tags.get(S3ObjectTagName.ENTRADA_NS_SERVER.value);
 		}
 		String anycastSite = "unknown";
-		if(tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
+		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
 
@@ -88,33 +89,41 @@ public class WorkService {
 			working = true;
 			process_(bucket, key, server, anycastSite);
 			long duration = System.currentTimeMillis() - startOfWork;
-			
+
 			Counter.builder("pcap.processed").tags("server", server).tags("location", anycastSite)
-			.register(meterRegistry).increment();
-			
+					.register(meterRegistry).increment();
+
 			tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "yes");
 			tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
-			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS.value, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS.value,
+					LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+
+			log.info("Finished processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
-			
+
 			log.error("Error processing file: {}/{}", bucket, key, e);
 			tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "no");
-			
-			Counter.builder("pcap.error").tags("server", server).tags("location", anycastSite)
-			.register(meterRegistry).increment();
-			
+
+			Counter.builder("pcap.error").tags("server", server).tags("location", anycastSite).register(meterRegistry)
+					.increment();
+
 		} finally {
 			// startOfWork is also use to check for stalled processing, reset after done
 			// with file
 			startOfWork = 0;
 			working = false;
-			metrics.flush(server);
+			if(isMetricsEnabled()) {
+				metrics.flush(server);
+			}
 			meterRegistry.clear();
 		}
 
 		s3Service.tag(bucket, key, tags);
 	}
 
+	private boolean isMetricsEnabled() {
+		return metrics != null;
+	}
 
 	private void process_(String bucket, String key, String server, String anycastSite) {
 
@@ -131,7 +140,9 @@ public class WorkService {
 						icebergService.write(rowPair.getKey());
 
 						// update metrics
-						metrics.update(rowPair.getValue());
+						if(isMetricsEnabled()) {
+							metrics.update(rowPair.getValue());
+						}
 					});
 				});
 
@@ -146,7 +157,9 @@ public class WorkService {
 					icebergService.write(rowPair.getKey());
 
 					// update metrics
-					metrics.update(rowPair.getValue());
+					if(isMetricsEnabled()) {
+						metrics.update(rowPair.getValue());
+					}
 				});
 
 				if (log.isDebugEnabled()) {
@@ -165,8 +178,6 @@ public class WorkService {
 		}
 	}
 
-
-
 	/**
 	 * Check for stalled processing
 	 * 
@@ -175,7 +186,6 @@ public class WorkService {
 	public boolean isStalled() {
 		return startOfWork > 0 && (System.currentTimeMillis() - startOfWork) > stalledMillis;
 	}
-
 
 	private Optional<PcapReader> createReader(String file, InputStream is) {
 

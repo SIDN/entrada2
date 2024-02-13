@@ -80,11 +80,7 @@ spring:
     bootstrap:
       enabled: false
     kubernetes:
-      config:
-        enabled: false
-      enabled: false
-      reload:
-        enabled: false
+      # see: https://docs.spring.io/spring-cloud-kubernetes/reference/appendix.html
       leader:
         # name of k8s configmap to use to write leader pod name to
         config-map-name: entrada-leader
@@ -93,12 +89,6 @@ spring:
       sqs:
         # when using aws, enable sqs for messaging
         enabled: false
- #       listener:
- #         visibility-timeout: 600
- #         wait-timeout: 10
- #         max-number-of-messages: 1
- #     sns:
- #       enabled: false
     openfeign:
       client:
         config:

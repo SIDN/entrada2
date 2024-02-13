@@ -34,7 +34,6 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	 */
 	@SqsListener(value = "${entrada.messaging.request.name}-queue", id = "${entrada.messaging.request.name}-queue")
 	public void receiveMessage(S3EventNotification message) {
-		//SqsEventMessage
 		log.info("Received SQS message: {}", message);
 
 		if (message.getRecords() != null) {
@@ -51,9 +50,11 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	 * other files in the queue or blocking other queue consumers.
 	 */
 	private void process(String bucket, String key) {
-
+		String dedupId = dedupId(bucket, key);
+		log.info("Send SQS message to request queue, deduplicationId: {}", dedupId);
+		
 		sqsTemplate.send(to -> to.queue(requestQueue)
-				.payload(new RequestMessage(bucket, key)).messageDeduplicationId(dedupId(bucket, key)));
+				.payload(new RequestMessage(bucket, key)).messageDeduplicationId(dedupId));
 
 	}
 	

@@ -24,7 +24,7 @@ public class StartupListener {
 	private LeaderService leaderService;
 	@Autowired
 	private LeaderQueue leaderQueue;
-	@Autowired
+	@Autowired(required = false)
 	private InfluxDBClient influxClient;
 
 	@EventListener
@@ -33,13 +33,17 @@ public class StartupListener {
 		if (leaderService.isleader()) {
 			log.info("This is the leader, start listening to leader queue");
 			leaderQueue.start();
+		}else {
+			// not the leader, make sure it is not listing to leader queue
+			leaderQueue.stop();
 		}
 	}
 
 	@EventListener
 	public void onApplicationEvent(ContextClosedEvent event) {
-
-		influxClient.close();
+		if (influxClient != null) {
+			influxClient.close();
+		}
 	}
 
 }

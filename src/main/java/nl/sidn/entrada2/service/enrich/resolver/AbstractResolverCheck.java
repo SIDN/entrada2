@@ -67,9 +67,6 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	@Value("${entrada.directory.reference}")
 	protected String directory;
 	
-	@Value("${spring.cloud.kubernetes.enabled}")
-	private boolean k8sEnabled;
-
 	private BloomFilter<String> ipv4Filter;
 
 	private boolean needToReload = true;

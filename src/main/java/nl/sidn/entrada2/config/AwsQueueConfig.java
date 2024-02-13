@@ -225,8 +225,11 @@ public class AwsQueueConfig {
 	@Bean
 	SqsMessageListenerContainerFactory<Object> commandSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
-				.configure(options -> options.listenerMode(ListenerMode.SINGLE_MESSAGE).maxConcurrentMessages(1)
-						.maxMessagesPerPoll(1).acknowledgementMode(AcknowledgementMode.MANUAL)
+				.configure(options -> options
+						.listenerMode(ListenerMode.SINGLE_MESSAGE)
+						.maxConcurrentMessages(1)
+						.maxMessagesPerPoll(1)
+						.acknowledgementMode(AcknowledgementMode.MANUAL)
 						.pollTimeout(Duration.ofSeconds(10)))
 				.build();
 	}
@@ -235,9 +238,13 @@ public class AwsQueueConfig {
 	@Bean
 	SqsMessageListenerContainerFactory<Object> leaderSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
-				.configure(options -> options.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-						.maxConcurrentMessages(1).maxMessagesPerPoll(1)
-						.pollTimeout(Duration.ofSeconds(10)))
+				.configure(options -> options
+						.listenerMode(ListenerMode.SINGLE_MESSAGE)
+						.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
+						.maxConcurrentMessages(1)
+						.maxMessagesPerPoll(1)
+						.pollTimeout(Duration.ofSeconds(10))
+						)
 				.build();
 	}
 
@@ -250,8 +257,10 @@ public class AwsQueueConfig {
 	@Primary
 	SqsMessageListenerContainerFactory<Object> defaultSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
-				.configure(options -> options.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-						.maxConcurrentMessages(1).maxMessagesPerPoll(1)
+				.configure(options -> options
+						.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
+						.maxConcurrentMessages(1)
+						.maxMessagesPerPoll(1)
 						.pollTimeout(Duration.ofSeconds(10)))
 				.build();
 	}

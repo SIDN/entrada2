@@ -1,6 +1,7 @@
 package nl.sidn.entrada2.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,6 +13,7 @@ import com.influxdb.client.WriteOptions;
 import io.reactivex.rxjava3.core.BackpressureOverflowStrategy;
 
 @Configuration
+@ConditionalOnProperty(prefix = "entrada.metric.influxdb", name = "url", matchIfMissing = false)
 public class InfluxDbConfig {
 
 	@Value("${entrada.metrics.influxdb.org}")
