@@ -89,6 +89,8 @@ spring:
       sqs:
         # when using aws, enable sqs for messaging
         enabled: false
+    loadbalancer:
+      enabled: false
     openfeign:
       client:
         config:
