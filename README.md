@@ -195,7 +195,6 @@ The column names use a prefix to indicate where the information was extracted fr
 | tcp_rtt       | int    | RTT (millis) based on TCP-handshake  |
 | server       | string    | Name of NS server  |
 | server_location       | string    | Name of anycast site of NS server  |
-| dns_qdcount       | int    | Question  |
 
 
 ## Metrics
