@@ -141,7 +141,62 @@ TODO
 
 ## Table schema
 
-TODO
+The column names use a prefix to indicate where the information was extracted from:
+
+- dns_ : from the DNS message
+- ip_: from the IP packet
+- prot_: from transport UDP/TCP
+- edns_: from EDNS records in DNS message 
+- tcp_: from the TCP packet
+
+| column name  | type   | Description               |
+| ------------ | ------ | ------------------------- |
+| dns_id       | int    | ID field from DNS header  |
+| time         | long    | Time of packet  |
+| dns_qname       | string    | qname from DNS question  |
+| dns_domainname       | string    | domainname from DNS question  |
+| ip_ttl       | int    | TTL of IP packet  |
+| ip_version       | int    | IP version used  |
+| prot       | int    | Protocool used (UDP or TCP  |
+| ip_src       | string    | IP source address  |
+| prot_src_port       | int    | Source port  |
+| ip_dst       | string    | IP destination address  |
+| prot_src_port|   string    | Destination port |
+| dns_aa       | boolean    | AA flag from DNS header  |
+| dns_tc       | boolean    | TC flag from DNS header  |
+| dns_rd       | boolean    | RD flag from DNS header  |
+| dns_ra       | boolean    | RA flag from DNS header  |
+| dns_ad       | boolean    | AD flag from DNS header  |
+| dns_cd       | boolean    | CD flag from DNS header  |
+| dns_ancount       | int    | Answer RR count DNS  |
+| dns_arcount       | int    | Additional RR count DNS   |
+| dns_nscount       | int    | Authority RR count DNS   |
+| dns_qdcount       | int    | Question RR count DNS   |
+| dns_opcode       | int    | OPCODE from DNS header  |
+| dns_rcode       | int    | RCODE from DNS header  |
+| dns_qtype       | int    | QTYPE from DNS header  |
+| dns_qclass       | int    | CLASS from DNS question  |
+| ip_geo_country       | string    | Country for source IP adress  |
+| ip_asn       | string    | ASN for source IP adress  |
+| ip_asn_org       | string    | ASN organisation name for source IP adress  |
+| edns_udp       | int    | UDP size from EDNS  |
+| edns_version       | int    | EDNS version  |
+| edns_options       | array(int)    | EDNS options from request |
+| edns_ecs       | string    | EDNS Client Subnet   |
+| edns_ecs_ip_asn       | int    | ASN for IP address in ECS   |
+| edns_ecs_ip_asn_org       | int    | ASN organisation for IP address in ECS   |
+| edns_ecs_ip_geo_country       | int    | Country for IP address in ECS   |
+| edns_ext_error       | int    | EDNS extended error   |
+| dns_labels       | int    | Number oif labels in DNS qname   |
+| dns_proc_time       | int    | Time between request and response (millis)   |
+| dns_pub_resolver       | string    | Name of public resolver source   |
+| dns_req_len       | int    | Size of DNS request message  |
+| dns_res_len       | int    | Size of DNS response message  |
+| tcp_rtt       | int    | RTT (millis) based on TCP-handshake  |
+| server       | string    | Name of NS server  |
+| server_location       | string    | Name of anycast site of NS server  |
+| dns_qdcount       | int    | Question  |
+
 
 ## Metrics
 
