@@ -146,8 +146,8 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 
 Running multiple containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".
 The leader container is responsible for comitting new datafiles to the Iceberg table.
-When running on Kubernetes, leader election is performed automatically, when this container is shutdown, the leader election process will automatically select another container to become the leader.
-When using Docker you must the the "entrada.leader" option to true for 1 container and there is no failover mechanism.
+When running on Kubernetes, leader election is performed automatically. When the leader container is shutdown, the leader election process will automatically select another container to become the leader.
+When using Docker you must set the "entrada.leader" option to true for 1 container, there is no failover mechanism when using Docker.
 
 
 ## Table schema
@@ -210,7 +210,7 @@ The column names use a prefix to indicate where the information was extracted fr
 
 ## Metrics
 
-Metrics about the processed DNS data are genered when the configuration option "entrada.metrics.enabled" is set to true.
+Metrics about the processed DNS data are generated when the configuration option "entrada.metrics.enabled" is set to true.
 The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the "entrada.metrics.influxdb.*" options.
 
 
