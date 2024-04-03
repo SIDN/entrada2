@@ -111,7 +111,7 @@ docker exec -it docker-trino-1 trino
 Switch to the correct catalog:
 
 ```
-use iceberg_entrada.entrada2
+use iceberg_entrada.entrada2;
 ```
 
 Query data in dns table:
