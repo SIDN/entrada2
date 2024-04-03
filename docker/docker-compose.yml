@@ -106,7 +106,7 @@ services:
       - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
       - pgVolume:/pgdata:rw
   iceberg-rest-catalog:
-    image: sidnlabs/iceberg-restcatalog-server:0.0.1
+    image: sidnlabs/iceberg-rest-catalog-server:0.1.2
     profiles: ["dev","test"]
     restart: always
     environment:

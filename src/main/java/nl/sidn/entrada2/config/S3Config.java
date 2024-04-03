@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
@@ -18,7 +19,11 @@ import software.amazon.awssdk.services.s3.model.NotificationConfiguration;
 import software.amazon.awssdk.services.s3.model.PutBucketNotificationConfigurationRequest;
 
 @Configuration
+@Slf4j
 public class S3Config {
+	
+	@Value("${entrada.provisioning.enabled:true}")
+	private boolean provisioningEnabled;
 
 	@Value("${entrada.s3.endpoint}")
 	private String endpoint;
@@ -41,6 +46,12 @@ public class S3Config {
 
 	@PostConstruct
 	private void init() {
+		
+		if(!provisioningEnabled) {
+			log.info("Provisioning is disabled, do not create required bucket");
+			return;
+		}
+
 		if (!isBucketExist(s3(), bucketName)) {
 			createBucket(s3(), bucketName, isRunningOnAws());
 		}

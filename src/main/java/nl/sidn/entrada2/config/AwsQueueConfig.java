@@ -46,6 +46,9 @@ import software.amazon.awssdk.services.sqs.model.SetQueueAttributesRequest;
 @Configuration
 @Slf4j
 public class AwsQueueConfig {
+	
+	@Value("${entrada.provisioning.enabled:true}")
+	private boolean provisioningEnabled;
 
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
@@ -87,6 +90,11 @@ public class AwsQueueConfig {
 
 	@PostConstruct
 	public void initialize() {
+		
+		if(!provisioningEnabled) {
+			log.info("Provisioning is disabled, do not create required queues");
+			return;
+		}
 
 		String queueName = commandQueue + "-queue";
 		if (!isQueueExist(queueName)) {

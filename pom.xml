@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>nl.sidn</groupId>
 	<artifactId>entrada2</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.2-SNAPSHOT</version>
 	<name>entrada2</name>
 
 	<properties>
@@ -92,13 +92,13 @@
 		<dependency>
 			<groupId>nl.sidnlabs</groupId>
 			<artifactId>pcap-lib</artifactId>
-			<version>0.2.22-SNAPSHOT</version>
+			<version>0.2.22</version>
 		</dependency>
 
 		<dependency>
 			<groupId>nl.sidnlabs</groupId>
 			<artifactId>dnslib</artifactId>
-			<version>0.2.16-SNAPSHOT</version>
+			<version>0.2.16</version>
 		</dependency>
 
 		<dependency>

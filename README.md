@@ -49,7 +49,7 @@ The following deployment modes are supported:
 
 ```
 mvn package
-docker build --tag=sidnlabs/entrada2:0.0.1 .
+docker build  --platform linux/amd64 --tag=sidnlabs/entrada2:0.0.1 .
 docker push sidnlabs/entrada2:0.0.1
 ```
 

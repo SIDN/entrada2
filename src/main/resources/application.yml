@@ -58,6 +58,11 @@ entrada:
       token: 
       url:
       env: test
+  provisioning:
+    # auto create all required componemts such as bucket and queues
+    # might be useful when entrada2 application does not have these permissions on aws.
+    enabled: true
+      
 
 spring:
  main:
