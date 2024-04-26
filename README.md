@@ -216,3 +216,6 @@ This product includes ENTRADA2 created by <a href="https://www.sidnlabs.nl">SIDN
 <a href="http://entrada.sidnlabs.nl">http://entrada.sidnlabs.nl</a>.
 ```
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=SIDN/entrada2&type=Date)](https://star-history.com/#SIDN/entrada2&Date)
