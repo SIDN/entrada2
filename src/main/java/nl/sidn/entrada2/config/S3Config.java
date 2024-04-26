@@ -46,6 +46,8 @@ public class S3Config {
 
 	@PostConstruct
 	private void init() {
+		log.info("Using s3 endpoint: {}", endpoint);
+		log.info("Using s3 bucket: {}", bucketName);
 		
 		if(!provisioningEnabled) {
 			log.info("Provisioning is disabled, do not create required bucket");

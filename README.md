@@ -16,7 +16,7 @@ Based on the following components:
 - S3 storage (MinIO, AWS)
 - Open table format (Apache Iceberg)
 - Messaging Queue ( RabbitMQ, AWS SQS)
-- Metadata Data catalog (AWS Glue or [REST based Iceberg catalog server](https://github.com/SIDN/iceberg-rest-catalog-server) + PostgreSQL)
+- Metadata Data catalog (AWS Glue or PostgreSQL)
 - Metrics ([InfluxDB](https://www.influxdata.com/))
 - Query engine (Trino, AWS Athena, Spark)
 
@@ -48,9 +48,9 @@ The following deployment modes are supported:
 # Build
 
 ```
-mvn package
-docker build  --platform linux/amd64 --tag=sidnlabs/entrada2:0.0.1 .
-docker push sidnlabs/entrada2:0.0.1
+export TOOL_VERSION=0.0.3
+mvn clean && mvn package && docker build  --tag=sidnlabs/entrada2:$TOOL_VERSION .
+docker push sidnlabs/entrada2:$TOOL_VERSION
 ```
 
 # Getting started
@@ -69,33 +69,13 @@ docker-compose --profile test up
 ```
 
 ## Uploading pcap file
-When all components have started up, you may upload a pcap file to s3, processing of the new pcap file will start automatically.  
-The default bucket name is `sidnlabs-iceberg-data` and pcap files need to be uploaded to the directory `pcap/`.  
+When all components have started up, you may upload (webUI or s3 API) a pcap file to the s3 bucket, processing of the new pcap file will start automatically.  
+The default bucket name is `sidnlabs-iceberg-data` and pcap files need to use `pcap/` as a prefix.  
 
 Use the the following s3 tags when uploading file to S3:
 
 - entrada-ns-server: Logical name of the name server
 - entrada-ns-anycast-site: Anycast site of the name server
-
-Example using MinIO:  
-
-```
-# connect to Minio Docker container
-docker exec -it docker-minio-1 /bin/bash
-
-# create a new minio alias for use with mc command
-mc alias set minio http://minio:9000 entrada <get password from docker-compose file>
-
-# goto pcap directory
-# The /pcap directory in the Minio container is mapped to a pcap sub-directory on the host.  
-cd /pcap
-
-# upload a pcap (add pcap file first to directory on host)
-mc cp --tags "entrada-ns-server=ns1.example.nl&entrada-ns-anycast-site=ams"  \
-ams-ns1-150_2023-10-04-11:09:51.pcap.gz minio/sidnlabs-iceberg-data/pcap/ams-ns1-150_2023-10-04-11:09:51.pcap.gz
-```
-
-After uploading the pcap file, see the docker logging for information about the processed file. 
 
 
 ## Analysing results

@@ -26,9 +26,10 @@ entrada:
     pcap: 'pcap'
     reference: 'reference'
   s3:
+    # use default aws env vars so aws libs automatically get correct credentials
     access-key: '${AWS_ACCESS_KEY_ID}'
     secret-key: '${AWS_SECRET_ACCESS_KEY}'
-    region: 'eu-west-1'
+    region: ${AWS_REGION}'
     # only use endpoint when not using aws 
     endpoint:
     bucket: 'sidnlabs-iceberg-data'
@@ -118,8 +119,11 @@ spring:
 iceberg:
   # only use catalog when using the REST catalog server, not when using aws Glue
   catalog:
-    url: 
-    token: secret_token_change_me_fast
+    host:
+    port: 5432
+    name:
+    user:
+    password: 
   warehouse-dir: 'warehouse'
   # see iceberg docs for: write.parquet.compression-codec
   compression: 'ZSTD'
@@ -130,7 +134,7 @@ iceberg:
   table:
     namespace: 'entrada2'
     name: 'dns'
-    location: 's3://${entrada.s3.bucket}/entrada2'
+    location: 's3://${entrada.s3.bucket}/${iceberg.table.namespace}'
     # sorting allows for better gzip compression but increases resource(cpu/ram) usage
     sorted: true
   parquet:

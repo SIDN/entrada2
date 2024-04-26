@@ -6,21 +6,21 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.2</version>
+		<version>3.2.5</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>nl.sidn</groupId>
 	<artifactId>entrada2</artifactId>
-	<version>0.0.2-SNAPSHOT</version>
+	<version>0.0.3-SNAPSHOT</version>
 	<name>entrada2</name>
 
 	<properties>
 		<java.version>21</java.version>
-		<spring-cloud.version>2023.0.0</spring-cloud.version>
-		<spring-cloud-aws.version>3.0.0</spring-cloud-aws.version>
-		<spring-amqp.version>3.1.1</spring-amqp.version>
-		<iceberg.version>1.4.3</iceberg.version>
-		<aws-java-sdk.version>2.23.12</aws-java-sdk.version>
+		<spring-cloud.version>2023.0.1</spring-cloud.version>
+		<spring-cloud-aws.version>3.1.1</spring-cloud-aws.version>
+		<!--	<spring-amqp.version>3.1.1</spring-amqp.version>  -->
+		<iceberg.version>1.5.1</iceberg.version>
+		<aws-java-sdk.version>2.25.37</aws-java-sdk.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -102,15 +102,9 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.tukaani</groupId>
-			<artifactId>xz</artifactId>
-			<version>1.9</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-compress</artifactId>
-			<version>1.25.0</version>
+			<version>1.26.1</version>
 		</dependency>
 
 		<dependency>
@@ -202,14 +196,56 @@
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.15.1</version>
+			<version>2.16.1</version>
 		</dependency>
 
 		<dependency>
+			<groupId>org.tukaani</groupId>
+			<artifactId>xz</artifactId>
+			<version>1.9</version>
+		</dependency>
+
+		<!-- Hadoop dependency is still required for Apache Iceberg -->
+		<dependency>
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-common</artifactId>
-			<version>3.3.6</version>
-			<scope>provided</scope>
+			<version>3.4.0</version>
+			<exclusions>
+				<!-- remove logback to prevent library conflicts -->
+				<exclusion>
+					<groupId>ch.qos.logback</groupId>
+					<artifactId>logback-classic</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>ch.qos.logback</groupId>
+					<artifactId>logback-core</artifactId>
+				</exclusion>
+				<!-- remove older versions of libs, these include security
+				vulnerabilities -->
+				<exclusion>
+					<groupId>org.bouncycastle</groupId>
+					<artifactId>bcprov-jdk15on</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.commons</groupId>
+					<artifactId>commons-configuration2</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.zookeeper</groupId>
+					<artifactId>zookeeper</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.hadoop</groupId>
+					<artifactId>hadoop-auth</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- include newer version for snappy than imported by iceberg -->
+		<dependency>
+			<groupId>org.xerial.snappy</groupId>
+			<artifactId>snappy-java</artifactId>
+			<version>1.1.10.5</version>
 		</dependency>
 
 		<dependency>
@@ -248,7 +284,7 @@
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
-			<version>33.0.0-jre</version>
+			<version>33.1.0-jre</version>
 		</dependency>
 
 		<dependency>
@@ -256,7 +292,16 @@
 			<artifactId>spring-rabbit</artifactId>
 		</dependency>
 
+		<!-- use newer psql driver, spring boot version contains security
+		vulnerabilities -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>42.7.3</version>
+		</dependency>
+
 	</dependencies>
+
 	<dependencyManagement>
 		<dependencies>
 
@@ -304,6 +349,7 @@
 					</excludes>
 				</configuration>
 			</plugin>
+
 		</plugins>
 	</build>
 

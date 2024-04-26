@@ -1,24 +1,33 @@
-FROM --platform=linux/amd64 alpine:3.19
+# use multi stage build, 1st stage is to create base image containing JRE only
+# see example: https://blog.devops.dev/how-to-reduce-jvm-docker-image-size-by-at-least-60-459ec87b95d8
 
-# Set environment variables for configuration
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
-ENV MAVEN_HOME=/usr/share/maven
+FROM --platform=linux/amd64 eclipse-temurin:21-alpine as temurin-jdk
 
-RUN apk add --no-cache openjdk21 maven
+# required for strip-debug to work
+RUN apk add --no-cache binutils
 
-# Set default values for environment variables
-ENV PATH=$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH
+# Build small JRE image
+RUN jlink \
+         --add-modules ALL-MODULE-PATH \
+         --strip-debug \
+         --no-man-pages \
+         --no-header-files \
+         --compress=2 \
+         --output /jre
 
-# Add labels for better maintainability
+FROM --platform=linux/amd64 alpine:latest
+
+ENV JAVA_HOME=/jre
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+COPY --from=temurin-jdk /jre $JAVA_HOME
+
 LABEL maintainer="SIDN Labs"
 
-
-# Set the working directory
 WORKDIR /app
 
 # Copy the application code to the container
-COPY target/entrada2-0.0.1-SNAPSHOT.jar /app/entrada2.jar
-
+COPY target/entrada2-*.jar /app/entrada2.jar
 
 # Set the entrypoint command
 CMD ["java", "-jar", "/app/entrada2.jar"]

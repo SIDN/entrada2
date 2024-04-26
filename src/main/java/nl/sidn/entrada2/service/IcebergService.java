@@ -62,6 +62,9 @@ public class IcebergService {
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
 	private List<SortableGenericRecord> records;
+	
+	// list of records in memory, not yet written to disk
+	private List<GenericRecord> unsavedRecords;
 
 	@Autowired
 	private LeaderQueue leaderQueue;
@@ -109,6 +112,10 @@ public class IcebergService {
 		// the pcap is for multiple days
 		return new WrappedPartitionedFanoutWriter(table, fileAppenderFactory, outputFileFactory);
 
+	}
+	
+	public void save(GenericRecord record) {
+		unsavedRecords.add(record);
 	}
 
 	public void write(GenericRecord record) {

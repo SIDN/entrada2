@@ -1,5 +1,8 @@
-version: '3'
+#version: '3'
 # NOTE: all credentials used in this file are for testing and do not pose a security risk
+# profiles:
+# - test: start entrada and all dependencies for testing
+# - dev: only start all dependencies (run entrada from dev env)
 services:
   influxdb:
     image: influxdb:latest
@@ -42,7 +45,6 @@ services:
       - MINIO_NOTIFY_AMQP_DURABLE_ENTRADA=on
     volumes:
       - dataVolume:/data:rw
-      - ./pcap:/pcap
     ports:
       - "9000:9000"
       - "9090:9090"
@@ -69,12 +71,14 @@ services:
       exit 0;
       "
   trino:
-    image: trinodb/trino:438
+    image: trinodb/trino:445
     profiles: ["dev","test"]
+    restart: always
     environment:
-      - ICEBERG_REST_URL=http://iceberg-rest-catalog:8182
-      - ICEBERG_REST_WAREHOUSE=s3://sidnlabs-iceberg-data/warehouse/
-      - ICEBERG_REST_TOKEN=secret_token_change_me_fast
+      - ICEBERG_JDBC_URL=jdbc:postgresql://postgresql:5432/iceberg
+      - ICEBERG_JDBC_USER=iceberg
+      - ICEBERG_JDBC_PASSWORD=my-secret-test-password
+      - ICEBERG_WAREHOUSE=s3://sidnlabs-iceberg-data/warehouse
       - ICEBERG_S3_ENDPOINT=http://minio:9000
       - ICEBERG_S3_ACCESS_KEY=admin
       - ICEBERG_S3_SECRET_KEY=my-secret-test-password
@@ -85,10 +89,9 @@ services:
       - "8085:8080"
     links:
       - minio  
-      - iceberg-rest-catalog
     depends_on:
       - minio
-      - iceberg-rest-catalog
+      - postgresql
   postgresql:
     image: postgres:16
     profiles: ["dev","test"]
@@ -105,29 +108,8 @@ services:
     volumes:
       - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
       - pgVolume:/pgdata:rw
-  iceberg-rest-catalog:
-    image: sidnlabs/iceberg-rest-catalog-server:0.1.2
-    profiles: ["dev","test"]
-    restart: always
-    environment:
-      - ICEBERG_CATALOG_DB_URL=jdbc:postgresql://postgresql:5432/iceberg
-      - ICEBERG_CATALOG_DB_USER=iceberg
-      - ICEBERG_CATALOG_DB_PASSWORD=my-secret-test-password
-      - AWS_ACCESS_KEY_ID=entrada
-      - AWS_SECRET_ACCESS_KEY=my-secret-test-password
-      - AWS_REGION=eu-west-1
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-      - CATALOG_SECURITY_TOKEN=secret_token_change_me_fast
-    ports:
-      - "8182:8182" 
-    links:
-      - postgresql
-      - minio
-    depends_on:
-      - postgresql
-      - minio
   entrada:
-    image: sidnlabs/entrada2:0.0.1
+    image: sidnlabs/entrada2:0.0.3
     profiles: ["test"]
     restart: always
     environment:
@@ -143,20 +125,21 @@ services:
       - SPRING_RABBITMQ_USERNAME=admin
       - MAXMIND_LICENSE_FREE=${MAXMIND_LICENSE_FREE}
       - MAXMIND_LICENSE_PAID=${MAXMIND_LICENSE_PAID}
-      - ICEBERG_CATALOG_URL=http://iceberg-rest-catalog:8182
-      - ICEBERG_CATALOG_TOKEN=secret_token_change_me_fast
+      - ICEBERG_CATALOG_HOST=postgresql
+      - ICEBERG_CATALOG_PORT=5432
+      - ICEBERG_CATALOG_USER=iceberg
+      - ICEBERG_CATALOG_PASSWORD=my-secret-test-password
     ports:
       - "8080:8080" 
     links:
       - influxdb
       - rabbitmq
-      - iceberg-rest-catalog
       - minio
+      - postgresql
     depends_on:
       - postgresql
       - minio
       - rabbitmq
-      - iceberg-rest-catalog
     dns:
        - 8.8.8.8
 volumes:

@@ -11,8 +11,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.rest.RESTCatalog;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.types.Types.NestedField;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,14 +19,28 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 
+import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.FieldEnum;
 
+@Slf4j
 @Configuration
 @DependsOn("s3Config")
 public class IcebergCatalogConfig {
 
-	@Value("${iceberg.catalog.url}")
-	private String catalogUrl;
+	@Value("${iceberg.catalog.host}")
+	private String catalogHost;
+	
+	@Value("${iceberg.catalog.port:5432}")
+	private int catalogPort;
+	
+	@Value("${iceberg.catalog.user}")
+	private String catalogUser;
+	
+	@Value("${iceberg.catalog.name}")
+	private String catalogDbName;
+	
+	@Value("${iceberg.catalog.password}")
+	private String catalogPassword;
 
 	@Value("${iceberg.warehouse-dir}")
 	private String catalogWarehouse;
@@ -43,9 +56,6 @@ public class IcebergCatalogConfig {
 
 	@Value("${entrada.s3.secret-key}")
 	private String catalogSecretKey;
-
-	@Value("${iceberg.catalog.token}")
-	private String catalogSecurityToken;
 	
 	@Value("${iceberg.connection.timeout}")
 	private int connectionTimeout;
@@ -66,38 +76,44 @@ public class IcebergCatalogConfig {
 
 	@Bean
 	public Catalog catalog() {
-		if (StringUtils.isBlank(catalogUrl)) {
+		if (StringUtils.isBlank(catalogHost)) {
+			// default is aws glue catalog
 			return glueCatalog();
 		}
 
-		return restCatalog();
+		// fallback is jdbccatalog
+		return jdbcCatalog();
 	}
-
-	private Catalog restCatalog() {
+	
+	private Catalog jdbcCatalog() {
+		log.info("Creating Iceberg JDBC Catalog");
 		
 		Map<String, String> properties = new HashMap<>();
-		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
-
-		properties.put(CatalogProperties.URI, catalogUrl);
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogWarehouse);
+		properties.put(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
+		properties.put(CatalogProperties.URI, "jdbc:postgresql://" + catalogHost + ":" + catalogPort + "/" + catalogDbName);
+		properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", catalogUser);
+		properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", catalogPassword);
+		
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
-		properties.put(OAuth2Properties.TOKEN, catalogSecurityToken);
-		properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://" + bucketName + "/" + catalogWarehouse);
+		
+		if (StringUtils.isNotBlank(catalogEndpoint)) {
+		   properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
+		}
+		
 		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, catalogSecretKey);
 		properties.put(S3FileIOProperties.ACCESS_KEY_ID, catalogAccessKey);
 		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
-
-		properties.put("http-client.urlconnection.socket-timeout-ms", String.valueOf(connectionTimeout));
-		properties.put("http-client.urlconnection.connection-timeout-ms", String.valueOf(connectionTimeout));
-
-
-		RESTCatalog catalog = new RESTCatalog();
-		catalog.initialize("entrada", properties);
+		
+		JdbcCatalog catalog = new JdbcCatalog();
+		catalog.initialize("iceberg", properties);
 		return catalog;
-
 	}
 
+
 	private Catalog glueCatalog() {
+		log.info("Creating Iceberg AWS Glue Catalog");
+		
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.aws.glue.GlueCatalog");
 
