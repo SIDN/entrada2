@@ -84,7 +84,7 @@ services:
       - ICEBERG_S3_SECRET_KEY=my-secret-test-password
       - ICEBERG_S3_REGION=eu-west-1     
     volumes:
-      - ./iceberg_entrada.properties:/etc/trino/catalog/iceberg_entrada.properties
+      - ./iceberg.properties:/etc/trino/catalog/iceberg.properties
     ports:
       - "8085:8080"
     links:
