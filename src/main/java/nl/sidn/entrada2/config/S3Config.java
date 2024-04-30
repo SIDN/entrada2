@@ -72,7 +72,8 @@ public class S3Config {
 					.eventBridgeConfiguration(bridge).build();
 
 			PutBucketNotificationConfigurationRequest configurationRequest = PutBucketNotificationConfigurationRequest
-					.builder().bucket(bucket).notificationConfiguration(configuration).skipDestinationValidation(true)
+					.builder().bucket(bucket).notificationConfiguration(configuration)
+					.skipDestinationValidation(true)
 					.build();
 
 			s3Client.putBucketNotificationConfiguration(configurationRequest);

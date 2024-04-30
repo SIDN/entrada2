@@ -2,6 +2,7 @@ package nl.sidn.entrada2.config;
 
 import java.util.Arrays;
 
+import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -163,6 +164,7 @@ public class RabbitMqConfig {
         factory.setConcurrentConsumers(concurrentConsumer);
         factory.setMaxConcurrentConsumers(maxConcurrentConsumer);
         factory.setAdviceChain(retryInterceptor);
+        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         return factory;
     }
 
@@ -188,6 +190,7 @@ public class RabbitMqConfig {
         factory.setConcurrentConsumers(concurrentConsumer);
         factory.setMaxConcurrentConsumers(maxConcurrentConsumer);
         factory.setAdviceChain(retryInterceptor);
+        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         return factory;
     }
     

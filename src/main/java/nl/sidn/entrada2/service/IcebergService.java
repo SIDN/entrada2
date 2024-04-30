@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -25,7 +26,9 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.load.DnsMetricValues;
 import nl.sidn.entrada2.load.FieldEnum;
+import nl.sidn.entrada2.metric.HistoricalMetricManager;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Service
@@ -57,14 +60,17 @@ public class IcebergService {
 
 	@Autowired
 	private Table table;
+	
+	@Autowired(required = false)
+	private HistoricalMetricManager metrics;
 
 	private GenericRecord genericRecord;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
-	private List<SortableGenericRecord> records;
+	private List<SortableGenericRecord> pageRecords;
 	
 	// list of records in memory, not yet written to disk
-	private List<GenericRecord> unsavedRecords;
+	private List<Pair<GenericRecord, DnsMetricValues>> unsavedRecords = new ArrayList<>();
 
 	@Autowired
 	private LeaderQueue leaderQueue;
@@ -72,7 +78,7 @@ public class IcebergService {
 	@PostConstruct
 	public void initialize() {
 		this.genericRecord = GenericRecord.create(table.schema());
-		this.records = new ArrayList<SortableGenericRecord>(parquetPageLimit);
+		this.pageRecords = new ArrayList<SortableGenericRecord>(parquetPageLimit);
 	}
 
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
@@ -114,8 +120,8 @@ public class IcebergService {
 
 	}
 	
-	public void save(GenericRecord record) {
-		unsavedRecords.add(record);
+	public void save(Pair<GenericRecord, DnsMetricValues> row) {
+		unsavedRecords.add(row);
 	}
 
 	public void write(GenericRecord record) {
@@ -135,10 +141,10 @@ public class IcebergService {
 		if (enableSorting) {
 			// do not write record to file until minimum number of records has been
 			// collected.
-			records.add(new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
+			pageRecords.add(new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
 			if (currentRecCount % parquetPageLimit == 0) {
 				// have min # of record, write batch to new page in file
-				writeBatch();
+				writePageBatch();
 			}
 		} else {
 			// just write unsorted recs to file now
@@ -151,12 +157,12 @@ public class IcebergService {
 
 	}
 
-	private void writeBatch() {
+	private void writePageBatch() {
 		// sort all rows, this will help compression algo to better
 		// compress the data
-		Collections.sort(records);
+		Collections.sort(pageRecords);
 
-		records.stream().forEach(r -> {
+		pageRecords.stream().forEach(r -> {
 			try {
 				partitionedFanoutWriter.write(r.getRec());
 			} catch (Exception e) {
@@ -164,14 +170,14 @@ public class IcebergService {
 			}
 		});
 
-		records.clear();
+		pageRecords.clear();
 	}
 
 	private List<DataFile> close() {
 
 		if (enableSorting) {
 			// make sure to write all rows when using sorting
-			writeBatch();
+			writePageBatch();
 		}
 
 		if (partitionedFanoutWriter != null) {
@@ -196,6 +202,18 @@ public class IcebergService {
 	}
 
 	public void commit() {
+		log.info("Commit {} rows from memory to file", unsavedRecords.size());
+		
+		for (Pair<GenericRecord, DnsMetricValues> rowPair : unsavedRecords) {
+			write(rowPair.getKey());
+			
+			// update metrics
+			if(isMetricsEnabled()) {
+				metrics.update(rowPair.getValue());
+			}
+		}
+		
+		unsavedRecords.clear();
 
 		for (DataFile dataFile : close()) {
 			// send new datafile to leader
@@ -207,6 +225,10 @@ public class IcebergService {
 
 	public GenericRecord newGenericRecord() {
 		return genericRecord.copy();
+	}
+	
+	private boolean isMetricsEnabled() {
+		return metrics != null;
 	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {

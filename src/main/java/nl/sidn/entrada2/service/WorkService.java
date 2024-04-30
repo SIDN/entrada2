@@ -5,9 +5,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +32,17 @@ import nl.sidnlabs.pcap.PcapReader;
 @Slf4j
 public class WorkService {
 
-	@Value("${entrada.inputstream.buffer:64}")
-	private int bufferSizeConfig;
+	@Value("${entrada.input.buffer:64}")
+	private int bufferSizeKb;
+	
+	@Value("${entrada.input.delete-after-read:64}")
+	private boolean deleteInputFile;
+	
+	@Value("${entrada.nameserver.default-name}")
+	private String defaultNsName;
+
+	@Value("${entrada.nameserver.default-site}")
+	private String defaultNsSite;
 
 	@Autowired
 	private S3Service s3Service;
@@ -71,14 +82,34 @@ public class WorkService {
 		icebergService.commit();
 	}
 
-	public void process(String bucket, String key) {
+	public boolean process(String bucket, String key) {
 
-		Map<String, String> tags = s3Service.tags(bucket, key);
-		String server = "unknown";
+		Map<String, String> tags = new HashMap<String, String>();
+		if(!s3Service.tags(bucket, key, tags)){
+			// cannot get tags, retry later
+			return false;
+		}
+
+		// check if file has been processed before
+		// file will arrive here also when code below updates the tags
+		if(tags.keySet().stream().anyMatch( t -> StringUtils.equalsIgnoreCase(t, S3ObjectTagName.ENTRADA_PROCESS_TS_START.value))) {
+			log.info("s3 object has already been processed (tag {} is present), do not continue processing: {}", S3ObjectTagName.ENTRADA_PROCESS_TS_START.value, key);
+			return true;
+		}
+		
+		tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value,
+				LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+		if(!s3Service.tag(bucket, key, tags)) {
+			// could not mark the file as being processed, do not continue
+			log.error("Claiming s3 object failed, do not continue processing: {}", key);
+			return false;
+		}
+		
+		String server = defaultNsName;
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
 			server = tags.get(S3ObjectTagName.ENTRADA_NS_SERVER.value);
 		}
-		String anycastSite = "unknown";
+		String anycastSite = defaultNsSite;
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
@@ -93,11 +124,19 @@ public class WorkService {
 			Counter.builder("pcap.processed").tags("server", server).tags("location", anycastSite)
 					.register(meterRegistry).increment();
 
-			tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "yes");
-			tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
-			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS.value,
-					LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+			if(deleteInputFile) {
+				s3Service.delete(bucket, key);
+			}else {
+				// keep pcap file in s3, but mark as processed
+				tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "yes");
+				tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
+				tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,
+						LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 
+				
+				s3Service.tag(bucket, key, tags);
+			}
+			
 			log.info("Finished processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
 
@@ -107,6 +146,7 @@ public class WorkService {
 			Counter.builder("pcap.error").tags("server", server).tags("location", anycastSite).register(meterRegistry)
 					.increment();
 
+			return false;
 		} finally {
 			// startOfWork is also use to check for stalled processing, reset after done
 			// with file
@@ -118,8 +158,10 @@ public class WorkService {
 			meterRegistry.clear();
 		}
 
-		s3Service.tag(bucket, key, tags);
-	}
+		return true;
+
+		}
+		
 
 	private boolean isMetricsEnabled() {
 		return metrics != null;
@@ -137,12 +179,15 @@ public class WorkService {
 					joiner.join(p).forEach(rd -> {
 						Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
 								icebergService.newGenericRecord());
-						icebergService.write(rowPair.getKey());
+						
+						// save all records from file in memory and only commit (write to file)
+						// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
+						icebergService.save(rowPair);
 
-						// update metrics
-						if(isMetricsEnabled()) {
-							metrics.update(rowPair.getValue());
-						}
+//						// update metrics
+//						if(isMetricsEnabled()) {
+//							metrics.update(rowPair.getValue());
+//						}
 					});
 				});
 
@@ -154,12 +199,12 @@ public class WorkService {
 				joiner.clearCache().forEach(rd -> {
 					Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
 							icebergService.newGenericRecord());
-					icebergService.write(rowPair.getKey());
+					icebergService.save(rowPair);
 
 					// update metrics
-					if(isMetricsEnabled()) {
-						metrics.update(rowPair.getValue());
-					}
+//					if(isMetricsEnabled()) {
+//						metrics.update(rowPair.getValue());
+//					}
 				});
 
 				if (log.isDebugEnabled()) {
@@ -190,7 +235,7 @@ public class WorkService {
 	private Optional<PcapReader> createReader(String file, InputStream is) {
 
 		try {
-			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, bufferSizeConfig * 1024, file);
+			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, bufferSizeKb * 1024, file);
 			return Optional.of(new PcapReader(new DataInputStream(decompressor), null, true, file, false));
 		} catch (IOException e) {
 			log.error("Error creating pcap reader for: " + file, e);

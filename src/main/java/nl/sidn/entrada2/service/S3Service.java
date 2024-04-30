@@ -15,15 +15,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 
@@ -123,12 +128,34 @@ public class S3Service {
 		return false;
 	}
 
-	public Map<String, String> tags(String bucket, String key) {
-		GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();
-		GetObjectTaggingResponse resp = s3Client.getObjectTagging(otr);
-		return resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));
+	public boolean tags(String bucket, String key, Map<String, String> tags) {
+		try {
+			GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();
+			GetObjectTaggingResponse resp = s3Client.getObjectTagging(otr);
+			Map<String, String> tmpTags = resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));
+			tags.putAll(tmpTags);
+			return true;
+		} catch(Exception e) {	
+			log.info("Error getting tags for (deleted?) key: {}", key);
+			return false;
+		} 
+		
+		
 	}
 
+	public boolean delete(String bucket, String key) {
+		log.info("Delete file: {}", key);
 
+		try {
+			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
+			s3Client.deleteObject(req);
+
+		} catch (Exception e) {
+			log.error("Object delete operation failed for: " + key, e);
+			return false;
+		}
+
+		return true;
+	}
 
 }

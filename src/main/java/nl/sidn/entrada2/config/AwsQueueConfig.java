@@ -192,7 +192,7 @@ public class AwsQueueConfig {
 
 		NotificationConfigurationFilter filterConf = NotificationConfigurationFilter.builder().key(fltr).build();
 
-		QueueConfiguration destQueue = QueueConfiguration.builder().queueArn(queueArn).events(Event.S3_OBJECT_CREATED)
+		QueueConfiguration destQueue = QueueConfiguration.builder().queueArn(queueArn).events(Event.S3_OBJECT_CREATED, Event.S3_OBJECT_TAGGING_DELETE)
 				.filter(filterConf).id("entrada-new-object").build();
 
 		NotificationConfiguration not = NotificationConfiguration.builder().queueConfigurations(destQueue).build();

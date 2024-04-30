@@ -57,9 +57,6 @@ public class IcebergCatalogConfig {
 	@Value("${entrada.s3.secret-key}")
 	private String catalogSecretKey;
 	
-	@Value("${iceberg.connection.timeout}")
-	private int connectionTimeout;
-
 	@Value("classpath:avro/dns-query.avsc")
 	private Resource resourceFile;
 
@@ -121,8 +118,8 @@ public class IcebergCatalogConfig {
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
 
-		properties.put("http-client.urlconnection.socket-timeout-ms", String.valueOf(connectionTimeout));
-		properties.put("http-client.urlconnection.connection-timeout-ms", String.valueOf(connectionTimeout));
+//		properties.put("http-client.urlconnection.socket-timeout-ms", String.valueOf(connectionTimeout));
+//		properties.put("http-client.urlconnection.connection-timeout-ms", String.valueOf(connectionTimeout));
 
 		GlueCatalog catalog = new GlueCatalog();
 		catalog.initialize("entrada2", properties);

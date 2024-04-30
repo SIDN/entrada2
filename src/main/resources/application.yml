@@ -3,6 +3,15 @@ server:
    contextPath: '/api/v1'
 
 entrada:
+  input:
+    delete-after-read: false
+    # inputstream buffer size (in kb)
+    buffer: 64
+    # if object is claimed by worker but not processed before (ts_start + max-proc-time) then release object
+    max-proc-time: 30
+  nameserver:
+    default-name: unknown-svr
+    default-site: unknown-site
   parquet:
    file:
      # max Parquet filesize (mb)
@@ -15,6 +24,8 @@ entrada:
     updater: 60
     # check for stalled worker every x min
     liveness: 1
+    # check for expired oject ever x min
+    expired-object: 5
   security:
     # token used for access to REST API (use X-API-KEY HTTP header)
     token: '94591089610224297274859827590711'
@@ -135,11 +146,11 @@ iceberg:
     namespace: 'entrada2'
     name: 'dns'
     location: 's3://${entrada.s3.bucket}/${iceberg.table.namespace}'
-    # sorting allows for better gzip compression but increases resource(cpu/ram) usage
+    # sorting allows for better compression but increases resource(cpu/ram) usage
     sorted: true
   parquet:
     # keep dictionary size low, to force parquet to use bloomfilter when bloomfilter is enabled
-    # but also do not use a to low number of bytes or none of the columns will be abke to use
+    # but also do not use a to low number of bytes or none of the columns will be able to use
     # dictionary encoding.
     # see iceberg docs for: write.parquet.dict-size-bytes
     dictionary-max-bytes: 102400 #10240
@@ -148,8 +159,7 @@ iceberg:
     # see iceberg docs for: write.parquet.bloom-filter-enabled.column.dns_domainname
     # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
-  connection:
-    timeout: 5000
+
   
 
 #########################

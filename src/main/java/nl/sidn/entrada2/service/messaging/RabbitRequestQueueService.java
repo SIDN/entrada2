@@ -1,13 +1,19 @@
 package nl.sidn.entrada2.service.messaging;
 
+import java.io.IOException;
+
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
+import com.rabbitmq.client.Channel;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.S3EventNotification;
@@ -34,30 +40,55 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	private WorkService workService;
 	
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
-	public void receiveMessageManual(S3EventNotification message) {
+	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
 		log.info("Received s3 event: {}", message);
 		
 		for (S3EventNotificationRecord rec : message.getRecords()) {
 			// check the getEventName, updating the tags may also generate a put event and
 			// this should not lead to processing the same file again.
-			if (isNewFile(rec.getEventName())) {
+			if (isSupportedEvent(rec.getEventName())) {
 				String bucket = rec.getS3().getBucket().getName();
 				String key = UrlUtil.decode(rec.getS3().getObject().getKey());
 
-				process(bucket, key);
+				workService.process(bucket, key);
+//					 ack(channel, deliveryTag);
+//				}else {
+//					nack(channel, deliveryTag);
+//				}
 			}
 		}
 	}
 	
-	private void process(String bucket, String key) {
-		
-		workService.process(bucket, key);
-		
-	}
+//	private void ack( Channel channel, long tag ) {
+//		try {
+//			channel.basicAck(tag, false);
+//		} catch (IOException e) {
+//			log.error("Ack error for tag: {}", tag, e);
+//		} 
+//	}
+//	
+//	private void nack( Channel channel, long tag ) {
+//		try {
+//			channel.basicNack(tag, false, true);
+//		} catch (IOException e) {
+//			log.error("Nack error for tag: {}", tag, e);
+//		} 
+//	}
+//	
 	
-	private boolean isNewFile(String eventName) {
+//	private void process(String bucket, String key) {
+//		
+//		workService.process(bucket, key);
+//		
+//	}
+	
+//	veranderd van put in DeleteTagging, werkt het nog steeds?
+	private boolean isSupportedEvent(String eventName) {
 		return StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:Put") || 
-				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:CompleteMultipartUpload");
+				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:CompleteMultipartUpload") ||
+				// some s3 impls also use PutTagging when add deleting a tag
+				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:DeleteTagging") ||
+				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:PutTagging");
 	}
 
 	@Override

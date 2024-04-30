@@ -70,7 +70,7 @@ docker-compose --profile test up
 
 ## Uploading pcap file
 When all components have started up, you may upload (webUI or s3 API) a pcap file to the s3 bucket, processing of the new pcap file will start automatically.  
-The default bucket name is `sidnlabs-iceberg-data` and pcap files need to use `pcap/` as a prefix.  
+The default bucket name is `sidnlabs-iceberg-data` and pcap files need to use `pcap-incoming/` as a prefix.  
 
 Use the the following s3 tags when uploading file to S3:
 
