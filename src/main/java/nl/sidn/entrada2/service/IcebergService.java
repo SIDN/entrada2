@@ -123,6 +123,10 @@ public class IcebergService {
 	public void save(Pair<GenericRecord, DnsMetricValues> row) {
 		unsavedRecords.add(row);
 	}
+	
+	public void clear() {
+		unsavedRecords.clear();
+	}
 
 	public void write(GenericRecord record) {
 

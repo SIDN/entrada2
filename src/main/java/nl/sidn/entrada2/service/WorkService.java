@@ -43,6 +43,12 @@ public class WorkService {
 
 	@Value("${entrada.nameserver.default-site}")
 	private String defaultNsSite;
+	
+	@Value("${entrada.s3.pcap-in-dir}")
+	private String pcapDirIn;
+	
+	@Value("${entrada.s3.pcap-done-dir}")
+	private String pcapDirDone;
 
 	@Autowired
 	private S3Service s3Service;
@@ -92,7 +98,7 @@ public class WorkService {
 
 		// check if file has been processed before
 		// file will arrive here also when code below updates the tags
-		if(tags.keySet().stream().anyMatch( t -> StringUtils.equalsIgnoreCase(t, S3ObjectTagName.ENTRADA_PROCESS_TS_START.value))) {
+		if(tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
 			log.info("s3 object has already been processed (tag {} is present), do not continue processing: {}", S3ObjectTagName.ENTRADA_PROCESS_TS_START.value, key);
 			return true;
 		}
@@ -104,7 +110,7 @@ public class WorkService {
 			log.error("Claiming s3 object failed, do not continue processing: {}", key);
 			return false;
 		}
-		
+
 		String server = defaultNsName;
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
 			server = tags.get(S3ObjectTagName.ENTRADA_NS_SERVER.value);
@@ -116,51 +122,64 @@ public class WorkService {
 
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
+		long duration = 0;
 		try {
 			working = true;
 			process_(bucket, key, server, anycastSite);
-			long duration = System.currentTimeMillis() - startOfWork;
+			duration = System.currentTimeMillis() - startOfWork;
 
 			Counter.builder("pcap.processed").tags("server", server).tags("location", anycastSite)
 					.register(meterRegistry).increment();
-
-			if(deleteInputFile) {
-				s3Service.delete(bucket, key);
-			}else {
-				// keep pcap file in s3, but mark as processed
-				tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "yes");
-				tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
-				tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,
-						LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
-
-				
-				s3Service.tag(bucket, key, tags);
-			}
 			
 			log.info("Finished processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
 
 			log.error("Error processing file: {}/{}", bucket, key, e);
-			tags.put(S3ObjectTagName.ENTRADA_PROCESSED_OK.value, "no");
 
 			Counter.builder("pcap.error").tags("server", server).tags("location", anycastSite).register(meterRegistry)
 					.increment();
 
 			return false;
 		} finally {
-			// startOfWork is also use to check for stalled processing, reset after done
-			// with file
+			// startOfWork is also used for checking if pcap processing has stalled
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
 				metrics.flush(server);
 			}
 			meterRegistry.clear();
+			// make sure no unsaved recs from previously failed pcaps are in mem
+			icebergService.clear();
 		}
-
+		
+		//cleanup after successful processing of file
+		if(deleteInputFile) {
+			// delete input file, do not copy to output location
+			s3Service.delete(bucket, key);
+		}else {
+			// keep pcap file in s3, but mark as processed
+			tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
+			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,
+					LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+			
+			// check if file needs to moved to another location
+			if(isNeedToMoveObject()) {
+				// tag file in current location
+				s3Service.tag(bucket, key, tags);
+			}else {
+				// move file to other directory prefix
+				String file = StringUtils.substringAfterLast(key, "/");
+				String newKey = pcapDirDone + "/" + file;
+				s3Service.move(bucket, key, newKey );
+				s3Service.tag(bucket, newKey, tags);
+			}						
+		}
 		return true;
-
-		}
+	}
+	
+	private boolean isNeedToMoveObject() {
+		return StringUtils.equalsIgnoreCase(pcapDirIn, pcapDirDone);
+	}
 		
 
 	private boolean isMetricsEnabled() {

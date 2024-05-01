@@ -74,7 +74,7 @@ public class AwsQueueConfig {
 	@Value("${entrada.s3.bucket}")
 	private String bucketName;
 
-	@Value("${entrada.s3.pcap-directory}")
+	@Value("${entrada.s3.pcap-in-dir}")
 	private String pcapDirectory;
 
 	@Autowired

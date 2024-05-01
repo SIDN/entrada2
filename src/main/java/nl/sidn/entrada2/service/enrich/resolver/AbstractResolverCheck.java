@@ -136,7 +136,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 		lines.stream().filter(s -> s.contains(":")).map(this::subnetFor).filter(Objects::nonNull)
 				.forEach(s -> matchers6.add(s));
 
-		log.info("Loaded {} resolver addresses", getMatcherCount());
+		log.info("Loaded {} resolver addresses for {}", getMatcherCount(), getName());
 	}
 
 	private FastIpSubnet subnetFor(String address) {

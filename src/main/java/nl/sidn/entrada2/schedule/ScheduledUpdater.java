@@ -36,7 +36,7 @@ public class ScheduledUpdater {
 		}
 		
 		// load data from from shared s3 location
-		log.info("Start updating reference data");
+		log.info("Set flag to enable updating reference data at next object received");
 		geoIPService.update();
 		resolverChecks.stream().forEach(c -> c.update());
 	}

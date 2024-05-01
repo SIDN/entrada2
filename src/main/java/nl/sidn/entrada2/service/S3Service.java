@@ -2,33 +2,29 @@ package nl.sidn.entrada2.service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 
@@ -46,7 +42,7 @@ public class S3Service {
 		try {
 			return Optional.of(s3Client.getObject(objectRequest));
 		} catch (Exception e) {
-			log.error("Error file getting {} from bucket {}", key, bucket, e);
+			log.error("Error object getting {} from bucket {}", key, bucket, e);
 			return Optional.empty();
 		}
 	}
@@ -57,7 +53,7 @@ public class S3Service {
 			return Optional.of(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
 
 		} catch (Exception e) {
-			log.error("Error file getting {} from bucket {}", key, bucket, e);
+			log.error("Error object getting {} from bucket {}", key, bucket, e);
 		}
 		return Optional.empty();
 	}
@@ -78,11 +74,11 @@ public class S3Service {
 	}
 
 	public boolean write(InputStream is, String bucket, String key) {
-		log.info("Save file: {}", key);
+		log.info("Save object: {}", key);
 
 		try {
 
-			log.info("Size of file: {} bytes", is.available());
+			log.info("Size of object: {} bytes", is.available());
 
 			PutObjectRequest putOb = PutObjectRequest.builder().bucket(bucket).key(key).build();
 			s3Client.putObject(putOb, RequestBody.fromInputStream(is, is.available()));
@@ -95,14 +91,15 @@ public class S3Service {
 		return true;
 	}
 
-	public List<Pair<String, Instant>> ls(String bucket, String key) {
+	public List<S3Object> ls(String bucket, String key) {
 
 		ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key).build();
 
 		try {
 			ListObjectsResponse res = s3Client.listObjects(listObjects);
 
-			return res.contents().stream().map(o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
+			return res.contents();
+			//.stream().map(o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
 
 		} catch (Exception e) {
 			log.error("Read error", e);
@@ -144,7 +141,7 @@ public class S3Service {
 	}
 
 	public boolean delete(String bucket, String key) {
-		log.info("Delete file: {}", key);
+		log.info("Delete object: {}", key);
 
 		try {
 			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
@@ -152,6 +149,36 @@ public class S3Service {
 
 		} catch (Exception e) {
 			log.error("Object delete operation failed for: " + key, e);
+			return false;
+		}
+
+		return true;
+	}
+	
+	public boolean copy(String bucket, String srcKey, String dstKey) {
+		log.info("Copy object: {} to: {}", srcKey, dstKey);
+
+		try {
+			CopyObjectRequest req = CopyObjectRequest.builder().sourceBucket(bucket).destinationBucket(bucket).sourceKey(srcKey).destinationKey(dstKey).build();
+			s3Client.copyObject(req);
+
+		} catch (Exception e) {
+			log.error("Object copy operation failed for: " + srcKey, e);
+			return false;
+		}
+
+		return true;
+	}
+	
+	public boolean move(String bucket, String srcKey, String dstKey) {
+		log.info("Move object: {} to: {}", srcKey, dstKey);
+
+		try {
+			if(copy(bucket, srcKey, dstKey)) {
+				delete(bucket, srcKey);
+			}
+		} catch (Exception e) {
+			log.error("Object move operation failed for: " + srcKey, e);
 			return false;
 		}
 

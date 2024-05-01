@@ -67,7 +67,7 @@ services:
       /usr/bin/mc admin policy attach myminio readwrite --user entrada;
       /usr/bin/mc config host add entrada http://minio:9000 entrada my-secret-test-password;
       /usr/bin/mc mb --region eu-west-1 entrada/sidnlabs-iceberg-data;
-      /usr/bin/mc event add entrada/sidnlabs-iceberg-data arn:minio:sqs::ENTRADA:amqp -p --event put --prefix pcap/;
+      /usr/bin/mc event add entrada/sidnlabs-iceberg-data arn:minio:sqs::ENTRADA:amqp -p --event put --prefix pcap-in/;
       exit 0;
       "
   trino:

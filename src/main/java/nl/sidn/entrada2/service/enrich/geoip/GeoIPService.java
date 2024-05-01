@@ -45,6 +45,7 @@ import com.maxmind.geoip2.model.CountryResponse;
 import feign.Response;
 import lombok.extern.log4j.Log4j2;
 import nl.sidn.entrada2.util.TimeUtil;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
  * Utility class to lookup IP adress information such as country and asn. Uses
@@ -60,7 +61,7 @@ public class GeoIPService extends AbstractMaxmind {
 	private boolean usePaidVersion;
 	private Instant lastUpdateTime = null;
 
-	private List<Pair<String, Instant>> s3Databases;
+	private List<S3Object> s3Databases;
 
 	private boolean needUpdate = true;
 
@@ -97,8 +98,8 @@ public class GeoIPService extends AbstractMaxmind {
 			return;
 		}
 		
-		for (Pair<String, Instant> db : s3Databases) {
-			if (lastUpdateTime == null || db.getValue().isAfter(lastUpdateTime)) {
+		for (S3Object obj : s3Databases) {
+			if (lastUpdateTime == null || obj.lastModified().isAfter(lastUpdateTime)) {
 				// new db avail on s3,
 				download();
 				return;
@@ -199,9 +200,9 @@ public class GeoIPService extends AbstractMaxmind {
 
 		Instant instant = lastModifiedRemote.toInstant();
 
-		if (!s3Databases.stream().anyMatch(p -> StringUtils.containsIgnoreCase(p.getKey(), filename))
+		if (!s3Databases.stream().anyMatch(p -> StringUtils.containsIgnoreCase(p.key(), filename))
 				|| s3Databases.stream().anyMatch(
-						p -> StringUtils.containsIgnoreCase(p.getKey(), filename) && instant.isAfter(p.getValue()))) {
+						p -> StringUtils.containsIgnoreCase(p.key(), filename) && instant.isAfter(p.lastModified()))) {
 
 			log.info("Downloading Maxmind database: {}", db);
 

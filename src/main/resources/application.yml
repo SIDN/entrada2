@@ -25,7 +25,7 @@ entrada:
     # check for stalled worker every x min
     liveness: 1
     # check for expired oject ever x min
-    expired-object: 5
+    expired-object: 10
   security:
     # token used for access to REST API (use X-API-KEY HTTP header)
     token: '94591089610224297274859827590711'
@@ -44,7 +44,10 @@ entrada:
     # only use endpoint when not using aws 
     endpoint:
     bucket: 'sidnlabs-iceberg-data'
-    pcap-directory: 'pcap'
+    # dir for new pcaps
+    pcap-in-dir: 'pcap-in'
+    # optionally move processed files to a different directory, better for detecting failed objects and aws object expiration based on age
+    pcap-done-dir: 'pcap-in'
   messaging:
     # names of messaging queues
     request:
