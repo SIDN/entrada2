@@ -1,88 +1,82 @@
-#version: '3'
 # NOTE: all credentials used in this file are for testing and do not pose a security risk
 # profiles:
 # - test: start entrada and all dependencies for testing
-# - dev: only start all dependencies (run entrada from dev env)
+#
+# example:
+# docker-compose --profile test up --scale entrada-worker=2
 services:
   influxdb:
     image: influxdb:latest
-    profiles: ["dev","test"]
-    environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_ORG=SIDN
-      - DOCKER_INFLUXDB_INIT_BUCKET=entrada
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=my-secret-test-password
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-test-token
-      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=test-config
+    env_file:
+       - path: ./docker.env
     volumes:
-      # Mount for influxdb data directory and configuration
-      - dataVolume:/var/lib/influxdb2:rw
+      - entradaInfluxDbVolume:/var/lib/influxdb2:rw
     ports:
       - "8086:8086"
-    depends_on:
-      - minio
-      - trino
   rabbitmq:
     image: rabbitmq:3-management
-    environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=my-secret-test-password
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    env_file:
+       - path: ./docker.env
     ports:
       - "5672:5672"
       - "15672:15672"
   minio:
     image: quay.io/minio/minio:latest
-    profiles: ["dev","test"]
-    environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=my-secret-test-password
-      - MINIO_NOTIFY_AMQP_ENABLE_ENTRADA=on
-      - MINIO_NOTIFY_AMQP_URL_ENTRADA=amqp://admin:my-secret-test-password@rabbitmq:5672
-      - MINIO_NOTIFY_AMQP_EXCHANGE_ENTRADA=entrada-s3-event-exchange
-      - MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_ENTRADA=direct
-      - MINIO_NOTIFY_AMQP_ROUTING_KEY_ENTRADA=entrada-s3-event
-      - MINIO_NOTIFY_AMQP_DURABLE_ENTRADA=on
+    env_file:
+       - path: ./docker.env
     volumes:
-      - dataVolume:/data:rw
+      - entradaMinioVolume:/data:rw
     ports:
       - "9000:9000"
       - "9090:9090"
     command: server /data --console-address ":9090"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     links:
       - rabbitmq
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
   createbucket:
     image: minio/mc
-    profiles: ["dev","test"]
+    env_file:
+       - path: ./docker.env
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     links:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      /usr/bin/mc config host add myminio http://minio:9000 admin my-secret-test-password;
-      /usr/bin/mc admin user add myminio entrada my-secret-test-password;
-      /usr/bin/mc admin policy attach myminio readwrite --user entrada;
-      /usr/bin/mc config host add entrada http://minio:9000 entrada my-secret-test-password;
-      /usr/bin/mc mb --region eu-west-1 entrada/sidnlabs-iceberg-data;
-      /usr/bin/mc event add entrada/sidnlabs-iceberg-data arn:minio:sqs::ENTRADA:amqp -p --event put --prefix pcap-in/;
-      exit 0;
-      "
-  trino:
-    image: trinodb/trino:445
-    profiles: ["dev","test"]
+    entrypoint: ["/bin/sh","/init-minio.sh"]
+    volumes:
+       - ./init-minio.sh:/init-minio.sh
+  postgresql:
+    image: postgres:16
+    env_file:
+       - path: ./docker.env
     restart: always
-    environment:
-      - ICEBERG_JDBC_URL=jdbc:postgresql://postgresql:5432/iceberg
-      - ICEBERG_JDBC_USER=iceberg
-      - ICEBERG_JDBC_PASSWORD=my-secret-test-password
-      - ICEBERG_WAREHOUSE=s3://sidnlabs-iceberg-data/warehouse
-      - ICEBERG_S3_ENDPOINT=http://minio:9000
-      - ICEBERG_S3_ACCESS_KEY=admin
-      - ICEBERG_S3_SECRET_KEY=my-secret-test-password
-      - ICEBERG_S3_REGION=eu-west-1     
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5433:5432" 
+    volumes:
+      - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
+      - entradaPostgresqlVolume:/pgdata:rw
+  trino:
+    image: trinodb/trino:446
+    restart: always
+    env_file:
+       - path: ./docker.env
     volumes:
       - ./iceberg.properties:/etc/trino/catalog/iceberg.properties
     ports:
@@ -91,45 +85,16 @@ services:
       - minio  
       - postgresql
     depends_on:
-      - minio
-      - postgresql
-  postgresql:
-    image: postgres:16
-    profiles: ["dev","test"]
-    restart: always
-    environment:
-      - PGDATA=/pgdata
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=my-secret-test-password
-      - POSTGRES_ICEBERG_DB=iceberg
-      - POSTGRES_ICEBERG_USER=iceberg
-      - POSTGRES_ICEBERG_PASSWORD=my-secret-test-password
-    ports:
-      - "5433:5432" 
-    volumes:
-      - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
-      - pgVolume:/pgdata:rw
-  entrada:
+      postgresql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+  entrada-master:
     image: sidnlabs/entrada2:0.0.3
     profiles: ["test"]
     restart: always
-    environment:
-      - AWS_ACCESS_KEY_ID=entrada
-      - AWS_SECRET_ACCESS_KEY=my-secret-test-password
-      - AWS_REGION=eu-west-1
-      - ENTRADA_LEADER=true
-      - ENTRADA_S3_ENDPOINT=http://minio:9000
-      - ENTRADA_METRICS_INFLUXDB_URL=http://influxdb:8086
-      - ENTRADA_METRICS_INFLUXDB_TOKEN=my-super-secret-test-token
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PASSWORD=my-secret-test-password
-      - SPRING_RABBITMQ_USERNAME=admin
-      - MAXMIND_LICENSE_FREE=${MAXMIND_LICENSE_FREE}
-      - MAXMIND_LICENSE_PAID=${MAXMIND_LICENSE_PAID}
-      - ICEBERG_CATALOG_HOST=postgresql
-      - ICEBERG_CATALOG_PORT=5432
-      - ICEBERG_CATALOG_USER=iceberg
-      - ICEBERG_CATALOG_PASSWORD=my-secret-test-password
+    env_file:
+       - path: ./docker.env
     ports:
       - "8080:8080" 
     links:
@@ -138,13 +103,41 @@ services:
       - minio
       - postgresql
     depends_on:
-      - postgresql
-      - minio
+      postgresql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      createbucket:
+        condition: service_completed_successfully
+  entrada-worker:
+    image: sidnlabs/entrada2:0.0.3
+    profiles: ["test"]
+    restart: always
+    env_file:
+       - path: ./docker.env
+    environment:
+      - ENTRADA_LEADER=false
+    links:
+      - influxdb
       - rabbitmq
-    dns:
-       - 8.8.8.8
+      - minio
+      - postgresql
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      createbucket:
+        condition: service_completed_successfully
+      entrada-master:
+        condition: service_started
 volumes:
-  dataVolume:
-  pgVolume:
+  entradaInfluxDbVolume:
+  entradaMinioVolume:
+  entradaPostgresqlVolume:
   
 

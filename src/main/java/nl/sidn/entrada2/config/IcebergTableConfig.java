@@ -19,7 +19,6 @@ import org.springframework.context.annotation.DependsOn;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.FieldEnum;
-import software.amazon.awssdk.services.s3.S3Client;
 
 @Slf4j
 @Configuration

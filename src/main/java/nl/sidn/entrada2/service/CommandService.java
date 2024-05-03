@@ -30,7 +30,7 @@ public class CommandService{
 
 		if(message.getCommand() == CommandType.START) {
 			requestQueues.stream().forEach( q -> q.start());
-			stateService.setState(APP_STATE.RUNNING);
+			stateService.setState(APP_STATE.ACTIVE);
 		}else if(message.getCommand() == CommandType.STOP) {
 			requestQueues.stream().forEach( q -> q.stop());
 			workService.stop();

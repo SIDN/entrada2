@@ -28,7 +28,7 @@ public class RabbitCommandQueueService extends AbstractRabbitQueue implements Co
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")
 	public void receiveMessageManual(Command message) {
-		log.info("\"Received command message: {}", message);
+		log.info("Received command message: {}", message);
 
 		commandService.execute(message);
 	}

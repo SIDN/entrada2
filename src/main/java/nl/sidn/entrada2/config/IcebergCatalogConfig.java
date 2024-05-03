@@ -41,9 +41,9 @@ public class IcebergCatalogConfig {
 	
 	@Value("${iceberg.catalog.password}")
 	private String catalogPassword;
-
-	@Value("${iceberg.warehouse-dir}")
-	private String catalogWarehouse;
+	
+	@Value("${iceberg.catalog.location}")
+	private String catalogLocation;
 
 	@Value("${entrada.s3.bucket}")
 	private String bucketName;
@@ -92,7 +92,8 @@ public class IcebergCatalogConfig {
 		properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", catalogPassword);
 		
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://" + bucketName + "/" + catalogWarehouse);
+		
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogLocation);
 		
 		if (StringUtils.isNotBlank(catalogEndpoint)) {
 		   properties.put(S3FileIOProperties.ENDPOINT, catalogEndpoint);
@@ -114,15 +115,15 @@ public class IcebergCatalogConfig {
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.aws.glue.GlueCatalog");
 
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://" + bucketName + "/" + catalogWarehouse);
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, catalogLocation);
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
 
-//		properties.put("http-client.urlconnection.socket-timeout-ms", String.valueOf(connectionTimeout));
-//		properties.put("http-client.urlconnection.connection-timeout-ms", String.valueOf(connectionTimeout));
+		//properties.put("http-client.apache.connection-timeout-ms", String.valueOf(connectionTimeout));
+		//properties.put("http-client.apache.socket-timeout-ms", String.valueOf(connectionTimeout));
 
 		GlueCatalog catalog = new GlueCatalog();
-		catalog.initialize("entrada2", properties);
+		catalog.initialize("iceberg", properties);
 		return catalog;
 
 	}

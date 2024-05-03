@@ -35,7 +35,7 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 @Slf4j
 public class IcebergService {
 
-	@Value("#{${entrada.parquet.file.max-size:256} * 1024 * 1024}")
+	@Value("#{${iceberg.parquet.file.max-size:256} * 1024 * 1024}")
 	private int maxFileSizeMegabyte;
 
 	@Value("${iceberg.compression}")

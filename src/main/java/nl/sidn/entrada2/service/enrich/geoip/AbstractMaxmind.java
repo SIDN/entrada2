@@ -7,7 +7,7 @@ import nl.sidn.entrada2.service.S3Service;
 
 public abstract class AbstractMaxmind {
   
-  @Value("${maxmind.max-age:24}")
+  @Value("${maxmind.max-age-hr:24}")
   protected int maxAge;
   @Value("${maxmind.country.free}")
   protected String countryDb;
@@ -33,7 +33,7 @@ public abstract class AbstractMaxmind {
   @Value("${entrada.s3.bucket}")
   protected String bucket;
 
-  @Value("${entrada.directory.reference}")
+  @Value("${entrada.s3.reference-dir}")
   protected String directory;
   
   // free dbs

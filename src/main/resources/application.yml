@@ -1,21 +1,14 @@
-server:
- servlet:
-   contextPath: '/api/v1'
-
 entrada:
   input:
     delete-after-read: false
     # inputstream buffer size (in kb)
     buffer: 64
-    # if object is claimed by worker but not processed before (ts_start + max-proc-time) then release object
+    # if object is claimed by worker but not processed before (ts_start + max-proc-time) 
+    # then the object is moved to the "failed" directory
     max-proc-time: 30
   nameserver:
-    default-name: unknown-svr
+    default-name: unknown-ns
     default-site: unknown-site
-  parquet:
-   file:
-     # max Parquet filesize (mb)
-     max-size: 256
   process:
     # if worker time processing pcap > x min, it is marked as stalled
     stalled: 10
@@ -27,15 +20,12 @@ entrada:
     # check for expired oject ever x min
     expired-object: 10
   security:
-    # token used for access to REST API (use X-API-KEY HTTP header)
+    # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
+    # this is a test token, and it being here IS NOT as security issue
     token: '94591089610224297274859827590711'
   privacy:
     # when enabled the IP addresses are not written to parquet file
     enabled: false
-  directory:
-    # s3 directory/prefix for pcap files and reference data
-    pcap: 'pcap'
-    reference: 'reference'
   s3:
     # use default aws env vars so aws libs automatically get correct credentials
     access-key: '${AWS_ACCESS_KEY_ID}'
@@ -43,25 +33,36 @@ entrada:
     region: ${AWS_REGION}'
     # only use endpoint when not using aws 
     endpoint:
-    bucket: 'sidnlabs-iceberg-data'
+    bucket: sidnlabs-iceberg-data
     # dir for new pcaps
-    pcap-in-dir: 'pcap-in'
+    pcap-in-dir: pcap-in
     # optionally move processed files to a different directory, better for detecting failed objects and aws object expiration based on age
-    pcap-done-dir: 'pcap-in'
+    pcap-done-dir: pcap-done
+    # files that could not be processed correctly are moved to the "failed" directory
+    pcap-failed-dir: pcap-failed
+    # location for reference data
+    reference-dir: reference
+    warehouse-dir: database
   messaging:
     # names of messaging queues
     request:
+      # lifecycle events from s3 bucket are sent to this queue
       name: 'entrada-s3-event'
-      retention: 86400
-      visibility-timeout: 600
+      aws:
+        retention: 86400
+        visibility-timeout: 600
     command:
+      # commands are sent to all instances listening on this queue
       name: 'entrada-command'
-      retention: 60
-      visibility-timeout: 1
+      aws:
+        retention: 60
+        visibility-timeout: 1
     leader:
+      # the leader will listen to this queue
       name: 'entrada-leader'
-      retention: 86400
-      visibility-timeout: 300
+      aws:
+        retention: 86400
+        visibility-timeout: 300
   # set leader to true for 1 container when using non k8s deployment
   leader: false
   metrics:
@@ -74,9 +75,11 @@ entrada:
       url:
       env: test
   provisioning:
-    # auto create all required componemts such as bucket and queues
+    # auto create all required components such as the bucket and queues
     # might be useful when entrada2 application does not have these permissions on aws.
     enabled: true
+  api:
+    context-path: /api/v1
       
 
 spring:
@@ -122,23 +125,17 @@ spring:
             url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
             dismiss404: false
 
-#logging:
-#  level:
-#    root: DEBUG
-   
-#logging:
-#  level:
-#    nl.sidn.entrada2: DEBUG
  
 iceberg:
-  # only use catalog when using the REST catalog server, not when using aws Glue
+  # JDBC catalog, use this when not using aws Glue catalog
+  # only supports Postgresql
   catalog:
     host:
     port: 5432
     name:
     user:
     password: 
-  warehouse-dir: 'warehouse'
+    location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
   # see iceberg docs for: write.parquet.compression-codec
   compression: 'ZSTD'
   metadata:
@@ -146,9 +143,10 @@ iceberg:
       # see iceberg docs for: write.metadata.previous-versions-max
       max: 100
   table:
-    namespace: 'entrada2'
     name: 'dns'
-    location: 's3://${entrada.s3.bucket}/${iceberg.table.namespace}'
+    namespace: 'entrada2'
+    # directory for Iceberg table data
+    location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}/${iceberg.table.namespace}/${iceberg.table.name}'
     # sorting allows for better compression but increases resource(cpu/ram) usage
     sorted: true
   parquet:
@@ -162,6 +160,8 @@ iceberg:
     # see iceberg docs for: write.parquet.bloom-filter-enabled.column.dns_domainname
     # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
+    # max Parquet filesize (mb)
+    max-size: 256
 
   
 
@@ -169,12 +169,12 @@ iceberg:
 #        Resolvers      #
 #########################
 
-# max size of the "IP address to resolver" match cache
-# keep cache because checking IP address is expensive
-# but must make sure not to use a giant cache and get out-of-memory error
 resolver:
   match:
     cache:
+      # max size of the "IP address to resolver" match cache
+      # keep cache because checking IP address is expensive
+      # but must make sure not to use a giant cache and get out-of-memory error
       size: 10000
   google:
     hostname: 'locations.publicdns.goog.'
@@ -194,7 +194,8 @@ resolver:
 #      MaxMind GeoIP    #
 #########################
 maxmind:
- max-age: 24
+ # max age of local db before downloading update ( hours)
+ max-age-hr: 24
  license:
    free:
    paid:
@@ -210,9 +211,10 @@ management:
   influx.metrics.export:
     enabled: false
   endpoints:
+    enabled-by-default: false 
     web:
       exposure:
-        include: 'health,info,prometheus'
+        include: health,info,prometheus
   health:
     livenessState:
       enabled: true
@@ -223,10 +225,5 @@ management:
       enabled: true
       probes:
         enabled: true
-    heapdump:
-      enabled: false
-    logfile:
-      enabled: false
-       
        
 

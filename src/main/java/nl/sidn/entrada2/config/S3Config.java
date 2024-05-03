@@ -9,7 +9,10 @@ import org.springframework.context.annotation.Configuration;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
 import software.amazon.awssdk.services.s3.model.EventBridgeConfiguration;
@@ -17,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.NotificationConfiguration;
 import software.amazon.awssdk.services.s3.model.PutBucketNotificationConfigurationRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Configuration
 @Slf4j
@@ -61,26 +65,47 @@ public class S3Config {
 
 	private boolean createBucket(S3Client s3Client, String bucket, boolean enableEventBridge) {
 
-		CreateBucketRequest bucketRequest = CreateBucketRequest.builder().bucket(bucket).build();
-
-		CreateBucketResponse r = s3Client.createBucket(bucketRequest);
-
-		if (enableEventBridge && r.sdkHttpResponse().isSuccessful()) {
-
-			EventBridgeConfiguration bridge = EventBridgeConfiguration.builder().build();
-			NotificationConfiguration configuration = NotificationConfiguration.builder()
-					.eventBridgeConfiguration(bridge).build();
-
-			PutBucketNotificationConfigurationRequest configurationRequest = PutBucketNotificationConfigurationRequest
-					.builder().bucket(bucket).notificationConfiguration(configuration)
-					.skipDestinationValidation(true)
-					.build();
-
-			s3Client.putBucketNotificationConfiguration(configurationRequest);
+		boolean bucketOk = createBucket(s3Client, bucket);
+		if (enableEventBridge && bucketOk) {
+			createBucketNotification(s3Client, bucket);			
 		}
 
-		return r.sdkHttpResponse().isSuccessful();
+		return bucketOk;
 
+	}
+	
+	public void createBucketNotification(S3Client s3Client, String bucket) {
+		EventBridgeConfiguration bridge = EventBridgeConfiguration.builder().build();
+		NotificationConfiguration configuration = NotificationConfiguration.builder()
+				.eventBridgeConfiguration(bridge).build();
+
+		PutBucketNotificationConfigurationRequest configurationRequest = PutBucketNotificationConfigurationRequest
+				.builder().bucket(bucket).notificationConfiguration(configuration)
+				.skipDestinationValidation(true)
+				.build();
+
+		try {
+			s3Client.putBucketNotificationConfiguration(configurationRequest);
+		} catch (Exception e) {
+			log.error("Creating bucket notification failed");
+		}
+	}
+	
+	public boolean createBucket(S3Client s3Client, String bucket) {
+		log.info("Create bucket: {}", bucket);
+
+		try {
+			CreateBucketRequest bucketRequest = CreateBucketRequest.builder().bucket(bucket).build();
+			CreateBucketResponse r = s3Client.createBucket(bucketRequest);
+			return r.sdkHttpResponse().isSuccessful();
+		} catch (BucketAlreadyOwnedByYouException e) {
+			log.info("Create bucket operation failed because bucket already exists and is owned by you");
+			return true;
+		} catch (Exception e) {
+			log.error("Create bucket operation failed for: " + bucket, e);			
+		}
+		
+		return false;
 	}
 
 	private boolean isBucketExist(S3Client s3Client, String bucket) {

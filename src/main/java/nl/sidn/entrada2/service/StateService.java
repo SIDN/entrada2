@@ -19,10 +19,10 @@ import nl.sidn.entrada2.service.messaging.CommandQueue;
 public class StateService {
 
 	public enum APP_STATE {
-		RUNNING, STOPPED
+		ACTIVE, STOPPED
 	};
 
-	private APP_STATE state = APP_STATE.RUNNING;
+	private APP_STATE state = APP_STATE.ACTIVE;
 
 	@Getter(AccessLevel.NONE)
 	@Setter(AccessLevel.NONE)

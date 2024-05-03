@@ -64,7 +64,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	@Value("${entrada.s3.bucket}")
 	protected String bucket;
 
-	@Value("${entrada.directory.reference}")
+	@Value("${entrada.s3.reference-dir}")
 	protected String directory;
 	
 	private BloomFilter<String> ipv4Filter;

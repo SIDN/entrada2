@@ -52,23 +52,23 @@ public class AwsQueueConfig {
 
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
-	@Value("${entrada.messaging.request.retention}")
+	@Value("${entrada.messaging.request.aws.retention}")
 	private int requestQueueRetention;
-	@Value("${entrada.messaging.request.visibility-timeout}")
+	@Value("${entrada.messaging.request.aws.visibility-timeout}")
 	private int requestQueueVisibilty;
 
 	@Value("${entrada.messaging.leader.name}")
 	private String leaderQueue;
-	@Value("${entrada.messaging.leader.retention}")
+	@Value("${entrada.messaging.leader.aws.retention}")
 	private int leaderQueueRetention;
-	@Value("${entrada.messaging.leader.visibility-timeout}")
+	@Value("${entrada.messaging.leader.aws.visibility-timeout}")
 	private int leaderQueueVisibilty;
 
 	@Value("${entrada.messaging.command.name}")
 	private String commandQueue;
-	@Value("${entrada.messaging.command.retention}")
+	@Value("${entrada.messaging.command.aws.retention}")
 	private int commandQueueRetention;
-	@Value("${entrada.messaging.command.visibility-timeout}")
+	@Value("${entrada.messaging.command.aws.visibility-timeout}")
 	private int commandQueueVisibilty;
 
 	@Value("${entrada.s3.bucket}")

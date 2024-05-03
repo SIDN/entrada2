@@ -1,22 +1,21 @@
 # ENTRADA2
 
-For converting captured DNS data to an [Apache Parquet](https://parquet.apache.org/) format based [Apache Iceberg](https://iceberg.apache.org/) table.   
-ENTRADA2 is an improvement on [ENTRADA](https://github.com/SIDN/entrada) and is designed to be more performent, scalable and to reduce the output size of the generated Parquet data.
-ENTRADA2 uses a new table schema and is not compatible with the original ENTRADA table schema.
+A tool for converting captured DNS data (PCAP) to an [Apache Iceberg](https://iceberg.apache.org/) table, using the [Apache Parquet](https://parquet.apache.org/) dataformat.   
+ENTRADA2 is an improvement on [ENTRADA](https://github.com/SIDN/entrada) and includes support for deployment on Kubernetes + AWS and for local deployment using docker-compose.
 
-The data is enriched by adding the following details to each row.   
+The data is enriched by adding the following information to each row.   
 - Geolocation (Country)
-- Autonomous system (ASN) details
+- Autonomous system (ASN)
 - Detection of public resolvers (Google, OpenDNS, Quad9 and Cloudflare)
 - TCP round-trip time (RTT) 
 
 
-Based on the following components:  
+ENTRADA2 uses:  
 
 - S3 storage (MinIO, AWS)
 - Open table format (Apache Iceberg)
 - Messaging Queue ( RabbitMQ, AWS SQS)
-- Metadata Data catalog (AWS Glue or PostgreSQL)
+- Metadata Data catalog (AWS Glue or Icebegr JDBC + PostgreSQL)
 - Metrics ([InfluxDB](https://www.influxdata.com/))
 - Query engine (Trino, AWS Athena, Spark)
 
@@ -24,20 +23,20 @@ List of changes:
 
 - Removed Hadoop support
 - Improved support for s3 object storage
-- Automaticly create required resources (s3 bucks and messaging queues)
+- Automaticly create required resources (s3 bucket and messaging queues)
 - Added support for Kubernetes
 - Added support for Apache Iceberg table format
 - The dns_qname column only contains the labels preceding the domainname
-- Rows are now sorted by domainname for more efficient compression
-- Default column compression changed to gzip, was Snappy
+- Rows are sorted by domainname for more efficient compression
+- Default column compression changed to ZSTD, was Snappy
 - Use small Parquet max dictionary size, to prevent domainname column using dict
-- Use bloomfilter for domainname column, performance boost when filtering on domainname 
-- Renamed table columns to indicate protocol
+- Bloomfilter for domainname column, performance boost when filtering on domainname 
+- Renamed table columns to indicate protocol source
 - Removed unused columns
-- No longer required to coinfgure name server, container can handle any pcap
-- No longer storing state between pcaps, might cause some unmatched packets
-- Added event based workflow, started after uploading pcap to s3
-- Added API to control containers, e.g. start/stop processing
+- Name servers are no nonger linked to specific ENTRADA2 container, container can handle any pcap
+- No longer saving state between pcaps, might cause some unmatched packets
+- Added s3 event based workflow
+- Added API to control containers, e.g. status/start/stop
 
 
 The following deployment modes are supported:
@@ -50,36 +49,51 @@ The following deployment modes are supported:
 ```
 export TOOL_VERSION=0.0.3
 mvn clean && mvn package && docker build  --tag=sidnlabs/entrada2:$TOOL_VERSION .
-docker push sidnlabs/entrada2:$TOOL_VERSION
 ```
 
-# Getting started
-
-If you want to get started, an easy method is by using the [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
-environment containing all the required components, using default configuration settings.
+# GeoIP data
 ENTRADA2 uses the [Maxmind](https://www.maxmind.com) GeoIP2 database, if you have a license then set the MAXMIND_LICENSE_PAID
 environment variable, otherwise signup for the free [GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data ) database and use 
 the MAXMIND_LICENSE_FREE environment variable.
 
-Example using the Maxmind GeoIP2 database:
+# Quick start
+
+To get started quickly, you can use the provided [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
+environment containing all required components. 
+
+The configuration settings can be found as environment varliables in `docker.env`.  
+The example belows shows how to start using 1 ENTRADA master container and 2 ENTRADA worker containers.  
 
 ```
 export MAXMIND_LICENSE_PAID=<your-key-here>
-docker-compose --profile test up
+docker-compose --profile test up --scale entrada-worker=2
 ```
 
-## Uploading pcap file
-When all components have started up, you may upload (webUI or s3 API) a pcap file to the s3 bucket, processing of the new pcap file will start automatically.  
-The default bucket name is `sidnlabs-iceberg-data` and pcap files need to use `pcap-incoming/` as a prefix.  
+The docker-compose script uses the "test" profile to start the ENTRADA containers, not using this profile will only start the dependencies and not the ENTRADA containers.
+
+## Processing pcap data
+
+The pcap processing workflow uses 3 prefixes for pcap objects in s3, defaults are:
+- pcap-in
+- pcap-done
+- pcap-failed
+
+When all components have started up, you may upload a pcap file to the s3 bucket, using the "pcap-in" prefix.
+If ENTRADA2 created a s3 bucket notification configuration (enabled by default) then processing of the a pcap file 
+will automatically start.  
 
 Use the the following s3 tags when uploading file to S3:
 
-- entrada-ns-server: Logical name of the name server
-- entrada-ns-anycast-site: Anycast site of the name server
+- entrada-ns-server: Logical name of the name server (e.g. ns1.dns.nl)
+- entrada-ns-anycast-site: Anycast site of the name server (e.g. ams)
 
 
 ## Analysing results
+
 The results may be analysed using different tools, such as AWS Athena, Trino or Apache Spark. 
+
+### Local deployment
+
 The Docker Compose script automaticlly starts Trino, for quickly analysing a limited dataset.  
 
 Example using the Trino commandline client (installed in Trino container):
@@ -100,14 +114,21 @@ Query data in dns table:
 select count(1) from dns;
 ```
 
+
+### AWS
+
+ENTRADA2 will automatically create a new database and table in AWS Glue, the data in the table can be anylzed using Athena and/or Spark.
+See the AWS documentation for more details.
+
+
 ## Cleanup
 To cleanup the test evironment, stop the Docker containers, delete the Docker volumes and restart the containers.
 
 ```
+docker-compose down
 docker system prune -f
-docker volume rm docker_dataVolume
-docker volume rm docker_pgVolume
-docker-compose --profile test up
+docker volume rm docker_entradaInfluxDbVolume docker_entradaMinioVolume docker_entradaPostgresqlVolume;
+docker-compose --profile test up --scale entrada-worker=2
 ```
 
 
@@ -124,10 +145,10 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 
 ## Running multiple containers
 
-Running multiple containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".
+Running multiple worker containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".
 The leader container is responsible for comitting new datafiles to the Iceberg table.
 When running on Kubernetes, leader election is performed automatically. When the leader container is shutdown, the leader election process will automatically select another container to become the leader.
-When using Docker you must set the "entrada.leader" option to true for 1 container, there is no failover mechanism when using Docker.
+When using Docker you must set the `ENTRADA_LEADER` option to true only for the master container, there is no failover mechanism for master containers when using Docker.
 
 
 ## Table schema

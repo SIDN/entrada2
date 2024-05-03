@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+
 import nl.sidn.entrada2.security.AuthenticationFilter;
 
 @Configuration
@@ -26,8 +27,10 @@ public class SecurityConfig {
     .addFilterAfter(authenticationFilter, BasicAuthenticationFilter.class)
     .csrf(AbstractHttpConfigurer::disable)
     .authorizeHttpRequests((authz) -> authz
-        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-        .requestMatchers("/api/v1/**").hasRole("USER")
+        //.requestMatchers(apiContextPath + "/admin/**").hasRole("ADMIN")
+        //.requestMatchers("/api/v1/**").hasRole("ADMIN")
+        //.requestMatchers("/actuator/**").hasRole("ADMIN")
+    	.requestMatchers("/**").hasRole("ADMIN")
         .anyRequest().authenticated()
     ).build();
 
