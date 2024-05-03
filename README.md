@@ -145,9 +145,11 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 
 ## Running multiple containers
 
-Running multiple worker containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".
-The leader container is responsible for comitting new datafiles to the Iceberg table.
-When running on Kubernetes, leader election is performed automatically. When the leader container is shutdown, the leader election process will automatically select another container to become the leader.
+Running multiple worker containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".  
+The leader container is responsible for comitting new datafiles to the Iceberg table.  
+
+When running on Kubernetes, leader election is performed automatically.  
+When the leader container is shutdown, the leader election process will automatically select another container to become the leader.  
 When using Docker you must set the `ENTRADA_LEADER` option to true only for the master container, there is no failover mechanism for master containers when using Docker.
 
 
@@ -237,6 +239,3 @@ This product includes ENTRADA2 created by <a href="https://www.sidnlabs.nl">SIDN
 <a href="http://entrada.sidnlabs.nl">http://entrada.sidnlabs.nl</a>.
 ```
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=SIDN/entrada2&type=Date)](https://star-history.com/#SIDN/entrada2&Date)
