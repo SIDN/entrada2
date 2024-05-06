@@ -10,15 +10,16 @@ entrada:
     default-name: unknown-ns
     default-site: unknown-site
   process:
+    # max time for pcap file to be procssed in min
     # if worker time processing pcap > x min, it is marked as stalled
     stalled: 10
   schedule:
     # update reference data every x min
-    updater: 60
+    updater: 120
     # check for stalled worker every x min
     liveness: 1
     # check for expired oject ever x min
-    expired-object: 10
+    expired-object: 30
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
     # this is a test token, and it being here IS NOT as security issue
@@ -93,12 +94,10 @@ spring:
     host:
     password:
     username:
-    retry-attempts: 3
+    retry-attempts: 10
     backoff-interval: 1000
     backoff-multiplier: 2
     backoff-max-interval: 5000
-    concurrent-consumers: 1
-    max-concurrent-consumers: 1
  cloud:
     bootstrap:
       enabled: false

@@ -86,6 +86,8 @@ public class IcebergCatalogConfig {
 		log.info("Creating Iceberg JDBC Catalog");
 		
 		Map<String, String> properties = new HashMap<>();
+		properties.put(JdbcCatalog.PROPERTY_PREFIX + "schema-version" , "V1");
+		
 		properties.put(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
 		properties.put(CatalogProperties.URI, "jdbc:postgresql://" + catalogHost + ":" + catalogPort + "/" + catalogDbName);
 		properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", catalogUser);

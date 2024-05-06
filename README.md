@@ -73,6 +73,9 @@ The docker-compose script uses the "test" profile to start the ENTRADA container
 
 ## Processing pcap data
 
+ENTRADA2 converts a single pcap file into a 1 or more Parquet files, many small input pcap files will not be automatically combined into a larger Parquet file, as was the case when using the the previous ENTRADA version.  
+Apache Iceberg includes functionality for [data maintenance](https://iceberg.apache.org/docs/latest/maintenance/#maintenance) such as table compaction, use this instead.  
+
 The pcap processing workflow uses 3 prefixes for pcap objects in s3, defaults are:
 - pcap-in
 - pcap-done

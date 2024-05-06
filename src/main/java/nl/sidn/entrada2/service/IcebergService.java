@@ -68,9 +68,6 @@ public class IcebergService {
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
 	private List<SortableGenericRecord> pageRecords;
-	
-	// list of records in memory, not yet written to disk
-	private List<Pair<GenericRecord, DnsMetricValues>> unsavedRecords = new ArrayList<>();
 
 	@Autowired
 	private LeaderQueue leaderQueue;
@@ -120,12 +117,13 @@ public class IcebergService {
 
 	}
 	
-	public void save(Pair<GenericRecord, DnsMetricValues> row) {
-		unsavedRecords.add(row);
-	}
-	
+//	public void save(Pair<GenericRecord, DnsMetricValues> row) {
+//		unsavedRecords.add(row);
+//	}
+//	
 	public void clear() {
-		unsavedRecords.clear();
+		//unsavedRecords.clear();
+		pageRecords.clear();
 	}
 
 	public void write(GenericRecord record) {
@@ -206,18 +204,18 @@ public class IcebergService {
 	}
 
 	public void commit() {
-		log.info("Commit {} rows from memory to file", unsavedRecords.size());
+//		log.info("Commit {} rows from memory to file", unsavedRecords.size());
+//		
+//		for (Pair<GenericRecord, DnsMetricValues> rowPair : unsavedRecords) {
+//			write(rowPair.getKey());
+//			
+//			// update metrics
+//			if(isMetricsEnabled()) {
+//				metrics.update(rowPair.getValue());
+//			}
+//		}
 		
-		for (Pair<GenericRecord, DnsMetricValues> rowPair : unsavedRecords) {
-			write(rowPair.getKey());
-			
-			// update metrics
-			if(isMetricsEnabled()) {
-				metrics.update(rowPair.getValue());
-			}
-		}
-		
-		unsavedRecords.clear();
+//		unsavedRecords.clear();
 
 		for (DataFile dataFile : close()) {
 			// send new datafile to leader
@@ -231,9 +229,9 @@ public class IcebergService {
 		return genericRecord.copy();
 	}
 	
-	private boolean isMetricsEnabled() {
-		return metrics != null;
-	}
+//	private boolean isMetricsEnabled() {
+//		return metrics != null;
+//	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
 

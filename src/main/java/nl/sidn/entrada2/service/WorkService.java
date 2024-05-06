@@ -123,9 +123,17 @@ public class WorkService {
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
+		Optional<PcapReader> oreader = null;
 		try {
 			working = true;
-			process_(bucket, key, server, anycastSite);
+			Optional<InputStream> ois = s3Service.read(bucket, key);
+			if (ois.isPresent()) {
+				oreader = createReader(key, ois.get());
+				if (oreader.isPresent()) {
+					process_(oreader.get(), bucket, key, server, anycastSite);
+				}
+			}
+			
 			duration = System.currentTimeMillis() - startOfWork;
 
 			Counter.builder("pcap.processed").tags("server", server).tags("location", anycastSite)
@@ -142,6 +150,13 @@ public class WorkService {
 			return false;
 		} finally {
 			// startOfWork is also used for checking if pcap processing has stalled
+			try {
+				if(oreader.isPresent()) {
+				  oreader.get().close();
+				}
+			}catch (Exception e) {
+				// ignore close error
+			}
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
@@ -186,59 +201,50 @@ public class WorkService {
 		return metrics != null;
 	}
 
-	private void process_(String bucket, String key, String server, String anycastSite) {
+	private void process_(PcapReader reader, String bucket, String key, String server, String anycastSite) {
 
-		Optional<InputStream> ois = s3Service.read(bucket, key);
-		if (ois.isPresent()) {
-			Optional<PcapReader> oreader = createReader(key, ois.get());
-			if (oreader.isPresent()) {
+		reader.stream().forEach(p -> {
 
-				oreader.get().stream().forEach(p -> {
+			joiner.join(p).forEach(rd -> {
+				Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
+						icebergService.newGenericRecord());
 
-					joiner.join(p).forEach(rd -> {
-						Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-								icebergService.newGenericRecord());
-						
-						// save all records from file in memory and only commit (write to file)
-						// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
-						icebergService.save(rowPair);
+				// save all records from file in memory and only commit (write to file)
+				// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
+				icebergService.write(rowPair.getKey());
 
-//						// update metrics
-//						if(isMetricsEnabled()) {
-//							metrics.update(rowPair.getValue());
-//						}
-					});
-				});
-
-				if (log.isDebugEnabled()) {
-					log.debug("Extracted all data from file, now clear joiner cache");
+				// update metrics
+				if(isMetricsEnabled()) {
+					metrics.update(rowPair.getValue());
 				}
+			});
+		});
 
-				// clear joiner cache, unmatched queries will get rcode -1
-				joiner.clearCache().forEach(rd -> {
-					Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-							icebergService.newGenericRecord());
-					icebergService.save(rowPair);
+		if (log.isDebugEnabled()) {
+			log.debug("Extracted all data from file, now clear joiner cache");
+		}
 
-					// update metrics
-//					if(isMetricsEnabled()) {
-//						metrics.update(rowPair.getValue());
-//					}
-				});
+		// clear joiner cache, unmatched queries will get rcode -1
+		joiner.clearCache().forEach(rd -> {
+			Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
+					icebergService.newGenericRecord());
+			icebergService.write(rowPair.getKey());
 
-				if (log.isDebugEnabled()) {
-					log.debug("Close Iceberg writer");
-				}
-
-				icebergService.commit();
-
-				if (log.isDebugEnabled()) {
-					log.debug("Close pcap reader");
-				}
-
-				oreader.get().close();
+			// update metrics
+			if(isMetricsEnabled()) {
+				metrics.update(rowPair.getValue());
 			}
 
+		});
+
+		if (log.isDebugEnabled()) {
+			log.debug("Close Iceberg writer");
+		}
+
+		icebergService.commit();
+
+		if (log.isDebugEnabled()) {
+			log.debug("Close pcap reader");
 		}
 	}
 

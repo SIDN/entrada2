@@ -38,12 +38,6 @@ public class RabbitMqConfig {
 	
 	@Value("${entrada.messaging.leader.name}")
 	private String leaderQueue;
-	
-	@Value("${spring.rabbitmq.concurrent-consumers}")
-	private int concurrentConsumer;
-	
-	@Value("${spring.rabbitmq.max-concurrent-consumers}")
-	private int maxConcurrentConsumer;
 
 	@Value("${spring.rabbitmq.retry-attempts}")
 	private int retryAttempts;
@@ -161,8 +155,8 @@ public class RabbitMqConfig {
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(messageConverter(objectMapper));
         factory.setPrefetchCount(0);
-        factory.setConcurrentConsumers(concurrentConsumer);
-        factory.setMaxConcurrentConsumers(maxConcurrentConsumer);
+        factory.setConcurrentConsumers(1);
+        factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
         factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         return factory;
@@ -187,8 +181,8 @@ public class RabbitMqConfig {
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(simpleMessageConverter());
         factory.setPrefetchCount(0);
-        factory.setConcurrentConsumers(concurrentConsumer);
-        factory.setMaxConcurrentConsumers(maxConcurrentConsumer);
+        factory.setConcurrentConsumers(1);
+        factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
         factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         return factory;
@@ -198,8 +192,8 @@ public class RabbitMqConfig {
     @Bean
     public RetryOperationsInterceptor retryInterceptor(){
         return RetryInterceptorBuilder.stateless().maxAttempts(3)
-                .backOffOptions(2000, 2.0, 100000)
-                .maxAttempts(5)
+                .backOffOptions(backoffInterval, backoffMultiplier, backoffMaxInterval)
+                .maxAttempts(retryAttempts)
                 .build();
     }
 
