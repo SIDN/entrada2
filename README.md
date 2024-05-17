@@ -66,7 +66,7 @@ The example belows shows how to start using 1 ENTRADA master container and 2 ENT
 
 ```
 export MAXMIND_LICENSE_PAID=<your-key-here>
-docker-compose --profile test up --scale entrada-worker=2
+docker compose --profile test up --scale entrada-worker=2
 ```
 
 The docker-compose script uses the "test" profile to start the ENTRADA containers, not using this profile will only start the dependencies and not the ENTRADA containers.
