@@ -1,9 +1,6 @@
 package nl.sidn.entrada2.service.messaging;
 
-import java.io.IOException;
-
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
@@ -51,43 +48,16 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 				String key = UrlUtil.decode(rec.getS3().getObject().getKey());
 
 				workService.process(bucket, key);
-//					 ack(channel, deliveryTag);
-//				}else {
-//					nack(channel, deliveryTag);
-//				}
 			}
 		}
 	}
 	
-//	private void ack( Channel channel, long tag ) {
-//		try {
-//			channel.basicAck(tag, false);
-//		} catch (IOException e) {
-//			log.error("Ack error for tag: {}", tag, e);
-//		} 
-//	}
-//	
-//	private void nack( Channel channel, long tag ) {
-//		try {
-//			channel.basicNack(tag, false, true);
-//		} catch (IOException e) {
-//			log.error("Nack error for tag: {}", tag, e);
-//		} 
-//	}
-//	
-	
-//	private void process(String bucket, String key) {
-//		
-//		workService.process(bucket, key);
-//		
-//	}
-	
-//	veranderd van put in DeleteTagging, werkt het nog steeds?
 	private boolean isSupportedEvent(String eventName) {
 		return StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:Put") || 
 				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:CompleteMultipartUpload") ||
 				// some s3 impls also use PutTagging when add deleting a tag
 				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:DeleteTagging") ||
+				// puttagging is created when object is resend to queue by updating its tags
 				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:PutTagging");
 	}
 

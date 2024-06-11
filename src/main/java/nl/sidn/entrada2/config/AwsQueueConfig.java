@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -188,11 +189,13 @@ public class AwsQueueConfig {
 	public void createBucketEventNotificationFor(String queueArn) {
 
 		S3KeyFilter fltr = S3KeyFilter.builder()
-				.filterRules(FilterRule.builder().name("prefix").value(pcapDirectory + "/").build()).build();
+				.filterRules(FilterRule.builder().name("prefix")
+						.value(StringUtils.appendIfMissing(pcapDirectory , "/")).build())
+				.build();
 
 		NotificationConfigurationFilter filterConf = NotificationConfigurationFilter.builder().key(fltr).build();
 
-		QueueConfiguration destQueue = QueueConfiguration.builder().queueArn(queueArn).events(Event.S3_OBJECT_CREATED, Event.S3_OBJECT_TAGGING_DELETE)
+		QueueConfiguration destQueue = QueueConfiguration.builder().queueArn(queueArn).events(Event.S3_OBJECT_CREATED, Event.S3_OBJECT_TAGGING_DELETE, Event.S3_OBJECT_TAGGING_PUT)
 				.filter(filterConf).id("entrada-new-object").build();
 
 		NotificationConfiguration not = NotificationConfiguration.builder().queueConfigurations(destQueue).build();

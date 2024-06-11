@@ -6,7 +6,8 @@ public enum S3ObjectTagName {
 	ENTRADA_NS_ANYCAST_SITE("entrada-ns-anycast-site"),
 	ENTRADA_PROCESS_TS_START("entrada-process-ts-start"),
 	ENTRADA_PROCESS_TS_END("entrada-process-ts-end"),
-	ENTRADA_PROCESS_DURATION("entrada-process-duration");
+	ENTRADA_PROCESS_DURATION("entrada-process-duration"),
+	ENTRADA_WAIT_EXPIRED("entrada-wait-expired");
 
 	public final String value;
 	

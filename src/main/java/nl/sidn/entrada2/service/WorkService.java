@@ -89,6 +89,17 @@ public class WorkService {
 	}
 
 	public boolean process(String bucket, String key) {
+		
+		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
+			// ingore input directory creation
+			return false;
+		}
+		if(!CompressionUtil.isSupportedFormat(key)) {
+			// ingore input directory creation
+			log.error("Unsupported filetype: {}", key);
+			return false;
+		}
+		
 
 		Map<String, String> tags = new HashMap<String, String>();
 		if(!s3Service.tags(bucket, key, tags)){

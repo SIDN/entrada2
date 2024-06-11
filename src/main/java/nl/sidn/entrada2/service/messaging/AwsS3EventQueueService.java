@@ -10,6 +10,7 @@ import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.RequestMessage;
 import nl.sidn.entrada2.messaging.S3EventNotification;
+import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
 import nl.sidn.entrada2.util.ConditionalOnAws;
 import nl.sidn.entrada2.util.UrlUtil;
 
@@ -37,10 +38,15 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 
 		if (message.getRecords() != null) {
 			
-			message	.getRecords().stream().forEach( r -> process(r.getS3().getBucket().getName(),
-					UrlUtil.decode(r.getS3().getObject().getKey())));
+			message	.getRecords().stream().filter(this::isNonEmptyFile) 
+				.forEach( r -> process(r.getS3().getBucket().getName(), UrlUtil.decode(r.getS3().getObject().getKey())));
 		}
 
+	}
+	
+	private boolean isNonEmptyFile(S3EventNotificationRecord rec) {
+		return rec.getS3().getObject() != null && rec.getS3().getObject().getSizeAsLong() != null &&
+				rec.getS3().getObject().getSizeAsLong().longValue() > 0;
 	}
 
 	/**

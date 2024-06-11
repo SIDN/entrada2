@@ -111,6 +111,13 @@ public class S3Service {
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Set tags for object
+	 * @param bucket
+	 * @param key
+	 * @param tags
+	 * @return
+	 */
 	public boolean tag(String bucket, String key, Map<String, String> tags) {
 
 		List<Tag> s3Tags = tags.entrySet().stream().map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
@@ -128,6 +135,13 @@ public class S3Service {
 		return false;
 	}
 
+	/**
+	 * Get tags for object
+	 * @param bucket
+	 * @param key
+	 * @param tags
+	 * @return
+	 */
 	public boolean tags(String bucket, String key, Map<String, String> tags) {
 		try {
 			GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();

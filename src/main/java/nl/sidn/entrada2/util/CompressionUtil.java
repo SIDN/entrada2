@@ -14,7 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.tukaani.xz.XZInputStream;
 
 public class CompressionUtil {
-
+	
 	private CompressionUtil() {
 	}
 
@@ -45,6 +45,14 @@ public class CompressionUtil {
 
 		// unkown file type
 		throw new RuntimeException("Could not open file with unknown extension: " + filename);
+	}
+	
+	public static boolean isSupportedFormat(String filename) {
+		
+		return switch (StringUtils.substringAfterLast(filename, ".")) {
+		  case "pcap", "gz", "xz", "bz2" -> true;
+		  default -> false;
+		};
 	}
 
 	private static InputStream wrap(InputStream in, int bufSize) {

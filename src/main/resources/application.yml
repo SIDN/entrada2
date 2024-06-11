@@ -3,12 +3,15 @@ entrada:
     delete-after-read: false
     # inputstream buffer size (in kb)
     buffer: 64
-    # if object is claimed by worker but not processed before (ts_start + max-proc-time) 
-    # then the object is moved to the "failed" directory
-    max-proc-time: 30
   nameserver:
     default-name: unknown-ns
     default-site: unknown-site
+  object:
+    # after wait expire mark as not picked up and send to queue again
+    max-wait-time-secs: 3600
+    # mark as failed after max proc time expired, high load might cause longer proc times.
+    # do not set too low
+    max-proc-time-secs: 7200
   process:
     # max time for pcap file to be procssed in min
     # if worker time processing pcap > x min, it is marked as stalled
@@ -43,6 +46,7 @@ entrada:
     pcap-failed-dir: pcap-failed
     # location for reference data
     reference-dir: reference
+    # location of iceberg data files
     warehouse-dir: database
   messaging:
     # names of messaging queues
