@@ -14,22 +14,14 @@ public interface Metric {
    */
   int getSamples();
 
-//  boolean isCached();
-//
-//  boolean isUpdated();
-
   Instant getTime();
   
   void setTime(Instant time);
-
-//  String getName();
   
   String getLabel();
 
   double getValue();
 
- // void setCached();
-  
   Map<String, String> getTags();
 
 }

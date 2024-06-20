@@ -50,7 +50,17 @@
     { "name": "edns_ecs_ip_asn", "type":  ["null","string"], "default": null}, 
     { "name": "edns_ecs_ip_asn_org", "type":  ["null","string"], "default": null}, 
     { "name": "edns_ecs_ip_geo_country", "type":  ["null","string"], "default": null},
-    { "name": "edns_ext_error", "type": ["null","int"], "default": null}, 
+    {
+      "name":"edns_ext_error",
+      "type":[
+        "null",
+        {
+          "type":"array",
+          "items":"int"
+        }
+      ],
+      "default":null
+    },
     { "name": "dns_labels", "type": ["null","int"], "default": null}, 
     { "name": "dns_proc_time", "type": ["null","int"], "default": null },
     { "name": "dns_pub_resolver", "type": ["null","string"], "default": null},   

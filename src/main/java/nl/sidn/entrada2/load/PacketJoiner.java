@@ -43,7 +43,7 @@ public class PacketJoiner {
 
   public PacketJoiner(MeterRegistry registry) {
     this.registry = registry;
-    packetsCounter = registry.counter("pcap.packets");
+    packetsCounter = registry.counter("pcap_packets");
     activeZoneTransferCache = new Cache2kBuilder<RequestCacheKey, Integer>() {}.entryCapacity(300).build();
   }
 

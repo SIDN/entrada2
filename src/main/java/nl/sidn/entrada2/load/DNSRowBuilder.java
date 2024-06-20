@@ -3,6 +3,7 @@ package nl.sidn.entrada2.load;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.stereotype.Component;
@@ -235,6 +236,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			if (!privacy) {
 				record.set(FieldEnum.ip_src.ordinal(), reqTransport.getSrc());
 			}
+			
 		} else {
 
 			// only response packet is found
@@ -251,8 +253,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		// calculate the processing time
 		if (reqTransport != null && rspTransport != null) {
-			record.set(FieldEnum.dns_proc_time.ordinal(),
-					Integer.valueOf((int) (rspTransport.getTsMilli() - reqTransport.getTsMilli())));
+			Integer procTime = Integer.valueOf((int)(rspTransport.getTsMilli() - reqTransport.getTsMilli()));
+			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
+			
+			if (metricsEnabled) {
+				metricsBuilder.procTime(procTime.intValue());
+			}
 		}
 
 		// create metrics
@@ -280,13 +286,19 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		OPTResourceRecord opt = message.getPseudo();
 		if (opt != null) {
+			List<Integer> errors = new ArrayList<>();
 			for (EDNS0Option option : opt.getOptions()) {
 				if (option instanceof EDEOption) {
 					int code = ((EDEOption) option).getCode();
-					record.set(FieldEnum.edns_ext_error.ordinal(), code);
+					errors.add(code);
+					//record.set(FieldEnum.edns_ext_error.ordinal(), code);
 					// this is the only server edns data we support, stop processing other options
-					break;
+					//break;
 				}
+			}
+			
+			if(errors != null && errors.size() > 0) {
+				record.set(FieldEnum.edns_ext_error.ordinal(), errors);
 			}
 		}
 
@@ -326,8 +338,9 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 			}
 
-
-			record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
+			if(ednsOptions != null && !ednsOptions.isEmpty()) {
+				record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
+			}
 		}
 
 	}

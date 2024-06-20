@@ -26,11 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Random;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import com.influxdb.client.WriteApi;
@@ -48,7 +50,7 @@ import nl.sidn.entrada2.load.DnsMetricValues;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "entrada.metric.influxdb", name = "url", matchIfMissing = false)
+@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
 public class HistoricalMetricManager {
 
 	// dns stats
@@ -58,6 +60,7 @@ public class HistoricalMetricManager {
 	public static final String METRIC_IMPORT_DNS_QTYPE = "dns.qtype";
 	public static final String METRIC_IMPORT_DNS_RCODE = "dns.rcode";
 	public static final String METRIC_IMPORT_DNS_OPCODE = "dns.opcode";
+	public static final String METRIC_IMPORT_DNS_PROC_TIME = "dns.proc-time";
 
 	// layer 4 stats
 	public static final String METRIC_IMPORT_TCP_COUNT = "tcp";
@@ -69,14 +72,16 @@ public class HistoricalMetricManager {
 	public static final String METRIC_IMPORT_COUNTRY_COUNT = "geo.country";
 
 	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "tcp.rtt";
+	
+	public static final Map<String, String> IP_V4_TAG_MAP = Map.of("version", "4");
+	public static final Map<String, String> IP_V6_TAG_MAP = Map.of("version", "6");
 
 	@Value("${entrada.metrics.enabled:true}")
 	protected boolean metricsEnabled;
 
+	private static final Random RND = new Random();
+	
 	private Map<String, List<Metric>> metricCache = new HashMap<>(1000);
-
-	@Value("${entrada.metrics.influxdb.env}")
-	private String env;
 
 	private static final Map<String, String> EMPTY_MAP = new HashMap<>();
 
@@ -133,6 +138,10 @@ public class HistoricalMetricManager {
 		} else {
 			update(METRIC_IMPORT_IP_V6_COUNT + ".6", METRIC_IMPORT_IP_V6_COUNT, time, 1, true, Map.of("version", "6"));
 		}
+		
+		
+		update(METRIC_IMPORT_DNS_PROC_TIME, time, (int)dmv.procTime, false);
+		
 	}
 
 	private void update(String name, Instant time, int value, boolean counter) {
@@ -177,14 +186,14 @@ public class HistoricalMetricManager {
 	 * timestamps get overwritten by graphite and only the last timestamp value is
 	 * used by graphite.
 	 */
-	public void flush(String server) {
+	public void flush(String server, String anycastSite) {
 		if (!isMetricsEnabled()) {
 			// do nothing
 			return;
 		}
 
 		try {
-			metricCache.entrySet().stream().map(Entry::getValue).forEach(m -> send(m, server));
+			metricCache.entrySet().stream().map(Entry::getValue).forEach(m -> send(m, server, anycastSite));
 		} catch (Exception e) {
 			// cannot connect connect to influxdb?
 			log.error("Error sending metrics", e);
@@ -194,46 +203,52 @@ public class HistoricalMetricManager {
 		log.info("Flushed metrics");
 	}
 
-	private void send(List<Metric> metricValues, String server) {
+	private void send(List<Metric> metricValues, String server,  String anycastSite) {
 		if (metricValues.isEmpty()) {
 			// no metrics to send
 			return;
 		}
 
-		// add 1 nanosec to the last metric to prevent the next pcap from overwriting
-		// the same second
-		Metric last = metricValues.get(metricValues.size() - 1);
-		last.setTime(last.getTime().plusNanos(1));
+//		// add 1 nanosec to the last metric to prevent the next pcap from overwriting
+//		// the same second
+//		Metric last = metricValues.get(metricValues.size() - 1);
+//		last.setTime(last.getTime().plusNanos(1));
 
-		metricValues.stream().forEach(e -> send(e, server, WritePrecision.S));
+		metricValues.stream().forEach(e -> send(e, server, anycastSite, WritePrecision.NS));
 	}
 
-	private void send(Metric m, String server, WritePrecision p) {
+	private void send(Metric m, String server,  String anycastSite, WritePrecision p) {
+		if(log.isDebugEnabled()) {
+			log.debug("Metric: {}", m);
+		}
+		
+		// add 1 nanosec to the last metric to prevent other pcap data from overwriting
+		// the same second
+		Instant time =  m.getTime().plusNanos(RND.nextLong(10000));
 
 		if (m instanceof AvgMetric) {
-
-			Point point = Point.measurement(m.getLabel() + ".avg").time(m.getTime(), p).addTags(m.getTags())
-					.addTag("server", server).addTag("env", env).addField("value", m.getValue());
-
-			influxApi.writePoint(point);
-
-			point = Point.measurement(m.getLabel() + ".samples").time(m.getTime(), p).addTag("server", server)
-					.addTag("env", env).addField("value", m.getSamples());
+			Point point = Point.measurement(m.getLabel() + ".avg").time(time, p).addTags(m.getTags())
+					.addTag("site", anycastSite).addTag("server", server).addField("value", m.getValue());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel() + ".min").time(m.getTime(), p).addTag("server", server)
-					.addTag("env", env).addField("value", ((AvgMetric) m).getMin());
+			point = Point.measurement(m.getLabel() + ".samples").time(time, p).addTag("server", server)
+					.addTag("site", anycastSite).addField("value", m.getSamples());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel() + ".max").time(m.getTime(), p).addTag("server", server)
-					.addTag("env", env).addField("value", ((AvgMetric) m).getMax());
+			point = Point.measurement(m.getLabel() + ".min").time(time, p).addTag("server", server)
+					.addTag("site", anycastSite).addField("value", ((AvgMetric) m).getMin());
+
+			influxApi.writePoint(point);
+
+			point = Point.measurement(m.getLabel() + ".max").time(time, p).addTag("server", server)
+					.addTag("site", anycastSite).addField("value", ((AvgMetric) m).getMax());
 
 			influxApi.writePoint(point);
 		} else {
-			Point point = Point.measurement(m.getLabel()).time(m.getTime(), p).addTags(m.getTags())
-					.addTag("server", server).addTag("env", env).addField("value", m.getValue());
+			Point point = Point.measurement(m.getLabel()).time(time, p).addTags(m.getTags())
+					.addTag("site", anycastSite).addTag("server", server).addField("value", m.getValue());
 
 			influxApi.writePoint(point);
 		}

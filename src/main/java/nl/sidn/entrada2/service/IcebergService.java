@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -26,9 +25,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import nl.sidn.entrada2.load.DnsMetricValues;
 import nl.sidn.entrada2.load.FieldEnum;
-import nl.sidn.entrada2.metric.HistoricalMetricManager;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Service
@@ -60,9 +57,6 @@ public class IcebergService {
 
 	@Autowired
 	private Table table;
-	
-	@Autowired(required = false)
-	private HistoricalMetricManager metrics;
 
 	private GenericRecord genericRecord;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;

@@ -14,6 +14,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.Counter;
@@ -69,6 +70,8 @@ public class WorkService {
 
 	private MeterRegistry meterRegistry;
 
+	private Counter okCounter;
+	private Counter errorCounter;
 	private boolean working;
 
 	public WorkService(MeterRegistry meterRegistry) {
@@ -130,7 +133,10 @@ public class WorkService {
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
-
+		
+		okCounter = Counter.builder("pcap_ok").tags("server", server).tags("site", anycastSite).register(meterRegistry);	
+		errorCounter = Counter.builder("pcap_error").tags("server", server).tags("site", anycastSite).register(meterRegistry);
+		
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
@@ -147,16 +153,14 @@ public class WorkService {
 			
 			duration = System.currentTimeMillis() - startOfWork;
 
-			Counter.builder("pcap.processed").tags("server", server).tags("location", anycastSite)
-					.register(meterRegistry).increment();
+			okCounter.increment();
 			
 			log.info("Finished processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
 
 			log.error("Error processing file: {}/{}", bucket, key, e);
 
-			Counter.builder("pcap.error").tags("server", server).tags("location", anycastSite).register(meterRegistry)
-					.increment();
+			errorCounter.increment();
 
 			return false;
 		} finally {
@@ -171,9 +175,9 @@ public class WorkService {
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
-				metrics.flush(server);
+				metrics.flush(server, anycastSite);
 			}
-			meterRegistry.clear();
+			//meterRegistry.clear();
 			// make sure no unsaved recs from previously failed pcaps are in mem
 			icebergService.clear();
 		}

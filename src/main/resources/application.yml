@@ -70,15 +70,6 @@ entrada:
         visibility-timeout: 300
   # set leader to true for 1 container when using non k8s deployment
   leader: false
-  metrics:
-    # write metics to influxdb
-    enabled: true
-    influxdb:
-      org: SIDN
-      bucket: entrada
-      token: 
-      url:
-      env: test
   provisioning:
     # auto create all required components such as the bucket and queues
     # might be useful when entrada2 application does not have these permissions on aws.
@@ -212,7 +203,12 @@ maxmind:
 
 management:
   influx.metrics.export:
-    enabled: false
+    enabled: true
+    bucket: entrada
+    org: SIDN
+    token:
+    uri:
+    step: 10s
   endpoints:
     enabled-by-default: false 
     web:

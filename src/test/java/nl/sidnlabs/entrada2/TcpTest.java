@@ -156,11 +156,23 @@ public class TcpTest extends AbstractTest {
     PcapReader reader = createReaderFor("pcap/sidnlabs-test-tcp-ts-option.pcap");
     List<Packet> pckts = reader.stream().collect(Collectors.toList());
     assertEquals(1, pckts.size());
-
-    // Packet p = pckts.get(0);
-    // assertEquals(637077908, p.getTcpOptionTSval());
-    // assertEquals(44805039, p.getTcpOptionTSecr());
   }
 
+  // Test tcp stream spanning multiple pcap files
+  @Test
+  public void testTCPStreamContinuedoundOk() {
+    PcapReader reader = createReaderFor("pcap/sidnlabs-test-tcp-stream-continued.pcap.gz");
+    List<Packet> pckts = reader.stream().collect(Collectors.toList());
+    assertEquals(2, pckts.size());
+    
+    List<Message> messages = pckts
+            .stream()
+            .flatMap(p -> ((DNSPacket) p).getMessages().stream())
+            .collect(Collectors.toList());
+    
+    assertEquals(19, messages.size());
+  }
+  
+  
 
 }

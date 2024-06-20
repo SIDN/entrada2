@@ -34,8 +34,11 @@ public class AvgMetric extends SumMetric {
 		}else if(value < min){
 			min = value;
 		}
-		
-		
+	}
+
+	@Override
+	public String toString() {
+		return "AvgMetric [min=" + min + ", max=" + max + "]";
 	}
 
 }
