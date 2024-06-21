@@ -27,7 +27,7 @@ public class ScheduledUpdater {
 	 * Check if reference data needs to be updated. No need to do this during
 	 * startup
 	 */
-	@Scheduled(initialDelayString = "#{${entrada.schedule.updater:60}*60*1000}", fixedDelayString = "#{${entrada.schedule.updater:60}*60*1000}")
+	@Scheduled(initialDelayString = "#{${entrada.schedule.updater-min:60}*60*1000}", fixedDelayString = "#{${entrada.schedule.updater-min:60}*60*1000}")
 	public void execute() {
 		if (leaderService.isleader()) {
 			// load new ref data from source to shared s3 location

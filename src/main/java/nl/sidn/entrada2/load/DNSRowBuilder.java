@@ -85,17 +85,8 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
 			record.set(FieldEnum.dns_rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
-			//record.set(FieldEnum.z.ordinal(), Boolean.valueOf(requestHeader.isZ()));
 			record.set(FieldEnum.dns_cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
 			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
-//			record.set(FieldEnum.query_f_tc.ordinal(), Boolean.valueOf(requestHeader.isTc()));
-//			record.set(FieldEnum.query_f_ra.ordinal(), Boolean.valueOf(requestHeader.isRa()));
-//			record.set(FieldEnum.query_f_ad.ordinal(), Boolean.valueOf(requestHeader.isAd()));
-
-			// ip fragments in the request
-//			if (reqTransport.isFragmented()) {
-//				record.set(FieldEnum.ip_frag.ordinal(), Integer.valueOf(reqTransport.getReassembledFragments()));
-//			}
 
 			if (metricsEnabled) {
 				metricsBuilder.dnsQuery(true);
@@ -135,12 +126,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				record.set(FieldEnum.dns_arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
 				record.set(FieldEnum.dns_nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
 				record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
-
-				// ip fragments in the response
-//				if (rspTransport.isFragmented()) {
-//					int frags = rspTransport.getReassembledFragments();
-//					record.set(FieldEnum.ip_resp_frag.ordinal(), Integer.valueOf(frags));
-//				}
 
 				// EDNS0 for response
 				writeResponseOptions(rspMessage, record);

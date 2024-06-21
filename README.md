@@ -122,6 +122,7 @@ select count(1) from dns;
 
 ENTRADA2 will automatically create a new database and table in AWS Glue, the data in the table can be anylzed using Athena and/or Spark.
 See the AWS documentation for more details.
+To enable running in AWS, set the `spring.cloud.aws.sqs.enabled` property to true to enable the use of SQS queues for messaging, otherwise RabbitMQ is used..
 
 
 ## Cleanup
@@ -216,8 +217,8 @@ The column names use a prefix to indicate where the information was extracted fr
 
 ## Metrics
 
-Metrics about the processed DNS data are generated when the configuration option "entrada.metrics.enabled" is set to true.
-The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the "entrada.metrics.influxdb.*" options.
+Metrics about the processed DNS data are generated when the configuration option "management.influx.metrics.export.enabled" is set to true.
+The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the "management.influx.metrics.export.*" options.
 
 
 ## Components UI

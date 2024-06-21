@@ -110,13 +110,8 @@ public class IcebergService {
 		return new WrappedPartitionedFanoutWriter(table, fileAppenderFactory, outputFileFactory);
 
 	}
-	
-//	public void save(Pair<GenericRecord, DnsMetricValues> row) {
-//		unsavedRecords.add(row);
-//	}
-//	
+
 	public void clear() {
-		//unsavedRecords.clear();
 		pageRecords.clear();
 	}
 
@@ -198,18 +193,6 @@ public class IcebergService {
 	}
 
 	public void commit() {
-//		log.info("Commit {} rows from memory to file", unsavedRecords.size());
-//		
-//		for (Pair<GenericRecord, DnsMetricValues> rowPair : unsavedRecords) {
-//			write(rowPair.getKey());
-//			
-//			// update metrics
-//			if(isMetricsEnabled()) {
-//				metrics.update(rowPair.getValue());
-//			}
-//		}
-		
-//		unsavedRecords.clear();
 
 		for (DataFile dataFile : close()) {
 			// send new datafile to leader
@@ -222,10 +205,6 @@ public class IcebergService {
 	public GenericRecord newGenericRecord() {
 		return genericRecord.copy();
 	}
-	
-//	private boolean isMetricsEnabled() {
-//		return metrics != null;
-//	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
 

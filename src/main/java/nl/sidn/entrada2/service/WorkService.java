@@ -14,7 +14,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.Counter;
@@ -32,12 +31,8 @@ import nl.sidnlabs.pcap.PcapReader;
 @Service
 @Slf4j
 public class WorkService {
-
-	@Value("${entrada.input.buffer:64}")
-	private int bufferSizeKb;
 	
-	@Value("${entrada.input.delete-after-read:64}")
-	private boolean deleteInputFile;
+	private static final int DECOMPRESS_STREAM_BUFFER = 64 * 1024;
 	
 	@Value("${entrada.nameserver.default-name}")
 	private String defaultNsName;
@@ -63,7 +58,7 @@ public class WorkService {
 	@Autowired(required = false)
 	private HistoricalMetricManager metrics;
 
-	@Value("#{${entrada.process.stalled:10}*60*1000}")
+	@Value("#{${entrada.process.max-proc-time-secs:600}*1000}")
 	private int stalledMillis;
 
 	private long startOfWork;
@@ -134,8 +129,8 @@ public class WorkService {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
 		
-		okCounter = Counter.builder("pcap_ok").tags("server", server).tags("site", anycastSite).register(meterRegistry);	
-		errorCounter = Counter.builder("pcap_error").tags("server", server).tags("site", anycastSite).register(meterRegistry);
+		okCounter = Counter.builder("pcap").tags("server", server).tags("site", anycastSite).tag("status", "ok").register(meterRegistry);	
+		errorCounter = Counter.builder("pcap").tags("server", server).tags("site", anycastSite).tag("status", "error").register(meterRegistry);
 		
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
@@ -183,7 +178,7 @@ public class WorkService {
 		}
 		
 		//cleanup after successful processing of file
-		if(deleteInputFile) {
+		if(isDeleteObject()) {
 			// delete input file, do not copy to output location
 			s3Service.delete(bucket, key);
 		}else {
@@ -192,25 +187,18 @@ public class WorkService {
 			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,
 					LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 			
-			// check if file needs to moved to another location
-			if(isNeedToMoveObject()) {
-				// tag file in current location
-				s3Service.tag(bucket, key, tags);
-			}else {
-				// move file to other directory prefix
-				String file = StringUtils.substringAfterLast(key, "/");
-				String newKey = pcapDirDone + "/" + file;
-				s3Service.move(bucket, key, newKey );
-				s3Service.tag(bucket, newKey, tags);
-			}						
+			// move file to other directory prefix
+			String file = StringUtils.substringAfterLast(key, "/");
+			String newKey = pcapDirDone + "/" + file;
+			s3Service.move(bucket, key, newKey );
+			s3Service.tag(bucket, newKey, tags);
 		}
 		return true;
 	}
 	
-	private boolean isNeedToMoveObject() {
-		return StringUtils.equalsIgnoreCase(pcapDirIn, pcapDirDone);
+	private boolean isDeleteObject() {
+		return StringUtils.isBlank(pcapDirDone);
 	}
-		
 
 	private boolean isMetricsEnabled() {
 		return metrics != null;
@@ -275,7 +263,7 @@ public class WorkService {
 	private Optional<PcapReader> createReader(String file, InputStream is) {
 
 		try {
-			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, bufferSizeKb * 1024, file);
+			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, DECOMPRESS_STREAM_BUFFER, file);
 			return Optional.of(new PcapReader(new DataInputStream(decompressor), null, true, file, false));
 		} catch (IOException e) {
 			log.error("Error creating pcap reader for: " + file, e);

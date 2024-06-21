@@ -12,7 +12,7 @@ import nl.sidn.entrada2.service.StateService;
 import nl.sidn.entrada2.service.StateService.APP_STATE;
 
 @RestController
-@RequestMapping("${entrada.api.context-path}/state")
+@RequestMapping("/state")
 public class StateController {
 
 	@Autowired

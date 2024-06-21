@@ -99,11 +99,7 @@ public class S3Service {
 		ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key).build();
 
 		try {
-			ListObjectsResponse res = s3Client.listObjects(listObjects);
-
-			return res.contents();
-			//.stream().map(o -> Pair.of(o.key(), o.lastModified())).collect(Collectors.toList());
-
+			return s3Client.listObjects(listObjects).contents();
 		} catch (Exception e) {
 			log.error("Read error", e);
 		}

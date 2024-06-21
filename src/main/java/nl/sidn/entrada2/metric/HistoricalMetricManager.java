@@ -63,20 +63,20 @@ public class HistoricalMetricManager {
 	public static final String METRIC_IMPORT_DNS_PROC_TIME = "dns.proc-time";
 
 	// layer 4 stats
-	public static final String METRIC_IMPORT_TCP_COUNT = "tcp";
-	public static final String METRIC_IMPORT_UDP_COUNT = "udp";
+	public static final String METRIC_IMPORT_NETWORK_PROT = "network.protocol";
 
-	public static final String METRIC_IMPORT_IP_V4_COUNT = "ip.version";
-	public static final String METRIC_IMPORT_IP_V6_COUNT = "ip.version";
-
+	public static final String METRIC_IMPORT_IP_COUNT = "ip.version";
 	public static final String METRIC_IMPORT_COUNTRY_COUNT = "geo.country";
 
-	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "tcp.rtt";
+	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "rtt";
 	
 	public static final Map<String, String> IP_V4_TAG_MAP = Map.of("version", "4");
 	public static final Map<String, String> IP_V6_TAG_MAP = Map.of("version", "6");
+	
+	public static final Map<String, String> NETWORK_UDP_TAG_MAP = Map.of("protocol", "UDP");
+	public static final Map<String, String> NETWORK_TCP_TAG_MAP = Map.of("protocol", "TCP");
 
-	@Value("${entrada.metrics.enabled:true}")
+	@Value("${management.influx.metrics.export.enabled:true}")
 	protected boolean metricsEnabled;
 
 	private static final Random RND = new Random();
@@ -125,18 +125,18 @@ public class HistoricalMetricManager {
 		}
 
 		if (dmv.ProtocolUdp) {
-			update(METRIC_IMPORT_UDP_COUNT, time, 1, true);
+			update(METRIC_IMPORT_NETWORK_PROT + ".udp", METRIC_IMPORT_NETWORK_PROT, time, 1, true, NETWORK_UDP_TAG_MAP);
 		} else {
-			update(METRIC_IMPORT_TCP_COUNT, time, 1, true);
+			update(METRIC_IMPORT_NETWORK_PROT + ".tcp", METRIC_IMPORT_NETWORK_PROT, time, 1, true, NETWORK_TCP_TAG_MAP);
 			if (dmv.hasTcpHandshake()) {
 				update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false);
 			}
 		}
 
 		if (dmv.ipV4) {
-			update(METRIC_IMPORT_IP_V4_COUNT + ".4", METRIC_IMPORT_IP_V4_COUNT, time, 1, true, Map.of("version", "4"));
+			update(METRIC_IMPORT_IP_COUNT + ".4", METRIC_IMPORT_IP_COUNT, time, 1, true, IP_V4_TAG_MAP);
 		} else {
-			update(METRIC_IMPORT_IP_V6_COUNT + ".6", METRIC_IMPORT_IP_V6_COUNT, time, 1, true, Map.of("version", "6"));
+			update(METRIC_IMPORT_IP_COUNT + ".6", METRIC_IMPORT_IP_COUNT, time, 1, true, IP_V6_TAG_MAP);
 		}
 		
 		
@@ -208,12 +208,6 @@ public class HistoricalMetricManager {
 			// no metrics to send
 			return;
 		}
-
-//		// add 1 nanosec to the last metric to prevent the next pcap from overwriting
-//		// the same second
-//		Metric last = metricValues.get(metricValues.size() - 1);
-//		last.setTime(last.getTime().plusNanos(1));
-
 		metricValues.stream().forEach(e -> send(e, server, anycastSite, WritePrecision.NS));
 	}
 
@@ -227,28 +221,44 @@ public class HistoricalMetricManager {
 		Instant time =  m.getTime().plusNanos(RND.nextLong(10000));
 
 		if (m instanceof AvgMetric) {
-			Point point = Point.measurement(m.getLabel() + ".avg").time(time, p).addTags(m.getTags())
-					.addTag("site", anycastSite).addTag("server", server).addField("value", m.getValue());
+			// make sure points are all saved a float and not mix of float and int, this will cause exception
+			
+			Point point = Point.measurement(m.getLabel()).time(time, p).addTags(m.getTags())
+					.addTag("site", anycastSite)
+					.addTag("server", server)
+					.addTag("type", "avg").addField("value", (float)m.getValue());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel() + ".samples").time(time, p).addTag("server", server)
-					.addTag("site", anycastSite).addField("value", m.getSamples());
+			point = Point.measurement(m.getLabel()).time(time, p)
+					.addTag("server", server)
+					.addTag("site", anycastSite)
+					.addTag("type", "sample")
+					.addField("value", (float)m.getSamples());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel() + ".min").time(time, p).addTag("server", server)
-					.addTag("site", anycastSite).addField("value", ((AvgMetric) m).getMin());
+			point = Point.measurement(m.getLabel()).time(time, p)
+					.addTag("server", server)
+					.addTag("site", anycastSite)
+					.addTag("type", "min")
+					.addField("value", (float)((AvgMetric) m).getMin());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel() + ".max").time(time, p).addTag("server", server)
-					.addTag("site", anycastSite).addField("value", ((AvgMetric) m).getMax());
+			point = Point.measurement(m.getLabel()).time(time, p)
+					.addTag("server", server)
+					.addTag("site", anycastSite)
+					.addTag("type", "max")
+					.addField("value", (float)((AvgMetric) m).getMax());
 
 			influxApi.writePoint(point);
 		} else {
-			Point point = Point.measurement(m.getLabel()).time(time, p).addTags(m.getTags())
-					.addTag("site", anycastSite).addTag("server", server).addField("value", m.getValue());
+			Point point = Point.measurement(m.getLabel()).time(time, p)
+					.addTags(m.getTags())
+					.addTag("site", anycastSite)
+					.addTag("server", server)
+					.addField("value", m.getValue());
 
 			influxApi.writePoint(point);
 		}

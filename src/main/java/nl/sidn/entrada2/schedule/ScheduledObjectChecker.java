@@ -40,7 +40,7 @@ public class ScheduledObjectChecker {
 	@Autowired
 	private S3Service s3Service;
 	
-	@Scheduled(initialDelayString = "#{${entrada.schedule.expired-object:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.expired-object:10}*60*1000}")
+	@Scheduled(initialDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
 	public void execute() {
 		 Map<String, String> tags = new HashMap<String, String>();
 		

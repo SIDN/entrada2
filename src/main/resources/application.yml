@@ -1,8 +1,4 @@
 entrada:
-  input:
-    delete-after-read: false
-    # inputstream buffer size (in kb)
-    buffer: 64
   nameserver:
     default-name: unknown-ns
     default-site: unknown-site
@@ -14,18 +10,19 @@ entrada:
     max-proc-time-secs: 7200
   process:
     # max time for pcap file to be procssed in min
-    # if worker time processing pcap > x min, it is marked as stalled
-    stalled: 10
+    # if worker is processing pcap longer than x secs, it is marked as stalled
+    max-proc-time-secs: 600
   schedule:
     # update reference data every x min
-    updater: 120
+    updater-min: 120
     # check for stalled worker every x min
-    liveness: 1
-    # check for expired oject ever x min
-    expired-object: 30
+    liveness-min: 1
+    # check for expired oject every x min
+    expired-object-min: 10
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
     # this is a test token, and it being here IS NOT as security issue
+    # WARNING: change this test token to new secure token for use in production environment
     token: '94591089610224297274859827590711'
   privacy:
     # when enabled the IP addresses are not written to parquet file
@@ -41,6 +38,7 @@ entrada:
     # dir for new pcaps
     pcap-in-dir: pcap-in
     # optionally move processed files to a different directory, better for detecting failed objects and aws object expiration based on age
+    # pcaps are deleted after procesessing when pcap-done-dir is left empty
     pcap-done-dir: pcap-done
     # files that could not be processed correctly are moved to the "failed" directory
     pcap-failed-dir: pcap-failed
@@ -74,7 +72,10 @@ entrada:
     # auto create all required components such as the bucket and queues
     # might be useful when entrada2 application does not have these permissions on aws.
     enabled: true
-  api:
+
+
+server:
+  servlet:
     context-path: /api/v1
       
 
@@ -89,7 +90,7 @@ spring:
     host:
     password:
     username:
-    retry-attempts: 10
+    retry-attempts: 5
     backoff-interval: 1000
     backoff-multiplier: 2
     backoff-max-interval: 5000
@@ -107,6 +108,7 @@ spring:
         # when using aws, enable sqs for messaging
         enabled: false
     loadbalancer:
+      # we do not use the client loadbalancer
       enabled: false
     openfeign:
       client:
@@ -122,14 +124,14 @@ spring:
  
 iceberg:
   # JDBC catalog, use this when not using aws Glue catalog
-  # only supports Postgresql
+  # only Postgresql is supported
   catalog:
     host:
     port: 5432
     name:
     user:
     password: 
-    location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
+    warehouse-location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
   # see iceberg docs for: write.parquet.compression-codec
   compression: 'ZSTD'
   metadata:
@@ -188,7 +190,7 @@ resolver:
 #      MaxMind GeoIP    #
 #########################
 maxmind:
- # max age of local db before downloading update ( hours)
+ # max age of local copy of MM db before downloading update ( hours)
  max-age-hr: 24
  license:
    free:
@@ -204,11 +206,17 @@ maxmind:
 management:
   influx.metrics.export:
     enabled: true
-    bucket: entrada
+    bucket: entrada2
     org: SIDN
     token:
     uri:
-    step: 10s
+    step: 1m
+  # do not send standard metrics such as for jvm to influxdb
+  # set to true if you would like this anyway
+  metrics:
+    enable: 
+      all: false
+      pcap: true
   endpoints:
     enabled-by-default: false 
     web:

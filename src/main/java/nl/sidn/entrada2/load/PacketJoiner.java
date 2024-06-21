@@ -10,8 +10,6 @@ import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
 import org.springframework.stereotype.Component;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidnlabs.dnslib.message.Message;
@@ -38,12 +36,7 @@ public class PacketJoiner {
   private int requestPacketCounter = 0;
   private int responsePacketCounter = 0;
 
-  private final MeterRegistry registry;
-  private Counter packetsCounter;
-
-  public PacketJoiner(MeterRegistry registry) {
-    this.registry = registry;
-    packetsCounter = registry.counter("pcap_packets");
+  public PacketJoiner() {
     activeZoneTransferCache = new Cache2kBuilder<RequestCacheKey, Integer>() {}.entryCapacity(300).build();
   }
 
@@ -62,7 +55,6 @@ public class PacketJoiner {
     List<RowData> results = new ArrayList<>();
 
     counter++;
-    packetsCounter.increment();
 
     if (counter % 100000 == 0 && log.isDebugEnabled()) {
       log.debug("Received {} packets to join", Integer.valueOf(counter));
