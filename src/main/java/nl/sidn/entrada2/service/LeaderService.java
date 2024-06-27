@@ -54,8 +54,13 @@ public class LeaderService {
 			downloadMetadata();
 		}
 	}
-
-
+	
+	private void downloadMetadata() {
+		log.info("Leader is starting metadata downloads");
+		geoIPService.downloadWhenRequired();
+		resolverChecks.stream().forEach(c -> c.download());
+	}
+	
 	/**
 	 * Handle a notification that this instance has become a leader.
 	 * 
@@ -71,12 +76,6 @@ public class LeaderService {
 		// others will wait for data to be present
 		downloadMetadata();
 	}
-	
-	private void downloadMetadata() {
-		log.info("Leader is starting metadata downloads");
-		geoIPService.downloadWhenRequired();
-		resolverChecks.stream().forEach(c -> c.download());
-	}
 
 	/**
 	 * Handle a notification that this instance's leadership has been revoked.
@@ -90,5 +89,8 @@ public class LeaderService {
 		this.context = null;
 		leaderQueue.stop();
 	}
+	
+	
+	
 
 }

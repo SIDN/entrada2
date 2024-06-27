@@ -118,14 +118,45 @@ select count(1) from dns;
 ```
 
 
-### AWS
+# AWS
 
 ENTRADA2 will automatically create a new database and table in AWS Glue, the data in the table can be anylzed using Athena and/or Spark.
 See the AWS documentation for more details.
 To enable running in AWS, set the `spring.cloud.aws.sqs.enabled` property to true to enable the use of SQS queues for messaging, otherwise RabbitMQ is used..
 
 
-## Cleanup
+# Kubernetes
+When running ENTRADA2 on Kubernetes all dependencies such as RabbitMQ must be deployed and available before using ENTRADA2.  
+
+ENTRADA2 requires permission for creatign and reading ConfigMaps, this is for Leader election functionality.
+For example permissions see: `k8s/leader-election-auth.yml`
+
+## MinIO Events Configuration
+When not using the default Docker configuration, the event configuration must be created manually.
+
+### Creating a new Event Destination
+
+the AMQP event destination for MinIO uses these options:
+
+| Field name  |  Example   |
+| ------------ | --------------- |
+| URL       | amqp://admin:${DEFAULT_PASSWORD}@rabbitmq-hostname:5672  |
+| Exchange  |  entrada-s3-event-exchange | 
+| Exchange Type  | direct  | 
+| Routing Key  | entrada-s3-event  | 
+| Durable  | Yes  | 
+
+
+### Creating new Event destination for a Bucket
+
+Use the following values:
+
+- ARN: The ARN for the above created event destination
+- Prefix: The value of entrada option `entrada.s3.pcap-in-dir` default is `pcap-in`
+- Suffix: Opional suffix for pcap files e.g. pcap.gz
+
+
+# Cleanup
 To cleanup the test evironment, stop the Docker containers, delete the Docker volumes and restart the containers.
 
 ```
@@ -136,7 +167,7 @@ docker-compose --profile test up --scale entrada-worker=2
 ```
 
 
-## API
+# API
 
 A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 
@@ -147,7 +178,7 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 | GET /api/v1/state  | Get the current state of the container       |
 
 
-## Running multiple containers
+# Running multiple containers
 
 Running multiple worker containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".  
 The leader container is responsible for comitting new datafiles to the Iceberg table.  
@@ -157,7 +188,7 @@ When the leader container is shutdown, the leader election process will automati
 When using Docker you must set the `ENTRADA_LEADER` option to true only for the master container, there is no failover mechanism for master containers when using Docker.
 
 
-## Table schema
+# Table schema
 
 The column names use a prefix to indicate where the information was extracted from:
 
@@ -215,13 +246,13 @@ The column names use a prefix to indicate where the information was extracted fr
 | server_location       | string    | Name of anycast site of NS server  |
 
 
-## Metrics
+# Metrics
 
 Metrics about the processed DNS data are generated when the configuration option "management.influx.metrics.export.enabled" is set to true.
 The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the "management.influx.metrics.export.*" options.
 
 
-## Components UI
+# Components UI
 Some of the components provide a web interface, below are the URLs for the components started by the docker compose script.
 Login credentials can be found in the script.
 
@@ -231,11 +262,11 @@ Login credentials can be found in the script.
 - [Trino](http://localhost:8085/) 
 
 
-## License
+# License
 
 This project is distributed under the GPLv3, see [LICENSE](LICENSE).
 
-## Attribution
+# Attribution
 
 When building a product or service using ENTRADA2, we kindly request that you include the following attribution text in all advertising and documentation.
 ```

@@ -1,34 +1,23 @@
-# use multi stage build, 1st stage is to create base image containing JRE only
-# see example: https://blog.devops.dev/how-to-reduce-jvm-docker-image-size-by-at-least-60-459ec87b95d8
+FROM --platform=linux/amd64 eclipse-temurin:21 as jre-build
 
-FROM --platform=linux/amd64 eclipse-temurin:21-alpine as temurin-jdk
-
-# required for strip-debug to work
-RUN apk add --no-cache binutils
-
-# Build small JRE image
-RUN jlink \
+# Create a custom Java runtime
+RUN $JAVA_HOME/bin/jlink \
          --add-modules ALL-MODULE-PATH \
          --strip-debug \
          --no-man-pages \
          --no-header-files \
          --compress=2 \
-         --output /jre
+         --output /javaruntime
 
-FROM --platform=linux/amd64 alpine:latest
+# Define your base image
+FROM --platform=linux/amd64 debian:bookworm-slim
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH "${JAVA_HOME}/bin:${PATH}"
+COPY --from=jre-build /javaruntime $JAVA_HOME
 
-ENV JAVA_HOME=/jre
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
-
-COPY --from=temurin-jdk /jre $JAVA_HOME
-
-LABEL maintainer="SIDN Labs"
-
-WORKDIR /app
+RUN mkdir /app
 
 # Copy the application code to the container
 COPY target/entrada2-*.jar /app/entrada2.jar
 
-# Set the entrypoint command
 CMD ["java", "-jar", "/app/entrada2.jar"]
-

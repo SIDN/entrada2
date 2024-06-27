@@ -103,6 +103,8 @@ spring:
         # name of k8s configmap to use to write leader pod name to
         config-map-name: entrada-leader
         role: master 
+        namespace: entrada
+        publish-failed-events: true
     aws:
       sqs:
         # when using aws, enable sqs for messaging
@@ -230,7 +232,7 @@ management:
   endpoint:
     health:
       enabled: true
-      probes:
-        enabled: true
+    probes:
+      enabled: true
        
 

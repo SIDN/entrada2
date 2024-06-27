@@ -23,8 +23,8 @@ public class ScheduledLivenesChecker {
   @Autowired
   private WorkService workService;
 
-  
-  /**
+
+/**
    * Check if worker is still in good state and able to process pcaps.
    * When LivenessState.BROKEN is set then k8s will restart te container
    * 

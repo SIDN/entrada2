@@ -2,6 +2,8 @@ package nl.sidn.entrada2;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -34,6 +36,7 @@ public class StartupListener {
 			log.info("This is the leader, start listening to leader queue");
 			leaderQueue.start();
 		}else {
+			log.info("This is NOT the leader, make sure not to be listening to leader queue");
 			// not the leader, make sure it is not listing to leader queue
 			leaderQueue.stop();
 		}
@@ -46,4 +49,15 @@ public class StartupListener {
 		}
 	}
 
+	
+	@EventListener
+    public void onEvent(AvailabilityChangeEvent<LivenessState> event) {
+        switch (event.getState()) {
+        case BROKEN:
+        	log.error("This pod is broken");
+            break;
+        case CORRECT:
+        	log.info("This pod is working correct");
+        }
+    }
 }
