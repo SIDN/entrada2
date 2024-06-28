@@ -83,7 +83,11 @@ public class WorkService {
 		while (working) {
 			TimeUtil.sleep(1000);
 		}
-		icebergService.commit();
+		icebergService.commit(true);
+	}
+	
+	public void flush() {
+		icebergService.commit(true);
 	}
 
 	public boolean process(String bucket, String key) {
@@ -174,7 +178,7 @@ public class WorkService {
 			}
 			//meterRegistry.clear();
 			// make sure no unsaved recs from previously failed pcaps are in mem
-			icebergService.clear();
+			//icebergService.clear();
 		}
 		
 		//cleanup after successful processing of file

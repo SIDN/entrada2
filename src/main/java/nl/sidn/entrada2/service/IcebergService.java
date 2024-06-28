@@ -32,9 +32,11 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 @Slf4j
 public class IcebergService {
 
-	@Value("#{${iceberg.parquet.file.max-size:256} * 1024 * 1024}")
-	private int maxFileSizeMegabyte;
-
+	// use a minimum no of records to prevent small parquet output files
+	// when processing small input pcap files.
+	@Value("${iceberg.parquet.min-records:1000000}")
+	private int minRecords;
+	
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
 
@@ -75,15 +77,13 @@ public class IcebergService {
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
 
 		// make sure to also use the spec when creating a GenericAppenderFactory
-		// otherwise
-		// iceberg will not generate the partitioning metadata
+		// otherwise iceberg will not generate the partitioning metadata
 		GenericAppenderFactory fileAppenderFactory = new GenericAppenderFactory(table.schema(), table.spec());
 
-		// user gzip to create smaller files to limit athena io cost
 		fileAppenderFactory.set(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
 		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
-		fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeMegabyte));
+		//fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeMegabyte));
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
@@ -193,13 +193,22 @@ public class IcebergService {
 	}
 
 	public void commit() {
+		// only commit when the minimnum no of records is in output file
+		commit(false);
+	}
+	
+	public void commit(boolean force) {
 
-		for (DataFile dataFile : close()) {
-			// send new datafile to leader
-			leaderQueue.send(dataFile);
+		if(force || currentRecCount >= minRecords) {
+			// close the current open parquet output file
+			log.info("Stop request received or minimum record count reached ({}), closing output Parquet file", currentRecCount);
+			for (DataFile dataFile : close()) {
+				// send new datafile to leader
+				leaderQueue.send(dataFile);
+			}
+	
+			currentRecCount = 0;
 		}
-
-		currentRecCount = 0;
 	}
 
 	public GenericRecord newGenericRecord() {
@@ -213,7 +222,7 @@ public class IcebergService {
 
 		public WrappedPartitionedFanoutWriter(Table table, FileAppenderFactory appenderFactory,
 				OutputFileFactory fileFactory) {
-			super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(), maxFileSizeMegabyte);
+			super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
 			partitionKey = new PartitionKey(table.spec(), table.spec().schema());
 

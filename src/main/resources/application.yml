@@ -160,6 +160,8 @@ iceberg:
     bloomfilter: true
     # max Parquet filesize (mb)
     max-size: 256
+    # minimum number of records required before output Parquest file is closed
+    min-records: 1000000
 
   
 

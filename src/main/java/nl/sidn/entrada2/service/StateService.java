@@ -2,7 +2,6 @@ package nl.sidn.entrada2.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PutMapping;
 
 import lombok.AccessLevel;
 import lombok.Data;
@@ -29,18 +28,30 @@ public class StateService {
 	@Autowired
 	private CommandQueue commandQueue;
 
+	/**
+	 * Start processing new pcap objects from s3 location
+	 */
 	public void start() {
 		commandQueue.send(new Command(CommandType.START));
 	}
+	
+	/**
+	 * Flush will close currently open Parquet output files and add these to the Iceberg table
+	 */
+	public void flush() {
+		commandQueue.send(new Command(CommandType.FLUSH));
+	}
 
-	@PutMapping(path = "/stop")
+	/**
+	 * Stop processing new pcap files from s3 location
+	 */
 	public void stop() {
 		commandQueue.send(new Command(CommandType.STOP));
 	}
 
 	public void setState(APP_STATE state) {
 		this.state = state;
-		log.info("Change state to: {}", state);
+		log.info("Changing state to: {}", state);
 	}
 	
 

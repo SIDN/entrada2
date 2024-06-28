@@ -59,7 +59,7 @@ the MAXMIND_LICENSE_FREE environment variable.
 # Quick start
 
 To get started quickly, you can use the provided [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
-environment containing all required components. 
+environment on a single host, containing all required services. 
 
 The configuration settings can be found as environment varliables in `docker.env`.  
 The example belows shows how to start using 1 ENTRADA master container and 2 ENTRADA worker containers.  
@@ -120,19 +120,20 @@ select count(1) from dns;
 
 # AWS
 
-ENTRADA2 will automatically create a new database and table in AWS Glue, the data in the table can be anylzed using Athena and/or Spark.
+When deployed on AWS, ENTRADA2 will automatically create a new database and table using AWS Glue, the data in the table can be analyzed using Athena, Spark or any of the other compatible tools available on AWS.
 See the AWS documentation for more details.
-To enable running in AWS, set the `spring.cloud.aws.sqs.enabled` property to true to enable the use of SQS queues for messaging, otherwise RabbitMQ is used..
+To enable running on AWS, set the `spring.cloud.aws.sqs.enabled` property to true to enable the use of SQS queues for messaging, otherwise RabbitMQ is used.  
 
 
 # Kubernetes
-When running ENTRADA2 on Kubernetes all dependencies such as RabbitMQ must be deployed and available before using ENTRADA2.  
+When running ENTRADA2 on Kubernetes ( onpremise or in cloud) all dependencies such as RabbitMQ must be deployed and available before using ENTRADA2.  
 
 ENTRADA2 requires permission for creatign and reading ConfigMaps, this is for Leader election functionality.
 For example permissions see: `k8s/leader-election-auth.yml`
 
-## MinIO Events Configuration
-When not using the default Docker configuration, the event configuration must be created manually.
+## MinIO S3 Event Configuration
+The S3 implemenation must send events to a RabbitMQ or AWS SQS queue when a new pcap object has been uploaded.
+When not using AWS or the default Docker Compose configuration, the MinIO event configuration must be created manually.
 
 ### Creating a new Event Destination
 
@@ -174,7 +175,8 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 | Endpoint    | Description   |
 | ------------ | ----------- | 
 | PUT /api/v1/state/start  |  Start processing new pcap file, the command will be relayed to all running containers        |
-| PUT /api/v1/state/stop  | Stop processing new pcap file, the command will be relayed to all running containers        |
+| PUT /api/v1/state/stop  | Stop processing new pcap file, the command will be relayed to all running containers    
+| PUT /api/v1/state/flush  | Close open Parquet output files and add these to Iceberg table, the command will be relayed to all running containers        |
 | GET /api/v1/state  | Get the current state of the container       |
 
 

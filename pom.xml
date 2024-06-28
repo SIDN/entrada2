@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>nl.sidn</groupId>
 	<artifactId>entrada2</artifactId>
-	<version>0.0.4-SNAPSHOT</version>
+	<version>0.0.5-SNAPSHOT</version>
 	<name>entrada2</name>
 
 	<properties>
