@@ -1,21 +1,20 @@
 # ENTRADA2
 
 A tool for converting captured DNS data (PCAP) to an [Apache Iceberg](https://iceberg.apache.org/) table, using the [Apache Parquet](https://parquet.apache.org/) dataformat.   
-ENTRADA2 is an improvement on [ENTRADA](https://github.com/SIDN/entrada) and includes support for deployment on Kubernetes + AWS and for local deployment using docker-compose.
+ENTRADA2 is an improvement on [ENTRADA](https://github.com/SIDN/entrada) and includes support for the multiple deployment types: Kubernetes, AWS and local deployment using Docker Compose.
 
-The data is enriched by adding the following information to each row.   
+A DNS query and response are combined into a single record and enriched by adding the following information.   
 - Geolocation (Country)
 - Autonomous system (ASN)
 - Detection of public resolvers (Google, OpenDNS, Quad9 and Cloudflare)
 - TCP round-trip time (RTT) 
 
 
-ENTRADA2 uses:  
-
+ENTRADA2 supports:  
 - S3 storage (MinIO, AWS)
 - Open table format (Apache Iceberg)
-- Messaging Queue ( RabbitMQ, AWS SQS)
-- Metadata Data catalog (AWS Glue or Icebegr JDBC + PostgreSQL)
+- Messaging queuing (RabbitMQ, AWS SQS)
+- Metadata Data catalog (AWS Glue or Iceberg JDBC)
 - Metrics ([InfluxDB](https://www.influxdata.com/))
 - Query engine (Trino, AWS Athena, Spark)
 
@@ -26,23 +25,23 @@ List of changes:
 - Automaticly create required resources (s3 bucket and messaging queues)
 - Added support for Kubernetes
 - Added support for Apache Iceberg table format
-- The dns_qname column only contains the labels preceding the domainname
+- Split the QNAME into the dns_domainname and dns_qname (labels before domain name) columns
 - Rows are sorted by domainname for more efficient compression
 - Default column compression changed to ZSTD, was Snappy
-- Use small Parquet max dictionary size, to prevent domainname column using dict
 - Bloomfilter for domainname column, performance boost when filtering on domainname 
+- Use small Parquet max dictionary size, to prevent domainname column using dictionary and not Bloomfilter
 - Renamed table columns to indicate protocol source
 - Removed unused columns
-- Name servers are no nonger linked to specific ENTRADA2 container, container can handle any pcap
+- Name servers are no nonger processed by a specific container, containers can handle any pcap
 - No longer saving state between pcaps, might cause some unmatched packets
 - Added s3 event based workflow
 - Added API to control containers, e.g. status/start/stop
 
 
 The following deployment modes are supported:
-- Docker (best for test and evaluation)
+- Local/Single system using Docker Compose (best for test and evaluation)
 - Kubernetes
-- AWS cloud
+- AWS
 
 # Build
 
@@ -58,28 +57,28 @@ the MAXMIND_LICENSE_FREE environment variable.
 
 # Quick start
 
-To get started quickly, you can use the provided [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
+To get started quickly, use the provided [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
 environment on a single host, containing all required services. 
 
-The configuration settings can be found as environment varliables in `docker.env`.  
-The example belows shows how to start using 1 ENTRADA master container and 2 ENTRADA worker containers.  
+The configuration settings can be found as environment variables in `docker.env`.  
+The example uses the default Docker Compose script and starts 1 ENTRADA master container and 2 ENTRADA worker containers.  
 
 ```
 export MAXMIND_LICENSE_PAID=<your-key-here>
 docker compose --profile test up --scale entrada-worker=2
 ```
 
-The docker-compose script uses the "test" profile to start the ENTRADA containers, not using this profile will only start the dependencies and not the ENTRADA containers.
+The Docker Compose script uses the "test" profile to start the ENTRADA containers, not using this profile will only start the dependencies and not the ENTRADA containers.
 
 ## Processing pcap data
 
-ENTRADA2 converts a single pcap file into a 1 or more Parquet files, many small input pcap files will not be automatically combined into a larger Parquet file, as was the case when using the the previous ENTRADA version.  
-Apache Iceberg includes functionality for [data maintenance](https://iceberg.apache.org/docs/latest/maintenance/#maintenance) such as table compaction, use this instead.  
+ENTRADA2 converts a single pcap file into a 1 or more Parquet files, many small input pcap files may be automatically combined into a larger Parquet file.  
+The `iceberg.parquet.min-records` option determines how many records a Parquet output file must contain before it is allowed to be closed and added to the Iceberg table.  
 
 The pcap processing workflow uses 3 prefixes for pcap objects in s3, defaults are:
-- pcap-in
-- pcap-done
-- pcap-failed
+- pcap-in: New pcap object must be uploaed using this prefix
+- pcap-done: When the auto-delete option is not enabled, then processed pcap objects are moved to this prefix
+- pcap-failed: When a pcap object cannot be processed correcly, it is moved to this prefix
 
 When all components have started up, you may upload a pcap file to the s3 bucket, using the "pcap-in" prefix.
 If ENTRADA2 created a s3 bucket notification configuration (enabled by default) then processing of the a pcap file 
@@ -161,10 +160,10 @@ Use the following values:
 To cleanup the test evironment, stop the Docker containers, delete the Docker volumes and restart the containers.
 
 ```
-docker-compose down
+docker compose down
 docker system prune -f
 docker volume rm docker_entradaInfluxDbVolume docker_entradaMinioVolume docker_entradaPostgresqlVolume;
-docker-compose --profile test up --scale entrada-worker=2
+docker compose --profile test up --scale entrada-worker=2
 ```
 
 
