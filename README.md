@@ -52,9 +52,9 @@ mvn clean && mvn package && docker build  --tag=sidnlabs/entrada2:$TOOL_VERSION 
 ```
 
 # GeoIP data
-ENTRADA2 uses the [Maxmind](https://www.maxmind.com) GeoIP2 database, if you have a license then set the MAXMIND_LICENSE_PAID
+ENTRADA2 uses the [Maxmind](https://www.maxmind.com) GeoIP2 database, if you have a license then set the `MAXMIND_LICENSE_PAID`
 environment variable, otherwise signup for the free [GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data ) database and use 
-the MAXMIND_LICENSE_FREE environment variable.
+the `MAXMIND_LICENSE_FREE` environment variable.
 
 # Quick start
 
@@ -90,6 +90,7 @@ Use the the following s3 tags when uploading file to S3:
 - entrada-ns-server: Logical name of the name server (e.g. ns1.dns.nl)
 - entrada-ns-anycast-site: Anycast site of the name server (e.g. ams)
 
+Timestamps used in pcap files are assumed to be using timezone UTC.
 
 # Flushing output
 To prevent many small Parquet output files when the input stream contains many small pcap files, there exists a configuration option (`iceberg.parquet.min-records`, default 1000000) for setting the lower limit of the number
@@ -121,7 +122,7 @@ select count(1)
 from dns;
 ```
 
-Find out what domain name received most queries, create a top 25:
+Get the domain names that received most queries, create a top 25:
 
 ```
 select dns_domainname, count(1)
@@ -131,7 +132,30 @@ order by 2 desc
 limit 25;
 ```
 
-When response data is enabled, the rdata column can be queried using lambda expressions, for example to get all queries for a specific rdata response value:
+
+Get the the rcode are most common, per day:
+
+```
+select day(time), dns_rcode, count(1)
+from dns
+group by 1,2
+order by 1 asc
+limit 25;
+```
+
+Get the top 10 domains on specific date:
+
+```
+select dns_domainname, count(1)
+from dns
+where date_trunc('day', time) = timestamp '2024-07-01'
+group by 1
+order by 2 desc
+limit 10;
+```
+
+When response data is enabled (`entrada.rdata.enabled`), records in the rdata column can be analyzed using lambda expressions.
+For example, get all queries for a specific rdata response value:
 
 ```
 select dns_qname, dns_domainname, dns_rdata 
@@ -287,7 +311,7 @@ The column names use a prefix to indicate where the information was extracted fr
 | dns_rdata.type     | int   | Resource Record (RRR) type, according to [IANA registration](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4) |
 | dns_rdata.data     | string   | String representation of rdata part of RR|
 
-Not all records include support for the dns_rdata.data field, in this cace the value of the field will be null.
+Not all DNS resource records in ENTRADA have support for the `dns_rdata.data` column, for unsupported RRs the value of this column will be null.
 
 # Metrics
 
@@ -297,7 +321,7 @@ The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, con
 
 # Components UI
 Some of the components provide a web interface, below are the URLs for the components started by the docker compose script.
-Login credentials can be found in the script.
+Login credentials can be found in the script, these are for test purposes only and do not constitute a security issue.
 
 - [MinIO](http://hostname:9000)
 - [RabbitMQ](http://hostname:15672/)

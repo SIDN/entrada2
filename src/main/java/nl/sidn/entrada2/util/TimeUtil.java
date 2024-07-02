@@ -1,8 +1,8 @@
 package nl.sidn.entrada2.util;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,12 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TimeUtil {
   private TimeUtil() {}
+  
+  private final static ZoneId UTC = ZoneId.of("UTC");
+  
+  public static LocalDateTime timestampFromMillis(long millis) {
 
-  public static OffsetDateTime timestampFromMillis(long millis) {
-	  
     return Instant
         .ofEpochMilli(millis)
-        .atOffset(ZoneOffset.UTC);
+        .atZone(UTC)
+        .toLocalDateTime();
   }
 
 

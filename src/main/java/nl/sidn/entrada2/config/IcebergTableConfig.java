@@ -48,7 +48,7 @@ public class IcebergTableConfig {
 		}
 
 		schema = new Schema(Types.NestedField.required(1, "dns_id", Types.IntegerType.get()),
-				Types.NestedField.required(2, "time", Types.TimestampType.withZone()),
+				Types.NestedField.required(2, "time", Types.TimestampType.withoutZone()),
 				Types.NestedField.optional(3, "dns_qname", Types.StringType.get()),
 				Types.NestedField.optional(4, "dns_domainname", Types.StringType.get()),
 				Types.NestedField.optional(5, "ip_ttl", Types.IntegerType.get()),
