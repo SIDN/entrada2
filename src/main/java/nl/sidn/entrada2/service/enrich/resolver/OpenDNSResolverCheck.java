@@ -19,6 +19,7 @@
  */
 package nl.sidn.entrada2.service.enrich.resolver;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,8 +41,9 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 
 /**
- * Checker to see if an IP address is an OpenDNS resolver. resolver ips are downloaded from opendns
- * website, url: https://www.opendns.com/network-map-data
+ * Checker to see if an IP address is an OpenDNS resolver. resolver ips are
+ * downloaded from opendns website, url:
+ * https://www.opendns.com/network-map-data
  * 
  * @author maarten
  *
@@ -51,73 +53,77 @@ import lombok.extern.log4j.Log4j2;
 @Setter
 public final class OpenDNSResolverCheck extends AbstractResolverCheck {
 
-  private static final String RESOLVER_STATE_FILENAME = "opendns-resolvers";
-  private static final String RESOLVER_NAME = "OpenDNS";
+	private static final String RESOLVER_STATE_FILENAME = "opendns-resolvers";
+	private static final String RESOLVER_NAME = "OpenDNS";
 
+	@Value("${resolver.opendns.url}")
+	private String url;
+	@Value("${resolver.opendns.timeout:15}")
+	private int timeout;
 
-  @Value("${resolver.opendns.url}")
-  private String url;
-  @Value("${resolver.opendns.timeout:15}")
-  private int timeout;
+	@Override
+	public List<String> fetch() {
+		log.info("Load OpenDNS resolver addresses from url: " + url);
 
-  @Override
-  public List<String> fetch() {
-    log.info("Load OpenDNS resolver addresses from url: " + url);
+		RequestConfig config = RequestConfig.custom().setConnectionRequestTimeout(Timeout.ofSeconds(timeout)).build();
 
-    List<String> subnets = new ArrayList<>();
+		try (CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build()) {
+			return fetchData(client);
+		} catch (IOException e) {
+			throw new RuntimeException("Error create HTTP request", e);
+		}
 
-    RequestConfig config = RequestConfig
-        .custom()
-        .setConnectionRequestTimeout(Timeout.ofSeconds(timeout))
-        .build();
-    CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
+	}
 
-    try {
-      HttpGet get = new HttpGet(url);
-      CloseableHttpResponse response = client.execute(get);
-      HttpEntity entity = response.getEntity();
-      String html = EntityUtils.toString(entity);
+	private List<String> fetchData(CloseableHttpClient client) {
 
-      Document doc = Jsoup.parse(html);
-      Elements tableRows = doc.select("table#networks tr");
+		List<String> subnets = new ArrayList<>();
+		HttpGet get = new HttpGet(url);
 
-      if (tableRows.size() > 0) {
+		try (CloseableHttpResponse response = client.execute(get)) {
 
-        // skip table header row
-        tableRows.stream().skip(1).forEach(r -> {
-          Elements columns = r.getElementsByTag("td");
+			HttpEntity entity = response.getEntity();
+			String html = EntityUtils.toString(entity);
 
-          String v4 = columns.get(3).text();
-          String v6 = columns.get(4).text();
+			Document doc = Jsoup.parse(html);
+			Elements tableRows = doc.select("table#networks tr");
 
-          if (log.isDebugEnabled()) {
-            log
-                .debug("Add OpenDNS resolver IP ranges -> location: " + columns.get(0).text()
-                    + " subnetV4: " + v4 + " subnetV6: " + v6);
-          }
+			if (tableRows.size() > 0) {
 
-          subnets.add(v4);
-          subnets.add(v6);
+				// skip table header row
+				tableRows.stream().skip(1).forEach(r -> {
+					Elements columns = r.getElementsByTag("td");
 
-        });
+					String v4 = columns.get(3).text();
+					String v6 = columns.get(4).text();
 
-      }
+					if (log.isDebugEnabled()) {
+						log.debug("Add OpenDNS resolver IP ranges -> location: " + columns.get(0).text() + " subnetV4: "
+								+ v4 + " subnetV6: " + v6);
+					}
 
-    } catch (Exception e) {
-      // ignore any problems when fetching resolver list
-      log.error("Problem while adding OpenDns resolvers.", e);
-    }
-    return subnets;
-  }
+					subnets.add(v4);
+					subnets.add(v6);
 
-  @Override
-  public String getFilename() {
-    return RESOLVER_STATE_FILENAME;
-  }
+				});
 
-  @Override
-  public String getName() {
-    return RESOLVER_NAME;
-  }
+			}
+
+		} catch (Exception e) {
+			// ignore any problems when fetching resolver list
+			log.error("Problem while adding OpenDns resolvers.", e);
+		}
+		return subnets;
+	}
+
+	@Override
+	public String getFilename() {
+		return RESOLVER_STATE_FILENAME;
+	}
+
+	@Override
+	public String getName() {
+		return RESOLVER_NAME;
+	}
 
 }

@@ -59,8 +59,9 @@ public class IcebergService {
 
 	@Autowired
 	private Table table;
-
+	
 	private GenericRecord genericRecord;
+	private GenericRecord genericRecordRdata;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
 	private List<SortableGenericRecord> pageRecords;
@@ -71,6 +72,7 @@ public class IcebergService {
 	@PostConstruct
 	public void initialize() {
 		this.genericRecord = GenericRecord.create(table.schema());
+		this.genericRecordRdata = GenericRecord.create(table.schema().findType(49).asStructType());
 		this.pageRecords = new ArrayList<SortableGenericRecord>(parquetPageLimit);
 	}
 
@@ -83,6 +85,7 @@ public class IcebergService {
 		fileAppenderFactory.set(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
 		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
+		// use default for WRITE_TARGET_FILE_SIZE_BYTES and set limit on minimum number of rows for each parquet file
 		//fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeMegabyte));
 		
 		if (enableBloomFilter) {
@@ -193,7 +196,7 @@ public class IcebergService {
 	}
 
 	public void commit() {
-		// only commit when the minimnum no of records is in output file
+		// only commit when the minimum no of records is in output file
 		commit(false);
 	}
 	
@@ -214,15 +217,20 @@ public class IcebergService {
 	public GenericRecord newGenericRecord() {
 		return genericRecord.copy();
 	}
+	
+	public GenericRecord newRdataGenericRecord() {
+		return genericRecordRdata.copy();
+	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
 
 		private InternalRecordWrapper wrapper;
 		private PartitionKey partitionKey;
 
-		public WrappedPartitionedFanoutWriter(Table table, FileAppenderFactory appenderFactory,
+		@SuppressWarnings("unchecked")
+		public WrappedPartitionedFanoutWriter(Table table, @SuppressWarnings("rawtypes") FileAppenderFactory fileAppenderFactory,
 				OutputFileFactory fileFactory) {
-			super(table.spec(), FileFormat.PARQUET, appenderFactory, fileFactory, table.io(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+			super(table.spec(), FileFormat.PARQUET, fileAppenderFactory, fileFactory, table.io(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
 			partitionKey = new PartitionKey(table.spec(), table.spec().schema());
 

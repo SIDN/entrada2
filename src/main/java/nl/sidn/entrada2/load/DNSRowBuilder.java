@@ -2,10 +2,11 @@ package nl.sidn.entrada2.load;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.google.common.base.CharMatcher;
@@ -14,10 +15,12 @@ import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.dnslib.message.Header;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.dnslib.message.Question;
+import nl.sidnlabs.dnslib.message.RRset;
 import nl.sidnlabs.dnslib.message.records.edns0.ClientSubnetOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDEOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDNS0Option;
 import nl.sidnlabs.dnslib.message.records.edns0.OPTResourceRecord;
+import nl.sidnlabs.dnslib.types.ResourceRecordType;
 import nl.sidnlabs.dnslib.util.NameUtil;
 import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
@@ -28,12 +31,19 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	private static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
 	private static final int ID_UNKNOWN = -1;
 	private static final int OPCODE_UNKNOWN = -1;
+	
+	@Value("${entrada.rdata.enabled:false}")
+	private boolean rdataEnabled;
+	
+	@Value("${entrada.rdata.dnssec:false}")
+	private boolean rdataDnsSecEnabled;
 
 	public Pair<GenericRecord, DnsMetricValues> build(RowData combo, String server, String location,
-			GenericRecord record) {
+			GenericRecord record, GenericRecord recRdata) {
 		// try to be as efficient as possible, every object created here or expensive
 		// calculation can
 		// have major impact on performance
+		
 
 		record.set(FieldEnum.server.ordinal(), server);
 
@@ -135,6 +145,21 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 				}
 			}
+			
+			if(rdataEnabled) {
+				// parsing and creating rdata output consumes lot of cpu/memory, it is disabled by default
+				List<GenericRecord> datas = new ArrayList<GenericRecord>();
+				if(!rspMessage.getAnswer().isEmpty()) {
+					rdata(rspMessage.getAnswer(), recRdata, 0, datas);
+				}
+				if(!rspMessage.getAuthority().isEmpty()) {
+					rdata(rspMessage.getAuthority(), recRdata, 1, datas);
+				}
+				if(!rspMessage.getAdditional().isEmpty()) {
+					rdata(rspMessage.getAdditional(), recRdata, 2, datas);
+				}
+				record.set(FieldEnum.dns_rdata.ordinal(), datas);
+			}
 		}
 
 		String qname = null;
@@ -155,7 +180,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			record.set(FieldEnum.dns_qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
 
 			// remove non asccii chars
-			qname = CharMatcher.ascii().negate().or(CharMatcher.invisible()).removeFrom(question.getQName());
+			qname = CharMatcher.ascii().negate().or(CharMatcher.whitespace()).removeFrom(question.getQName());
 			
 			if (NameUtil.isValid(qname)) {
 				// only create domainname when qname contains only valid ascii chars
@@ -169,8 +194,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 					}
 				}
 			}
-
-			
 		}
 
 		// only save the part of the qname thats not part the domainname, this saves 
@@ -194,10 +217,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		}
 
 		record.set(FieldEnum.server_location.ordinal(), location);
-
-		// add file name, makes it easier to find the original input pcap
-		// in case of of debugging.
-		//record.set(FieldEnum.pcap_file.ordinal(), transport.getFilename());
 
 		// values from request OR response now
 		// if no request found in the request then use values from the response.
@@ -258,6 +277,33 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		return Pair.of(record, metricsBuilder.build());
 	}
 
+	
+	private void rdata(List<RRset> rrSetList, GenericRecord rec, int section, List<GenericRecord> datas){
+		for(RRset rrset: rrSetList) {
+		
+			if(!rdataDnsSecEnabled && isDnsSecRR(rrset.getType())) {
+				continue;
+			}
+			
+			datas.addAll(rrset.getData().stream()
+					.map( rr -> {
+						// create a copy of the empty dafault record for each new row/record
+						GenericRecord data = rec.copy();
+						data.set(RdataFieldEnum.dns_rdata_section.ordinal(), section);
+						data.set(RdataFieldEnum.dns_rdata_type.ordinal(), rr.getType().getValue());
+						data.set(RdataFieldEnum.dns_rdata_data.ordinal(), rr.rDataToString());
+						return data;
+					})
+					.collect(Collectors.toList()));
+		}
+		
+	}
+	
+	private boolean isDnsSecRR(ResourceRecordType rrType) {
+		return rrType == ResourceRecordType.DNSKEY || rrType == ResourceRecordType.DS ||
+				rrType == ResourceRecordType.RRSIG;
+	}
+	
 	/**
 	 * Write EDNS0 option (if any are present) to file.
 	 *
@@ -276,9 +322,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				if (option instanceof EDEOption) {
 					int code = ((EDEOption) option).getCode();
 					errors.add(code);
-					//record.set(FieldEnum.edns_ext_error.ordinal(), code);
-					// this is the only server edns data we support, stop processing other options
-					//break;
 				}
 			}
 			

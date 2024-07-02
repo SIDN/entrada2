@@ -27,9 +27,6 @@ public class SecurityConfig {
     .addFilterAfter(authenticationFilter, BasicAuthenticationFilter.class)
     .csrf(AbstractHttpConfigurer::disable)
     .authorizeHttpRequests((authz) -> authz
-        //.requestMatchers(apiContextPath + "/admin/**").hasRole("ADMIN")
-        //.requestMatchers("/api/v1/**").hasRole("ADMIN")
-        //.requestMatchers("/actuator/**").hasRole("ADMIN")
     	.requestMatchers("/**").hasRole("ADMIN")
         .anyRequest().authenticated()
     ).build();
@@ -38,10 +35,7 @@ public class SecurityConfig {
   
   @Bean
   RoleHierarchy roleHierarchy() {
-      RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-      String hierarchy = "ROLE_ADMIN > ROLE_USER";
-      roleHierarchy.setHierarchy(hierarchy);
-      return roleHierarchy;
+      return RoleHierarchyImpl.fromHierarchy( "ROLE_ADMIN > ROLE_USER");
   }
 
 }

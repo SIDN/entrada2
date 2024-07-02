@@ -1,9 +1,8 @@
 package nl.sidn.entrada2.load;
 
-// ENUM for fast access to the index of a avro record field, this saves an additional looklup to
-// find index for field name.
+//ENUM for fast access to the index of a record field, this saves an additional lookup to
+//find index for field name.
 public enum FieldEnum {
-  // make sure the order of fields matches the order used in dns-query.avsc schema
   dns_id,
   time,
   dns_qname,
@@ -48,5 +47,7 @@ public enum FieldEnum {
   dns_res_len,
   tcp_rtt,
   server,
-  server_location;
+  server_location,
+  dns_rdata;
+	
 }

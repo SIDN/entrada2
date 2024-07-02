@@ -32,10 +32,11 @@ List of changes:
 - Use small Parquet max dictionary size, to prevent domainname column using dictionary and not Bloomfilter
 - Renamed table columns to indicate protocol source
 - Removed unused columns
-- Name servers are no nonger processed by a specific container, containers can handle any pcap
+- Name servers site pcaps are not processed by a dedicated container, a containers can handle any pcaps from any server
 - No longer saving state between pcaps, might cause some unmatched packets
 - Added s3 event based workflow
 - Added API to control containers, e.g. status/start/stop
+- Added option to include answer/authoritative/additional sections of DNS response in Parquet output
 
 
 The following deployment modes are supported:
@@ -60,7 +61,7 @@ the MAXMIND_LICENSE_FREE environment variable.
 To get started quickly, use the provided [Docker Compose script](https://github.com/SIDN/entrada2/blob/main/docker/docker-compose.yml) to create a test
 environment on a single host, containing all required services. 
 
-The configuration settings can be found as environment variables in `docker.env`.  
+The configuration settings for the Docker Compose script can be found as environment variables in `docker.env`.  
 The example uses the default Docker Compose script and starts 1 ENTRADA master container and 2 ENTRADA worker containers.  
 
 ```
@@ -70,7 +71,7 @@ docker compose --profile test up --scale entrada-worker=2
 
 The Docker Compose script uses the "test" profile to start the ENTRADA containers, not using this profile will only start the dependencies and not the ENTRADA containers.
 
-## Processing pcap data
+# Processing pcap data
 
 ENTRADA2 converts a single pcap file into a 1 or more Parquet files, many small input pcap files may be automatically combined into a larger Parquet file.  
 The `iceberg.parquet.min-records` option determines how many records a Parquet output file must contain before it is allowed to be closed and added to the Iceberg table.  
@@ -90,12 +91,15 @@ Use the the following s3 tags when uploading file to S3:
 - entrada-ns-anycast-site: Anycast site of the name server (e.g. ams)
 
 
-## Analysing results
+# Flushing output
+To prevent many small Parquet output files when the input stream contains many small pcap files, there exists a configuration option (`iceberg.parquet.min-records`, default 1000000) for setting the lower limit of the number
+of records in a Parquet output file. Output files are not closed and added to the table until this limit is reached. To force closing the output file(s), e.g. when doing maintenance, use the "flush" API endpoint.
+``PUT https://hostname:8080/api/v1/state/flush` will cause all current open files to be closed and added to the table.
+
+
+# Analysing results
 
 The results may be analysed using different tools, such as AWS Athena, Trino or Apache Spark. 
-
-### Local deployment
-
 The Docker Compose script automaticlly starts Trino, for quickly analysing a limited dataset.  
 
 Example using the Trino commandline client (installed in Trino container):
@@ -104,18 +108,62 @@ Example using the Trino commandline client (installed in Trino container):
 docker exec -it docker-trino-1 trino
 ```
 
-Switch to the correct catalog:
+Switch to the correct catalog and namespace:
 
 ```
 use iceberg.entrada2;
 ```
 
-Query data in dns table:
+Query data in dns table, for example count rows in the dns table like this:
 
 ```
-select count(1) from dns;
+select count(1)
+from dns;
 ```
 
+Find out what domain name received most queries, create a top 25:
+
+```
+select dns_domainname, count(1)
+from dns
+group by 1
+order by 2 desc
+limit 25;
+```
+
+When response data is enabled, the rdata column can be queried using lambda expressions, for example to get all queries for a specific rdata response value:
+
+```
+select dns_qname, dns_domainname, dns_rdata 
+from dns 
+where  any_match(dns_rdata, r -> r.data = '185.159.199.200') and dns_domainname = 'dns.nl'
+limit 100;
+```
+
+Using fields from the rdata column, for example get top 25 by A-records in reponses.
+
+```
+select d.data, count(1)
+from dns, UNNEST(dns.dns_rdata) d
+where d.type = 1 
+group by 1 
+order by 2 desc  
+limit 25;
+```
+
+# Cleanup
+To cleanup the test evironment, stop the Docker containers, delete the Docker volumes and restart the containers.
+
+```
+docker compose down
+docker system prune -f
+docker volume rm docker_entradaInfluxDbVolume docker_entradaMinioVolume docker_entradaPostgresqlVolume;
+docker compose --profile test up --scale entrada-worker=2
+```
+
+# Configuration
+The ENTRADA2 configuration options are in the [Spring Boot configuration file](https://raw.githubusercontent.com/SIDN/entrada2/main/src/main/resources/application.yml)
+All options in this file can be overidden by using environment variables, or in the case of Kubernetes you can also create a ConfigMap containing a custom configuration file.
 
 # AWS
 
@@ -125,16 +173,17 @@ To enable running on AWS, set the `spring.cloud.aws.sqs.enabled` property to tru
 
 
 # Kubernetes
-When running ENTRADA2 on Kubernetes ( onpremise or in cloud) all dependencies such as RabbitMQ must be deployed and available before using ENTRADA2.  
+When running ENTRADA2 on Kubernetes (onpremise or in cloud) all dependencies such as RabbitMQ must be deployed and available before using ENTRADA2.  
+ENTRADA2 will automatically create a new database and table using the Iceberg JDBC catalog and it will also create the required messaging queues in RabbitMq.
 
-ENTRADA2 requires permission for creatign and reading ConfigMaps, this is for Leader election functionality.
+ENTRADA2 requires permission for creating and reading ConfigMaps, for the Leader election functionality.
 For example permissions see: `k8s/leader-election-auth.yml`
 
-## MinIO S3 Event Configuration
-The S3 implemenation must send events to a RabbitMQ or AWS SQS queue when a new pcap object has been uploaded.
+# MinIO S3
+The S3 implementation must send events to a RabbitMQ or AWS SQS queue when a new pcap object has been uploaded.
 When not using AWS or the default Docker Compose configuration, the MinIO event configuration must be created manually.
 
-### Creating a new Event Destination
+## Creating a new Event Destination
 
 the AMQP event destination for MinIO uses these options:
 
@@ -147,24 +196,13 @@ the AMQP event destination for MinIO uses these options:
 | Durable  | Yes  | 
 
 
-### Creating new Event destination for a Bucket
+## Creating new Event destination for a Bucket
 
 Use the following values:
 
 - ARN: The ARN for the above created event destination
 - Prefix: The value of entrada option `entrada.s3.pcap-in-dir` default is `pcap-in`
 - Suffix: Opional suffix for pcap files e.g. pcap.gz
-
-
-# Cleanup
-To cleanup the test evironment, stop the Docker containers, delete the Docker volumes and restart the containers.
-
-```
-docker compose down
-docker system prune -f
-docker volume rm docker_entradaInfluxDbVolume docker_entradaMinioVolume docker_entradaPostgresqlVolume;
-docker compose --profile test up --scale entrada-worker=2
-```
 
 
 # API
@@ -181,11 +219,10 @@ A basic API is available for controlling the lifecycle of ENTRADA2 containers.
 
 # Running multiple containers
 
-Running multiple worker containers, all listening to the same s3 bucket events is possible. Just make sure that only 1 container is the "leader".  
-The leader container is responsible for comitting new datafiles to the Iceberg table.  
+Running multiple worker containers, all listening to the same s3 bucket events is possible and the correct method for scaling up.
+Make sure that only 1 container is the "leader", responsible for comitting new datafiles to the Iceberg table.  
 
-When running on Kubernetes, leader election is performed automatically.  
-When the leader container is shutdown, the leader election process will automatically select another container to become the leader.  
+When running on Kubernetes, leader election is performed automatically. When the leader container is shutdown, the leader election process will automatically select another container to become the leader.  
 When using Docker you must set the `ENTRADA_LEADER` option to true only for the master container, there is no failover mechanism for master containers when using Docker.
 
 
@@ -236,8 +273,8 @@ The column names use a prefix to indicate where the information was extracted fr
 | edns_ecs_ip_asn       | int    | ASN for IP address in ECS   |
 | edns_ecs_ip_asn_org       | int    | ASN organisation for IP address in ECS   |
 | edns_ecs_ip_geo_country       | int    | Country for IP address in ECS   |
-| edns_ext_error       | int    | EDNS extended error   |
-| dns_labels       | int    | Number oif labels in DNS qname   |
+| edns_ext_error       | array(int)    | EDNS extended error   |
+| dns_labels       | int    | Number of labels in DNS qname   |
 | dns_proc_time       | int    | Time between request and response (millis)   |
 | dns_pub_resolver       | string    | Name of public resolver source   |
 | dns_req_len       | int    | Size of DNS request message  |
@@ -245,22 +282,27 @@ The column names use a prefix to indicate where the information was extracted fr
 | tcp_rtt       | int    | RTT (millis) based on TCP-handshake  |
 | server       | string    | Name of NS server  |
 | server_location       | string    | Name of anycast site of NS server  |
+| dns_rdata       | array(rec)  | rdata from response records  |
+| dns_rdata.section     | int   | Section from response (0=answer, 1=authoritative, 3=additional |
+| dns_rdata.type     | int   | Resource Record (RRR) type, according to [IANA registration](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4) |
+| dns_rdata.data     | string   | String representation of rdata part of RR|
 
+Not all records include support for the dns_rdata.data field, in this cace the value of the field will be null.
 
 # Metrics
 
-Metrics about the processed DNS data are generated when the configuration option "management.influx.metrics.export.enabled" is set to true.
-The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the "management.influx.metrics.export.*" options.
+Metrics about the processed DNS data are generated when the configuration option `management.influx.metrics.export.enabled` is set to true.
+The metrics are sent to an [InfluxDB](https://www.influxdata.com/) instance, configured by the `management.influx.metrics.export.*` options.
 
 
 # Components UI
 Some of the components provide a web interface, below are the URLs for the components started by the docker compose script.
 Login credentials can be found in the script.
 
-- [MinIO](http://localhost:9000)
-- [RabbitMQ](http://localhost:15672/)
-- [InfluxDB](http://localhost:8086/)
-- [Trino](http://localhost:8085/) 
+- [MinIO](http://hostname:9000)
+- [RabbitMQ](http://hostname:15672/)
+- [InfluxDB](http://hostname:8086/)
+- [Trino](http://hostname:8085/) 
 
 
 # License

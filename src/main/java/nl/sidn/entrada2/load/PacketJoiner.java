@@ -47,11 +47,6 @@ public class PacketJoiner {
       return Collections.emptyList();
     }
 
-    if (p == Packet.LAST) {
-      // ignore, but do purge first
-      logStats();
-      return clearCache();
-    }
     List<RowData> results = new ArrayList<>();
 
     counter++;
@@ -74,9 +69,9 @@ public class PacketJoiner {
         // put request into map until we find matching response, with a key based on: query id,
         // qname, ip src, tcp/udp port add time for possible timeout eviction
         if (msg.getHeader().getQr() == MessageType.QUERY) {
-          handDnsRequest(dnsPacket, msg, p.getFilename());
+          handDnsRequest(dnsPacket, msg);
         } else {
-          RowData d = handDnsResponse(dnsPacket, msg, p.getFilename());
+          RowData d = handDnsResponse(dnsPacket, msg);
           if (d != null) {
             results.add(d);
           }
@@ -96,7 +91,7 @@ public class PacketJoiner {
         (p.getSrcPort() == PcapReader.DNS_PORT || p.getDstPort() == PcapReader.DNS_PORT);
   }
 
-  private void handDnsRequest(DNSPacket dnsPacket, Message msg, String fileName) {
+  private void handDnsRequest(DNSPacket dnsPacket, Message msg) {
     requestPacketCounter++;
   //  registry.counter("dns.packets.requests").increment();
     // check for ixfr/axfr request
@@ -125,7 +120,7 @@ public class PacketJoiner {
     requestCache.put(key, new RequestCacheValue(msg, dnsPacket));
   }
 
-  private RowData handDnsResponse(DNSPacket dnsPacket, Message msg, String fileName) {
+  private RowData handDnsResponse(DNSPacket dnsPacket, Message msg) {
     responsePacketCounter++;
    // registry.counter("entrada.dns.packets.responses").increment();
     // try to find the request
@@ -189,9 +184,7 @@ public class PacketJoiner {
       }
 
       if (qname != null) {
-        // pushRow(
         return new RowData(null, null, dnsPacket, msg);
-        // );
       }
     }
 
@@ -211,13 +204,6 @@ public class PacketJoiner {
     }
 
     return qname;
-  }
-
-  public void logStats() {
-    log.info("-------------- Done processing pcap file -----------------");
-    log.info("{} total DNS messages: ", Integer.valueOf(counter));
-    log.info("{} requests: ", Integer.valueOf(requestPacketCounter));
-    log.info("{} responses: ", Integer.valueOf(responsePacketCounter));
   }
 
   public Map<RequestCacheKey, RequestCacheValue> getRequestCache() {
@@ -252,7 +238,7 @@ public class PacketJoiner {
       }
     }
     
-    log.info("Could not match {} queries, these will be assigned rcode -1 (no response/request)", Integer.valueOf(purgeCounter));
+    log.info("{} unmatched queries, using rcode -1", Integer.valueOf(purgeCounter));
 
     requestCache.clear();    
     counter = 0;

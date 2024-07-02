@@ -37,7 +37,6 @@ import lombok.extern.log4j.Log4j2;
  * check if an IP address is a Google open resolver. This check uses the list from the Google
  * resolver network: dig TXT locations.publicdns.goog.
  * 
- * @author maarten
  * 
  */
 @Component
@@ -78,7 +77,6 @@ public final class GoogleResolverCheck extends AbstractResolverCheck {
     TXTRecord txt = (TXTRecord) record;
     List<String> subnets = new ArrayList<>();
 
-    @SuppressWarnings("unchecked")
     List<String> lines = txt.getStrings();
     for (String line : lines) {
       String[] parts = StringUtils.split(line, " ");

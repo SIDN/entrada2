@@ -45,6 +45,12 @@ public class WorkService {
 	
 	@Value("${entrada.s3.pcap-done-dir}")
 	private String pcapDirDone;
+	
+	@Value("${entrada.rdata.enabled:false}")
+	private boolean rdataEnabled;
+	
+	@Value("${entrada.rdata.dnssec:false}")
+	private boolean rdataDnsSecEnabled;
 
 	@Autowired
 	private S3Service s3Service;
@@ -139,46 +145,39 @@ public class WorkService {
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
-		Optional<PcapReader> oreader = null;
+		Optional<InputStream> ois = null;
 		try {
 			working = true;
-			Optional<InputStream> ois = s3Service.read(bucket, key);
+			ois = s3Service.read(bucket, key);
 			if (ois.isPresent()) {
-				oreader = createReader(key, ois.get());
+				Optional<PcapReader> oreader = createReader(key, ois.get());
 				if (oreader.isPresent()) {
 					process_(oreader.get(), bucket, key, server, anycastSite);
 				}
 			}
 			
 			duration = System.currentTimeMillis() - startOfWork;
-
-			okCounter.increment();
-			
-			log.info("Finished processing file: {}/{}, time: {}ms", bucket, key, duration);
+			okCounter.increment();	
+			log.info("Done processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
-
 			log.error("Error processing file: {}/{}", bucket, key, e);
-
 			errorCounter.increment();
-
 			return false;
 		} finally {
 			// startOfWork is also used for checking if pcap processing has stalled
 			try {
-				if(oreader.isPresent()) {
-				  oreader.get().close();
+				if(ois.isPresent()) {
+					ois.get().close();
 				}
 			}catch (Exception e) {
 				// ignore close error
+				log.error("Error while closing inpustream for: {}/{}",  bucket, key);
 			}
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
 				metrics.flush(server, anycastSite);
 			}
-			//meterRegistry.clear();
-			// make sure no unsaved recs from previously failed pcaps are in mem
-			//icebergService.clear();
 		}
 		
 		//cleanup after successful processing of file
@@ -210,11 +209,13 @@ public class WorkService {
 
 	private void process_(PcapReader reader, String bucket, String key, String server, String anycastSite) {
 
+
 		reader.stream().forEach(p -> {
 
 			joiner.join(p).forEach(rd -> {
+				// for better performance, only create a newRdataGenericRecord when rdata output is enabled
 				Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-						icebergService.newGenericRecord());
+						icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
 
 				// save all records from file in memory and only commit (write to file)
 				// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
@@ -234,7 +235,7 @@ public class WorkService {
 		// clear joiner cache, unmatched queries will get rcode -1
 		joiner.clearCache().forEach(rd -> {
 			Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-					icebergService.newGenericRecord());
+					icebergService.newGenericRecord(), icebergService.newRdataGenericRecord());
 			icebergService.write(rowPair.getKey());
 
 			// update metrics
@@ -268,7 +269,7 @@ public class WorkService {
 
 		try {
 			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, DECOMPRESS_STREAM_BUFFER, file);
-			return Optional.of(new PcapReader(new DataInputStream(decompressor), null, true, file, false));
+			return Optional.of(new PcapReader(new DataInputStream(decompressor), null, true, !rdataEnabled));
 		} catch (IOException e) {
 			log.error("Error creating pcap reader for: " + file, e);
 			try {

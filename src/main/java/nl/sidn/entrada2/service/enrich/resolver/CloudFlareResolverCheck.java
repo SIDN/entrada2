@@ -19,6 +19,7 @@
  */
 package nl.sidn.entrada2.service.enrich.resolver;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,13 +62,14 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
         .custom()
         .setConnectionRequestTimeout(Timeout.ofMilliseconds(timeoutInMillis))
         .build();
-    CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
-
-    List<String> subnets = new ArrayList<>();
-    process(client, urlV4, subnets);
-    process(client, urlV6, subnets);
-
-   return subnets;
+    try(CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build()){
+    	List<String> subnets = new ArrayList<>();
+        process(client, urlV4, subnets);
+        process(client, urlV6, subnets);
+        return subnets;
+    }catch(IOException e) {
+    	throw new RuntimeException("Error create HTTP request",e);
+    }   
   }
 
 

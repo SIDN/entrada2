@@ -2,6 +2,12 @@ entrada:
   nameserver:
     default-name: unknown-ns
     default-site: unknown-site
+  rdata:
+    # when enabled, rdata from DNS response records will be add to Parquet (dns_rdata column)
+    # When this option is enabled, entrada2 will consume more cpu/memory resources.
+    enabled: false
+    # include dnssec RRs such as RRSIG in output
+    dnssec: false
   object:
     # after wait expire mark as not picked up and send to queue again
     max-wait-time-secs: 3600

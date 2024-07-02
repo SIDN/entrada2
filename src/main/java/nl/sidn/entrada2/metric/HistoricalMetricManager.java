@@ -32,7 +32,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import com.influxdb.client.WriteApi;
@@ -180,12 +179,7 @@ public class HistoricalMetricManager {
 		return new AvgMetric(label, value, timestamp, labels);
 	}
 
-	/**
-	 * Uses a threshhold to determine if the value should be sent to graphite low
-	 * values may indicate trailing queries in later pcap files. duplicate
-	 * timestamps get overwritten by graphite and only the last timestamp value is
-	 * used by graphite.
-	 */
+
 	public void flush(String server, String anycastSite) {
 		if (!isMetricsEnabled()) {
 			// do nothing

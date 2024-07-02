@@ -2,9 +2,7 @@ package nl.sidn.entrada2.metric;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

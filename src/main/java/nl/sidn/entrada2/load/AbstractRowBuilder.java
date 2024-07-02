@@ -24,7 +24,7 @@ public abstract class AbstractRowBuilder {
 
   @Value("${entrada.privacy.enabled:false}")
   protected boolean privacy;
-  @Value("${management.metrics.export.graphite.enabled:true}")
+  @Value("${management.influx.metrics.export.enabled:true}")
   protected boolean metricsEnabled;
 
   protected Cache<String, String> domainCache;

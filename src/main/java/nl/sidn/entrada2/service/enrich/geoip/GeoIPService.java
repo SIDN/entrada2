@@ -32,7 +32,6 @@ import java.util.zip.GZIPInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
@@ -75,13 +74,11 @@ public class GeoIPService extends AbstractMaxmind {
 
 		// only load data from s3 when running as worker
 		while (geoReader == null) {
-			log.info("Try loading GEO database");
 			geoReader = loadDatabase(DB_TYPE.COUNTRY).get();
 			TimeUtil.sleep(5000);
 		}
 
 		while (asnReader == null) {
-			log.info("Try loading ASN database");
 			asnReader = loadDatabase(DB_TYPE.ASN).get();
 			TimeUtil.sleep(5000);
 		}
@@ -212,17 +209,17 @@ public class GeoIPService extends AbstractMaxmind {
 			try (TarArchiveInputStream tar = new TarArchiveInputStream(
 					new GZIPInputStream(response.body().asInputStream()))) {
 
-				TarArchiveEntry entry = tar.getNextTarEntry();
+				TarArchiveEntry entry = tar.getNextEntry();
 				while (entry != null) {
 					if (StringUtils.contains(entry.getName(), filename)) {
 
 						s3FileService.write(tar, bucket, directory + "/" + filename);
 						return;
 					}
-					entry = tar.getNextTarEntry();
+					entry = tar.getNextEntry();
 				}
 			} catch (IOException e) {
-				throw new RuntimeException("Error initializing Maxmind GEO/ASN database", e);
+				throw new RuntimeException("Error initializing Maxmind database", e);
 			}
 		} else {
 			log.info("No new {} database found online", type);
