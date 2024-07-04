@@ -215,7 +215,7 @@ maxmind:
 
 management:
   influx.metrics.export:
-    enabled: true
+    enabled: false
     bucket: entrada2
     org: SIDN
     token:
