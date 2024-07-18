@@ -1,44 +1,74 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: null
   labels:
     app: entrada2
   name: entrada2
+  namespace: entrada
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app: entrada2
-  strategy: {}
   template:
     metadata:
-      creationTimestamp: null
       labels:
         app: entrada2
+      name: entrada2
+      namespace: entrada
     spec:
       containers:
-      - image: sidnlabs/entrada2:0.0.1
-        name: entrada2
-        resources: {}
+        - env:
+            - name: AWS_REGION
+              value: eu-west-1
+            - name: AWS_ACCESS_KEY_ID
+              value: xxxx
+            - name: AWS_SECRET_ACCESS_KEY
+              value: xxxxx
+          image: sidnlabs/entrada2:0.0.7
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+                - name: x-api-key
+                  value: 'todo-change-me'
+              path: api/v1/actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: entrada2
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+                - name: x-api-key
+                  value: 'todo-change-me'
+              path: /api/v1/actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
 
-status: {}
+
+
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  creationTimestamp: null
   labels:
     app: entrada2
   name: entrada2
 spec:
   ports:
-  - name: http
+  - name: port-8080
     port: 8080
     protocol: TCP
-    targetPort: 8081
+    targetPort: 8080
   selector:
     app: entrada2
-  type: NodePort
-status: {}
+  type: ClusterIP
+
