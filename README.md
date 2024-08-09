@@ -38,6 +38,7 @@ List of changes:
 - Added API to control containers, e.g. status/start/stop
 - Added option to include answer/authoritative/additional sections of DNS response in Parquet output
 - Added support for decoding [Extended rcode](https://datatracker.ietf.org/doc/html/rfc6891#section-6.1.3)
+- Added support for [Extended DNS Errors](https://datatracker.ietf.org/doc/html/rfc8914)
 
 The following deployment modes are supported:
 - Local/Single system using Docker Compose (best for test and evaluation)

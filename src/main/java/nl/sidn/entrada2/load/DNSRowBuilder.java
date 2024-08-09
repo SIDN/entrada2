@@ -282,6 +282,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		for(RRset rrset: rrSetList) {
 		
 			if(!rdataDnsSecEnabled && isDnsSecRR(rrset.getType())) {
+				//skip dnssec rrs
 				continue;
 			}
 			
