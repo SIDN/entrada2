@@ -304,6 +304,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				rrType == ResourceRecordType.RRSIG;
 	}
 	
+	
 	/**
 	 * Write EDNS0 option (if any are present) to file.
 	 *
@@ -317,6 +318,15 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		OPTResourceRecord opt = message.getPseudo();
 		if (opt != null) {
+			
+			if(opt.getRcode() != 0) {
+				// get extended rcode
+				// see: https://datatracker.ietf.org/doc/html/rfc6891
+				// 12 bits code: upper 8 bits are in opt.getRcode() and lower 4 bits are in message.getHeader().getRawRcode()
+				int extendedRcode = ((int) opt.getRcode() << 4) | message.getHeader().getRawRcode();
+				record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(extendedRcode));
+			}
+			
 			List<Integer> errors = new ArrayList<>();
 			for (EDNS0Option option : opt.getOptions()) {
 				if (option instanceof EDEOption) {

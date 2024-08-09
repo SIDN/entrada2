@@ -37,7 +37,7 @@ List of changes:
 - Added s3 event based workflow
 - Added API to control containers, e.g. status/start/stop
 - Added option to include answer/authoritative/additional sections of DNS response in Parquet output
-
+- Added support for decoding [Extended rcode](https://datatracker.ietf.org/doc/html/rfc6891#section-6.1.3)
 
 The following deployment modes are supported:
 - Local/Single system using Docker Compose (best for test and evaluation)
@@ -47,7 +47,7 @@ The following deployment modes are supported:
 # Build
 
 ```
-export TOOL_VERSION=0.0.3
+export TOOL_VERSION=0.0.9
 mvn clean && mvn package && docker build  --tag=sidnlabs/entrada2:$TOOL_VERSION .
 ```
 
@@ -63,6 +63,8 @@ environment on a single host, containing all required services.
 
 The configuration settings for the Docker Compose script can be found as environment variables in `docker.env`.  
 The example uses the default Docker Compose script and starts 1 ENTRADA master container and 2 ENTRADA worker containers.  
+The script has support for profiles, the `test` profile will also start ENTRADA containers, any other profile will not and will only start the dependencies.
+ 
 
 ```
 export MAXMIND_LICENSE_PAID=<your-key-here>
