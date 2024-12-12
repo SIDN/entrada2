@@ -61,7 +61,7 @@ services:
     volumes:
        - ./init-minio.sh:/init-minio.sh
   postgresql:
-    image: postgres:16
+    image: postgres:17
     restart: always
     env_file:
        - path: ./docker.env
@@ -93,7 +93,7 @@ services:
       minio:
         condition: service_healthy
   entrada-master:
-    image: sidnlabs/entrada2:0.0.8
+    image: sidnlabs/entrada2:0.0.9
     profiles: ["test"]
     restart: always
     env_file:
@@ -115,7 +115,7 @@ services:
       createbucket:
         condition: service_completed_successfully
   entrada-worker:
-    image: sidnlabs/entrada2:0.0.8
+    image: sidnlabs/entrada2:0.0.9
     profiles: ["test"]
     restart: always
     env_file:

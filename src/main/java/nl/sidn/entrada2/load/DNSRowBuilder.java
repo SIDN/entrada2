@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import com.google.common.base.CharMatcher;
 
+import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.dnslib.message.Header;
 import nl.sidnlabs.dnslib.message.Message;
@@ -25,6 +26,7 @@ import nl.sidnlabs.dnslib.util.NameUtil;
 import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
 
+@Slf4j
 @Component
 public class DNSRowBuilder extends AbstractRowBuilder {
 
@@ -105,7 +107,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			// EDNS0 for request
 			writeRequestOptions(reqMessage, record);
 		}
-
+		
 		// fields from response
 		if (rspMessage != null) {
 			Header responseHeader = rspMessage.getHeader();
@@ -195,7 +197,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 			}
 		}
-
+		
 		// only save the part of the qname thats not part the domainname, this saves 
 		// s3 storage and athena io/read costs
 

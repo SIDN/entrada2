@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
 @Component
-public class ScheduledObjectChecker {
+public class ExpiredObjectChecker {
 	
 	@Value("${entrada.object.max-wait-time-secs:3600}")
 	private int maxWaitTime;

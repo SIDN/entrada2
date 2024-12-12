@@ -134,6 +134,7 @@ public class WorkService {
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
 			server = tags.get(S3ObjectTagName.ENTRADA_NS_SERVER.value);
 		}
+		
 		String anycastSite = defaultNsSite;
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
@@ -211,7 +212,7 @@ public class WorkService {
 
 
 		reader.stream().forEach(p -> {
-
+			
 			joiner.join(p).forEach(rd -> {
 				// for better performance, only create a newRdataGenericRecord when rdata output is enabled
 				Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,

@@ -98,6 +98,7 @@ public class HistoricalMetricManager {
 			return;
 		}
 
+		// this is the influx step size, using 1 second!
 		Instant time = Instant.ofEpochSecond(dmv.time / 1000);
 
 		if (dmv.dnsQuery) {
@@ -191,9 +192,10 @@ public class HistoricalMetricManager {
 		} catch (Exception e) {
 			// cannot connect connect to influxdb?
 			log.error("Error sending metrics", e);
+		}finally {
+			metricCache.clear();
 		}
-
-		metricCache.clear();
+		
 		log.info("Flushed metrics");
 	}
 

@@ -34,7 +34,7 @@ List of changes:
 - Removed unused columns
 - Name servers site pcaps are not processed by a dedicated container, a containers can handle any pcaps from any server
 - No longer saving state between pcaps, might cause some unmatched packets
-- Added s3 event based workflow
+- Added s3 event based workflow (s3 new object scanning also supported)
 - Added API to control containers, e.g. status/start/stop
 - Added option to include answer/authoritative/additional sections of DNS response in Parquet output
 - Added support for decoding [Extended rcode](https://datatracker.ietf.org/doc/html/rfc6891#section-6.1.3)
@@ -231,6 +231,12 @@ Use the following values:
 - Prefix: The value of entrada option `entrada.s3.pcap-in-dir` default is `pcap-in`
 - Suffix: Opional suffix for pcap files e.g. pcap.gz
 
+# Scanning for new objects
+
+If the S3 storage solution used, does not support events for newly uploaded objects, then enable scanning for new Objects.
+Enable s3 object scanning by setting a value for the `entrada.schedule.new-object-min` property.
+The scanning feature will scan the S3 bucket every x minutes for new objects and will process the objects similar as they would have been when 
+an event was created for the object.  
 
 # API
 

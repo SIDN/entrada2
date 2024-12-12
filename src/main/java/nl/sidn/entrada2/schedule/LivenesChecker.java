@@ -13,7 +13,7 @@ import nl.sidn.entrada2.service.WorkService;
 
 @Component
 @Slf4j
-public class ScheduledLivenesChecker {
+public class LivenesChecker {
   
   @Autowired
   private ApplicationContext ctx;

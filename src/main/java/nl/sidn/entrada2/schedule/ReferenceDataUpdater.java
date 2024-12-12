@@ -13,7 +13,7 @@ import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
 
 @Slf4j
 @Component
-public class ScheduledUpdater {
+public class ReferenceDataUpdater {
 
 	@Autowired
 	private LeaderService leaderService;
