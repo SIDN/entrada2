@@ -235,6 +235,7 @@ public class WorkService {
 
 		// clear joiner cache, unmatched queries will get rcode -1
 		joiner.clearCache().forEach(rd -> {
+			
 			Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
 					icebergService.newGenericRecord(), icebergService.newRdataGenericRecord());
 			icebergService.write(rowPair.getKey());

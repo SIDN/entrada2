@@ -19,66 +19,48 @@
  */
 package nl.sidn.entrada2.load;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
 public class RequestCacheKey {
 
-  private int id;
-  private String qname;
-  private String src;
-  private int srcPort;
-  // do not match request/response on time, this will never match
-  // time is only use to allow setting a timeout on cached items
-  private long time;
+	private final int id;
+	private final String qname;
+	private final String src;
+	private final int srcPort;
 
-  @Override
-  public int hashCode() {
-    final int prime = 31;
-    int result = 1;
-    result = prime * result + id;
-    result = prime * result + ((qname == null) ? 0 : qname.hashCode());
-    result = prime * result + ((src == null) ? 0 : src.hashCode());
-    result = prime * result + srcPort;
-    return result;
-  }
+	@Override
+	public int hashCode() {
+		// us the client port+id as hashcode, this may lead to collisions for bad clients using
+		// some port and id for all queries and maybe for ddos situations?
+		// this way we can an acceptable distibuted hash very fast
+		return srcPort + id;
+	}
 
-  @Override
-  public boolean equals(Object obj) {
-    if (this == obj)
-      return true;
-    if (obj == null)
-      return false;
-    if (getClass() != obj.getClass())
-      return false;
-    RequestCacheKey other = (RequestCacheKey) obj;
-    if (id != other.id)
-      return false;
-    if (qname == null) {
-      if (other.qname != null)
-        return false;
-    } else if (!qname.equals(other.qname))
-      return false;
-    if (src == null) {
-      if (other.src != null)
-        return false;
-    } else if (!src.equals(other.src))
-      return false;
-    if (srcPort != other.srcPort)
-      return false;
-    return true;
-  }
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		
+		RequestCacheKey other = (RequestCacheKey) obj;
+		
+		if (id != other.id)
+			return false;
+		
+		if (srcPort != other.srcPort)
+			return false;
 
-  @Override
-  public String toString() {
-    return "RequestCacheKey [id=" + id + ", qname=" + qname + ", src=" + src + ", srcPort="
-        + srcPort + ", time=" + time + "]";
-  }
+		if (!StringUtils.equals(qname, other.qname))
+			return false;
+
+		if (!StringUtils.equals(src, other.src))
+			return false;
+		
+		return true;
+	}
 
 }

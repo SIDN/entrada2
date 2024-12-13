@@ -1,7 +1,7 @@
 entrada:
   nameserver:
-    default-name: unknown-ns
-    default-site: unknown-site
+    default-name: default-ns
+    default-site: default-site
   rdata:
     # when enabled, rdata from DNS response records will be add to Parquet (dns_rdata column)
     # When this option is enabled, entrada2 will consume more cpu/memory resources.
@@ -18,6 +18,10 @@ entrada:
     # max time for pcap file to be procssed in min
     # if worker is processing pcap longer than x secs, it is marked as stalled
     max-proc-time-secs: 600
+    # max size of the internal dns request cache used for matching dns request to dns response message
+    # if max size is reached then oldest unmatched dns request is removed from the cache and written to 
+    # parquet file using rcode = -1
+    max-request-cache-size: 50000
   schedule:
     # update reference data every x min
     updater-min: 120
@@ -26,7 +30,7 @@ entrada:
     # check for expired oject every x min
     expired-object-min: 10
     # check for new object every x secs
-    new-object-secs: 10
+    new-object-secs: 60
     # table maintainer for cleaning up old snapshot, run every x min
     table-maintainer-cron: "0 0 1 * * *"
   security:
