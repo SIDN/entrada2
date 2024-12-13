@@ -27,6 +27,8 @@ entrada:
     expired-object-min: 10
     # check for new object every x secs
     new-object-secs: 10
+    # table maintainer for cleaning up old snapshot, run every x min
+    table-maintainer-cron: "0 0 1 * * *"
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
     # this is a test token, and it being here IS NOT as security issue
@@ -147,7 +149,7 @@ iceberg:
   metadata:
     version:
       # see iceberg docs for: write.metadata.previous-versions-max
-      max: 100
+      max: 1
   table:
     name: 'dns'
     namespace: 'entrada2'
@@ -155,6 +157,8 @@ iceberg:
     location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}/${iceberg.table.namespace}/${iceberg.table.name}'
     # sorting allows for better compression but increases resource(cpu/ram) usage
     sorted: true
+    # the max number of snapshots to keep when table maintenance is performed
+    snapshot-max: 300
   parquet:
     # keep dictionary size low, to force parquet to use bloomfilter when bloomfilter is enabled
     # but also do not use a to low number of bytes or none of the columns will be able to use

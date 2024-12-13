@@ -42,6 +42,14 @@ public class ExpiredObjectChecker {
 	
 	@Scheduled(initialDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
 	public void execute() {
+		try {
+			checkForExperiredObjects();
+		} catch (Exception e) {
+			log.error("Unexpected exception while checking for expired objects");
+		}
+	}
+	
+	public void checkForExperiredObjects() {
 		 Map<String, String> tags = new HashMap<String, String>();
 		
 		 LocalDateTime now = LocalDateTime.now();

@@ -124,6 +124,8 @@ public class IcebergTableConfig {
 
 			Map<String, String> props = new HashMap<>();
 			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
+			// auto cleanup old meta data files
+			// see: https://iceberg.apache.org/docs/nightly/maintenance/#remove-old-metadata-files
 			props.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 			props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
 			props.put(TableProperties.FORMAT_VERSION, "2");
