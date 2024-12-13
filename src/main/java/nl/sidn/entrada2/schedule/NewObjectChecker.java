@@ -30,7 +30,7 @@ public class NewObjectChecker {
 	@Autowired
 	private WorkService workService;
 	
-	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-min:1}*60*1000}")
+	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:30}*1000}")
 	public void execute() {
 		// find new objects
 		log.debug("Start checking for new objects");
@@ -46,13 +46,13 @@ public class NewObjectChecker {
 	public void scanForNewObjects() {
 		
 		for(S3Object obj : s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"))) {
-			
-			log.info("New object found: {}", obj.key());
-			
+
 			if(obj.size() == 0) {
 				// ignore directories
-				return;
+				continue;
 			}
+			
+			log.info("New object found: {}", obj.key());
 			
 			workService.process(bucketName, obj.key());
 		}		

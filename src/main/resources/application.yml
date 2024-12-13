@@ -25,8 +25,8 @@ entrada:
     liveness-min: 1
     # check for expired oject every x min
     expired-object-min: 10
-    # check for new object every x min
-    new-object-min: 1
+    # check for new object every x secs
+    new-object-secs: 10
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
     # this is a test token, and it being here IS NOT as security issue

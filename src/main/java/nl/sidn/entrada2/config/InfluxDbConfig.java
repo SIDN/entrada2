@@ -1,6 +1,6 @@
 package nl.sidn.entrada2.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +16,10 @@ import lombok.Data;
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "management.influx.metrics.export")
-@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
+//@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
+@ConditionalOnExpression(
+	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${management.influx.metrics.export.uri}')"
+	)
 public class InfluxDbConfig {
 
 	private String org;

@@ -31,7 +31,7 @@ import java.util.Random;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import com.influxdb.client.WriteApi;
@@ -49,7 +49,10 @@ import nl.sidn.entrada2.load.DnsMetricValues;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
+//@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
+@ConditionalOnExpression(
+	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${management.influx.metrics.export.uri}')"
+	)
 public class HistoricalMetricManager {
 
 	// dns stats

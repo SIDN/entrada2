@@ -42,8 +42,9 @@ public class S3Config {
 		if (isRunningOnAws()) {
 			return S3Client.builder().forcePathStyle(Boolean.TRUE).build();
 		}
-		// when not runnign on aws, make sure the s2 endpoint is configured
-		return S3Client.builder().forcePathStyle(Boolean.TRUE).endpointOverride(URI.create(endpoint)).build();
+		// when not running on aws, make sure the s2 endpoint is configured
+		 return S3Client.builder().forcePathStyle(Boolean.TRUE).endpointOverride(URI.create(endpoint))
+				.build();
 	}
 
 	@PostConstruct
