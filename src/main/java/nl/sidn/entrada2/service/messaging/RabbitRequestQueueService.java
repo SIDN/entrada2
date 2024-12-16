@@ -27,10 +27,6 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	@Value("${entrada.messaging.leader.name}")
 	private String queueName;
 
-	@Autowired(required = false)
-	@Qualifier("rabbitByteTemplate")
-	private AmqpTemplate rabbitTemplate;
-
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 	@Autowired
