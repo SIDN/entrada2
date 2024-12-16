@@ -20,8 +20,6 @@
 package nl.sidn.entrada2.service.enrich.resolver;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -51,9 +49,6 @@ import nl.sidn.entrada2.service.S3Service;
 @Setter
 public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
-	private List<FastIpSubnet> matchers4 = new ArrayList<>();
-	private List<FastIpSubnet> matchers6 = new ArrayList<>();
-
 	@Value("${resolver.match.cache.size:10000}")
 	private int maxMatchCacheSize;
 
@@ -67,6 +62,8 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	protected String directory;
 	
 	private BloomFilter<String> ipv4Filter;
+	
+	private SubnetChecker subnetChecker = new SubnetChecker();
 
 	private boolean needToReload = true;
 
@@ -126,26 +123,15 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 
 		createIpV4BloomFilter(lines);
 
-		matchers4.clear();
-		matchers6.clear();
+		subnetChecker.clear();
 
-		lines.stream().filter(s -> s.contains(".")).map(this::subnetFor).filter(Objects::nonNull)
-				.forEach(s -> matchers4.add(s));
+		lines.stream().filter(s -> s.contains(".")).filter(Objects::nonNull)
+				.forEach(s -> subnetChecker.precomputeV4Mask(s, 4));
 
-		lines.stream().filter(s -> s.contains(":")).map(this::subnetFor).filter(Objects::nonNull)
-				.forEach(s -> matchers6.add(s));
+		lines.stream().filter(s -> s.contains(":")).filter(Objects::nonNull)
+		.forEach(s -> subnetChecker.precomputeV4Mask(s, 6));
 
 		log.info("Loaded {} resolver addresses for {}", getMatcherCount(), getName());
-	}
-
-	private FastIpSubnet subnetFor(String address) {
-		try {
-			return new FastIpSubnet(address);
-		} catch (UnknownHostException e) {
-			log.error("Cannot create subnet for: {}", address, e);
-		}
-
-		return null;
 	}
 
 	private boolean isIpv4(String address) {
@@ -164,43 +150,26 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 			loadData();
 			needToReload = false;
 		}
-
+		
 		if (isIpv4(address)) {
 			// do v4 check only
 			if (isIpv4InFilter(address)) {
-				return checkv4(address, inetAddress);
+				// the address may be in the cidr list
+				return subnetChecker.match(address);
 			}
 
+			// the v4 addr is for sure not in the v4 cidr list
 			return false;
 
 		}
+		
+		// check v6
+		return subnetChecker.match(address);
 
-		// do v6 check only
-		return checkv6(address, inetAddress);
-	}
-
-	private boolean checkv4(String address, InetAddress inetAddress) {
-		for (FastIpSubnet sn : matchers4) {
-			if (sn.contains(inetAddress)) {
-				// addToCache(address);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private boolean checkv6(String address, InetAddress inetAddress) {
-		for (FastIpSubnet sn : matchers6) {
-			if (sn.contains(inetAddress)) {
-				// addToCache(address);
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private int getMatcherCount() {
-		return matchers4.size() + matchers6.size();
+		return subnetChecker.size();
 	}
 
 }

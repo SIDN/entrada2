@@ -9,6 +9,8 @@ import java.util.Map.Entry;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import lombok.Getter;
@@ -22,6 +24,7 @@ import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
 
 @Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 @Getter
 public class PacketJoiner {
@@ -123,7 +126,7 @@ public class PacketJoiner {
 				dnsPacket.getSrcPort());
 
 		if (log.isDebugEnabled()) {
-			log.info("Insert into cache key: " + key);
+			log.info("Insert into cache key: {}", key);
 		}
 
 		// put the query in the cache until we get a matching response
@@ -133,6 +136,10 @@ public class PacketJoiner {
 			// cache is too big, remove last item and return to write to parquet
 			cacheEvictionCounter++;
 			
+			if (cacheEvictionCounter % 100000 == 0) {
+				log.info("Evicted " + cacheEvictionCounter + " DNS messages from cache");
+			}
+	
 			Entry<RequestCacheKey, RequestCacheValue> lastEntry = requestCache.pollLastEntry();
 			if(lastEntry != null) {
 				return new RowData(lastEntry.getValue().getPacket(), lastEntry.getValue().getMessage(), null, null);
@@ -145,9 +152,6 @@ public class PacketJoiner {
 
 	private RowData handDnsResponse(DNSPacket dnsPacket, Message msg) {
 		responsePacketCounter++;
-		// registry.counter("entrada.dns.packets.responses").increment();
-		// try to find the request
-
 		
 		RequestCacheKey key = new RequestCacheKey(msg.getHeader().getId(), null, dnsPacket.getDst(),
 				dnsPacket.getDstPort());
@@ -191,7 +195,7 @@ public class PacketJoiner {
 
 			matchedCounter++;
 			if (matchedCounter % 100000 == 0) {
-				log.info("Matched " + matchedCounter + " packets");
+				log.info("Matched " + matchedCounter + " DNS messages");
 			}
 
 			return new RowData(request.getPacket(), request.getMessage(), dnsPacket, msg);
@@ -227,14 +231,6 @@ public class PacketJoiner {
 		return qname;
 	}
 
-//	public Map<RequestCacheKey, RequestCacheValue> getRequestCache() {
-//		return requestCache;
-//	}
-
-//	public void setRequestCache(Map<RequestCacheKey, RequestCacheValue> requestCache) {
-//		this.requestCache = requestCache;
-//	}
-
 	public List<RowData> clearCache() {
 		int purgeCounter = 0;
 
@@ -257,13 +253,20 @@ public class PacketJoiner {
 			}
 		}
 
-		log.info("{} unmatched queries, using rcode -1", Integer.valueOf(purgeCounter));
+		log.info("* ---------------------------------------	*");
+		log.info("*            PCAP DNS stats             	*");
+		log.info("* ---------------------------------------	*");
+		log.info(" {}	matched queries", matchedCounter);
+		log.info(" {}	unmatched queries", purgeCounter);
+		log.info(" {}	cache evicted queries", cacheEvictionCounter);
+		log.info("* ---------------------------------------	*");
 
 		requestCache.clear();
 		counter = 0;
 		matchedCounter = 0;
 		requestPacketCounter = 0;
 		responsePacketCounter = 0;
+		cacheEvictionCounter = 0;
 
 		return unmatched;
 	}

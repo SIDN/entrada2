@@ -35,7 +35,7 @@ public class RequestCacheKey {
 	public int hashCode() {
 		// us the client port+id as hashcode, this may lead to collisions for bad clients using
 		// some port and id for all queries and maybe for ddos situations?
-		// this way we can an acceptable distibuted hash very fast
+		// this way we can an acceptable distributed hash very fast
 		return srcPort + id;
 	}
 
@@ -54,10 +54,10 @@ public class RequestCacheKey {
 		if (srcPort != other.srcPort)
 			return false;
 
-		if (!StringUtils.equals(qname, other.qname))
+		if (!StringUtils.equalsIgnoreCase(qname, other.qname))
 			return false;
 
-		if (!StringUtils.equals(src, other.src))
+		if (!StringUtils.equalsIgnoreCase(src, other.src))
 			return false;
 		
 		return true;

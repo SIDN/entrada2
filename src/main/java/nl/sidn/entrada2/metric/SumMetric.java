@@ -1,6 +1,5 @@
 package nl.sidn.entrada2.metric;
 
-import java.time.Instant;
 import java.util.Map;
 
 import lombok.Getter;
@@ -12,15 +11,11 @@ import lombok.Setter;
 @Setter
 public class SumMetric implements Metric {
 
-	protected String label;
 	protected double value;
 	protected int samples;
-	protected Instant time;
 	protected Map<String, String> tags;
 
-	public SumMetric(String label, int value, Instant time, Map<String, String> tags) {
-		this.label = label;
-		this.time = time;
+	public SumMetric(int value, Map<String, String> tags) {
 		this.tags = tags;
 		update(value);
 	}
@@ -35,12 +30,9 @@ public class SumMetric implements Metric {
 		return samples;
 	}
 
-	public SumMetric(String label, double value, int samples, Instant time, Map<String, String> tags) {
-		super();
-		this.label = label;
+	public SumMetric(String label, double value, int samples,  Map<String, String> tags) {
 		this.value = value;
 		this.samples = samples;
-		this.time = time;
 		this.tags = tags;
 	}
 

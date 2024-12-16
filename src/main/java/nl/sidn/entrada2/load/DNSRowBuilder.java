@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import com.google.common.base.CharMatcher;
@@ -28,6 +30,7 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 
 @Slf4j
 @Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class DNSRowBuilder extends AbstractRowBuilder {
 
 	private static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
@@ -44,10 +47,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	public Pair<GenericRecord, DnsMetricValues> build(RowData combo, String server, String location,
 			GenericRecord record, GenericRecord recRdata) {
 		// try to be as efficient as possible, every object created here or expensive
-		// calculation can
-		// have major impact on performance
-		
-
+		// calculation can have major impact on performance
 		record.set(FieldEnum.server.ordinal(), server);
 
 		// dns request present
@@ -82,9 +82,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				question = reqMessage.getQuestions().get(0);
 
 				record.set(FieldEnum.dns_req_len.ordinal(), Integer.valueOf(reqMessage.getBytes()));
-
-				// only add IP DF flag for server response packet
-				//record.set(FieldEnum.ip_req_df.ordinal(), Boolean.valueOf(reqTransport.isDoNotFragment()));
 
 				if (reqTransport.getTcpHandshakeRTT() != -1) {
 					// found tcp handshake info
@@ -127,9 +124,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 
 				record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
-
-				// only add IP DF flag for server response packet
-				//record.set(FieldEnum.ip_res_df.ordinal(), Boolean.valueOf(rspTransport.isDoNotFragment()));
 
 				// these are the values that are retrieved from the response
 				rcode = responseHeader.getRawRcode();
@@ -203,7 +197,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		}
 		
 		// only save the part of the qname thats not part the domainname, this saves 
-		// s3 storage and athena io/read costs
+		// a lots of storage and io cost when analyzing the data
 
 
 		// if no domainname found in qname, then save full qname

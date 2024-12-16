@@ -20,18 +20,17 @@
 package nl.sidn.entrada2.metric;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Random;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import com.influxdb.client.WriteApi;
@@ -49,28 +48,29 @@ import nl.sidn.entrada2.load.DnsMetricValues;
  */
 @Slf4j
 @Component
-//@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @ConditionalOnExpression(
 	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${management.influx.metrics.export.uri}')"
 	)
 public class HistoricalMetricManager {
 
+	public static final String METRIC_SEPERATOR = ":";
 	// dns stats
-	public static final String METRIC_IMPORT_DNS_QUERY_COUNT = "dns.request";
-	public static final String METRIC_IMPORT_DNS_RESPONSE_COUNT = "dns.response";
+	public static final String METRIC_IMPORT_DNS_QUERY_COUNT = "entrada_dns_request";
+	public static final String METRIC_IMPORT_DNS_RESPONSE_COUNT = "entrada_dns_response";
 
-	public static final String METRIC_IMPORT_DNS_QTYPE = "dns.qtype";
-	public static final String METRIC_IMPORT_DNS_RCODE = "dns.rcode";
-	public static final String METRIC_IMPORT_DNS_OPCODE = "dns.opcode";
-	public static final String METRIC_IMPORT_DNS_PROC_TIME = "dns.proc-time";
+	public static final String METRIC_IMPORT_DNS_QTYPE = "entrada_dns_qtype";
+	public static final String METRIC_IMPORT_DNS_RCODE = "entrada_dns_rcode";
+	public static final String METRIC_IMPORT_DNS_OPCODE = "entrada_dns_opcode";
+	public static final String METRIC_IMPORT_DNS_PROC_TIME = "entrada_dns_proc-time";
 
 	// layer 4 stats
-	public static final String METRIC_IMPORT_NETWORK_PROT = "network.protocol";
+	public static final String METRIC_IMPORT_NETWORK_PROT = "entrada_network_protocol";
 
-	public static final String METRIC_IMPORT_IP_COUNT = "ip.version";
-	public static final String METRIC_IMPORT_COUNTRY_COUNT = "geo.country";
+	public static final String METRIC_IMPORT_IP_COUNT = "entrada_ip_version";
+	public static final String METRIC_IMPORT_COUNTRY_COUNT = "entrada_geo_country";
 
-	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "rtt";
+	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "entrada_tcp_rtt";
 	
 	public static final Map<String, String> IP_V4_TAG_MAP = Map.of("version", "4");
 	public static final Map<String, String> IP_V6_TAG_MAP = Map.of("version", "6");
@@ -78,25 +78,19 @@ public class HistoricalMetricManager {
 	public static final Map<String, String> NETWORK_UDP_TAG_MAP = Map.of("protocol", "UDP");
 	public static final Map<String, String> NETWORK_TCP_TAG_MAP = Map.of("protocol", "TCP");
 
-	@Value("${management.influx.metrics.export.enabled:true}")
-	protected boolean metricsEnabled;
-
 	private static final Random RND = new Random();
-	
-	private Map<String, List<Metric>> metricCache = new HashMap<>(1000);
+
+	// name -> time -> value
+	private Map<String, Map<Instant, Metric>> metricCache = new HashMap<>();
 
 	private static final Map<String, String> EMPTY_MAP = new HashMap<>();
 
 	@Autowired
 	private WriteApi influxApi;
 
-	private boolean isMetricsEnabled() {
-		return metricsEnabled;
-	}
-
 	public void update(DnsMetricValues dmv) {
 
-		if (!isMetricsEnabled() || dmv == null) {
+		if (dmv == null) {
 			// do nothing
 			return;
 		}
@@ -113,33 +107,33 @@ public class HistoricalMetricManager {
 		}
 
 		if(dmv.dnsQtype != null) {
-		update(METRIC_IMPORT_DNS_QTYPE + "." + dmv.dnsQtype.name(), METRIC_IMPORT_DNS_QTYPE, time, 1, true,
+		update(METRIC_IMPORT_DNS_QTYPE + METRIC_SEPERATOR + dmv.dnsQtype.name(), time, 1, true,
 				Map.of("qtype", dmv.dnsQtype.name()));
 		}
 		
-		update(METRIC_IMPORT_DNS_RCODE + "." + dmv.dnsRcode, METRIC_IMPORT_DNS_RCODE, time, 1, true,
+		update(METRIC_IMPORT_DNS_RCODE + METRIC_SEPERATOR + dmv.dnsRcode, time, 1, true,
 				Map.of("rcode", String.valueOf(dmv.dnsRcode)));
-		update(METRIC_IMPORT_DNS_OPCODE + "." + dmv.dnsOpcode, METRIC_IMPORT_DNS_OPCODE, time, 1, true,
+		update(METRIC_IMPORT_DNS_OPCODE + METRIC_SEPERATOR + dmv.dnsOpcode, time, 1, true,
 				Map.of("opcode", String.valueOf(dmv.dnsOpcode)));
 
 		if (StringUtils.isNotEmpty(dmv.country)) {
-			update(METRIC_IMPORT_COUNTRY_COUNT + "." + dmv.country, METRIC_IMPORT_COUNTRY_COUNT, time, 1, true,
+			update(METRIC_IMPORT_COUNTRY_COUNT + METRIC_SEPERATOR + dmv.country, time, 1, true,
 					Map.of("name", dmv.country));
 		}
 
 		if (dmv.ProtocolUdp) {
-			update(METRIC_IMPORT_NETWORK_PROT + ".udp", METRIC_IMPORT_NETWORK_PROT, time, 1, true, NETWORK_UDP_TAG_MAP);
+			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "udp", time, 1, true, NETWORK_UDP_TAG_MAP);
 		} else {
-			update(METRIC_IMPORT_NETWORK_PROT + ".tcp", METRIC_IMPORT_NETWORK_PROT, time, 1, true, NETWORK_TCP_TAG_MAP);
+			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "tcp", time, 1, true, NETWORK_TCP_TAG_MAP);
 			if (dmv.hasTcpHandshake()) {
 				update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false);
 			}
 		}
 
 		if (dmv.ipV4) {
-			update(METRIC_IMPORT_IP_COUNT + ".4", METRIC_IMPORT_IP_COUNT, time, 1, true, IP_V4_TAG_MAP);
+			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "4", time, 1, true, IP_V4_TAG_MAP);
 		} else {
-			update(METRIC_IMPORT_IP_COUNT + ".6", METRIC_IMPORT_IP_COUNT, time, 1, true, IP_V6_TAG_MAP);
+			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "6", time, 1, true, IP_V6_TAG_MAP);
 		}
 		
 		
@@ -148,50 +142,43 @@ public class HistoricalMetricManager {
 	}
 
 	private void update(String name, Instant time, int value, boolean counter) {
-		update(name, name, time, value, counter, EMPTY_MAP);
+		update(name, time, value, counter, EMPTY_MAP);
 	}
 
-	private void update(String name, String label, Instant time, int value, boolean counter, Map<String, String> tags) {
+	private void update(String name, Instant time, int value, boolean counter, Map<String, String> tags) {
 
-		List<Metric> metricValues = metricCache.get(name);
+		Map<Instant, Metric> metricValues = metricCache.get(name);
 
 		if (metricValues == null) {
-			metricValues = new ArrayList<Metric>();
-			Metric m = createMetric(label, value, time, counter, tags);
-			metricValues.add(m);
+			metricValues = new LinkedHashMap<>();
+			Metric m = createMetric(value, counter, tags);
+			metricValues.put(time, m);
 			metricCache.put(name, metricValues);
 		} else {
-			Optional<Metric> opt = lookupByLabelAndTime(label, time, metricValues);
-			if (opt.isEmpty()) {
-				Metric m = createMetric(label, value, time, counter, tags);
-				metricValues.add(m);
-			} else {
-				opt.get().update(value);
+			Metric m = metricValues.get(time);
+			
+			if (m != null) {
+				m.update(value);
+			}else {
+				metricValues.put(time, createMetric(value, counter, tags));
 			}
 		}
 	}
 
-	private Optional<Metric> lookupByLabelAndTime(String label, Instant time, List<Metric> metricValues) {
-		return metricValues.stream().filter(m -> m.getLabel().equals(label) && m.getTime().equals(time)).findFirst();
-	}
-
-	public static Metric createMetric(String label, int value, Instant timestamp, boolean counter,
-			Map<String, String> labels) {
+	public static Metric createMetric(int value, boolean counter, Map<String, String> labels) {
 		if (counter) {
-			return new SumMetric(label, value, timestamp, labels);
+			return new SumMetric(value, labels);
 		}
-		return new AvgMetric(label, value, timestamp, labels);
+		return new AvgMetric(value, labels);
 	}
 
 
 	public void flush(String server, String anycastSite) {
-		if (!isMetricsEnabled()) {
-			// do nothing
-			return;
-		}
 
 		try {
-			metricCache.entrySet().stream().map(Entry::getValue).forEach(m -> send(m, server, anycastSite));
+			for(Entry<String, Map<Instant, Metric>> entry : metricCache.entrySet()) {
+				entry.getValue().entrySet().stream().forEach(m -> send(m, entry.getKey(), server, anycastSite));
+			}
 		} catch (Exception e) {
 			// cannot connect connect to influxdb?
 			log.error("Error sending metrics", e);
@@ -202,34 +189,35 @@ public class HistoricalMetricManager {
 		log.info("Flushed metrics");
 	}
 
-	private void send(List<Metric> metricValues, String server,  String anycastSite) {
-		if (metricValues.isEmpty()) {
-			// no metrics to send
-			return;
-		}
-		metricValues.stream().forEach(e -> send(e, server, anycastSite, WritePrecision.NS));
-	}
-
-	private void send(Metric m, String server,  String anycastSite, WritePrecision p) {
+	private void send(Entry<Instant, Metric> entry, String name, String server, String anycastSite) {
 		if(log.isDebugEnabled()) {
-			log.debug("Metric: {}", m);
+			log.debug("Metric: {} value: {}", name, entry);
 		}
+		
+		WritePrecision p =  WritePrecision.NS;
 		
 		// add 1 nanosec to the last metric to prevent other pcap data from overwriting
 		// the same second
-		Instant time =  m.getTime().plusNanos(RND.nextLong(10000));
+		Instant time = entry.getKey().plusNanos(RND.nextLong(10000));
+		Metric m = entry.getValue();
+		
+		String metricName = name;
+		String[] parts = StringUtils.split(name, METRIC_SEPERATOR);
+		if(parts != null && parts.length == 2) {
+			metricName = parts[0];
+		}
 
 		if (m instanceof AvgMetric) {
 			// make sure points are all saved a float and not mix of float and int, this will cause exception
 			
-			Point point = Point.measurement(m.getLabel()).time(time, p).addTags(m.getTags())
+			Point point = Point.measurement(metricName).time(time, p).addTags(m.getTags())
 					.addTag("site", anycastSite)
 					.addTag("server", server)
 					.addTag("type", "avg").addField("value", (float)m.getValue());
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel()).time(time, p)
+			point = Point.measurement(metricName).time(time, p)
 					.addTag("server", server)
 					.addTag("site", anycastSite)
 					.addTag("type", "sample")
@@ -237,7 +225,7 @@ public class HistoricalMetricManager {
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel()).time(time, p)
+			point = Point.measurement(metricName).time(time, p)
 					.addTag("server", server)
 					.addTag("site", anycastSite)
 					.addTag("type", "min")
@@ -245,7 +233,7 @@ public class HistoricalMetricManager {
 
 			influxApi.writePoint(point);
 
-			point = Point.measurement(m.getLabel()).time(time, p)
+			point = Point.measurement(metricName).time(time, p)
 					.addTag("server", server)
 					.addTag("site", anycastSite)
 					.addTag("type", "max")
@@ -253,7 +241,7 @@ public class HistoricalMetricManager {
 
 			influxApi.writePoint(point);
 		} else {
-			Point point = Point.measurement(m.getLabel()).time(time, p)
+			Point point = Point.measurement(metricName).time(time, p)
 					.addTags(m.getTags())
 					.addTag("site", anycastSite)
 					.addTag("server", server)

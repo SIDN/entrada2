@@ -21,6 +21,8 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -29,6 +31,7 @@ import nl.sidn.entrada2.load.FieldEnum;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Service
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 public class IcebergService {
 
@@ -36,6 +39,9 @@ public class IcebergService {
 	// when processing small input pcap files.
 	@Value("${iceberg.parquet.min-records:1000000}")
 	private int minRecords;
+	
+	@Value("#{${iceberg.parquet.max-file-size-mb:256} * 1024 * 1024}")
+	private int maxFileSizeBytes;
 	
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
@@ -86,7 +92,7 @@ public class IcebergService {
 		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
 		// use default for WRITE_TARGET_FILE_SIZE_BYTES and set limit on minimum number of rows for each parquet file
-		//fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeMegabyte));
+		fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
@@ -152,7 +158,7 @@ public class IcebergService {
 	}
 
 	private void writePageBatch() {
-		// sort all rows, this will help compression algo to better
+		// sort all rows, this will help compression also to better
 		// compress the data
 		Collections.sort(pageRecords);
 
@@ -195,11 +201,6 @@ public class IcebergService {
 		appendFiles.commit();
 	}
 
-	public void commit() {
-		// only commit when the minimum no of records is in output file
-		commit(false);
-	}
-	
 	public void commit(boolean force) {
 
 		if(force || currentRecCount >= minRecords) {

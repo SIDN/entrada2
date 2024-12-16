@@ -1,5 +1,6 @@
 entrada:
   nameserver:
+    # when the s3 objects has no tags for name and/or site then the following values will be used
     default-name: default-ns
     default-site: default-site
   rdata:
@@ -20,18 +21,19 @@ entrada:
     max-proc-time-secs: 600
     # max size of the internal dns request cache used for matching dns request to dns response message
     # if max size is reached then oldest unmatched dns request is removed from the cache and written to 
+    # this will prevent a pcap containing only requests (ddos) from causing entrada to run out of memory
     # parquet file using rcode = -1
-    max-request-cache-size: 50000
+    max-request-cache-size: 1000000
   schedule:
     # update reference data every x min
     updater-min: 120
     # check for stalled worker every x min
     liveness-min: 1
-    # check for expired oject every x min
+    # check for expired object every x min
     expired-object-min: 10
     # check for new object every x secs
     new-object-secs: 60
-    # table maintainer for cleaning up old snapshot, run every x min
+    # table maintainer for cleaning up old snapshots, run according to cron schedule
     table-maintainer-cron: "0 0 1 * * *"
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
@@ -133,6 +135,7 @@ spring:
             connectTimeout: 5000
             readTimeout: 5000
             loggerLevel: basic
+          # Feign client for downloading Maxmind databases
           maxmindClient:
             url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
             dismiss404: false
@@ -151,6 +154,7 @@ iceberg:
   # see iceberg docs for: write.parquet.compression-codec
   compression: 'ZSTD'
   metadata:
+    delete-after-commit: true
     version:
       # see iceberg docs for: write.metadata.previous-versions-max
       max: 1
@@ -162,7 +166,7 @@ iceberg:
     # sorting allows for better compression but increases resource(cpu/ram) usage
     sorted: true
     # the max number of snapshots to keep when table maintenance is performed
-    snapshot-max: 300
+    snapshot-max: 1
   parquet:
     # keep dictionary size low, to force parquet to use bloomfilter when bloomfilter is enabled
     # but also do not use a to low number of bytes or none of the columns will be able to use
@@ -175,9 +179,10 @@ iceberg:
     # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
     # max Parquet filesize (mb)
-    max-size: 256
+    max-file-size-mb: 128
     # minimum number of records required before output Parquest file is closed
     min-records: 1000000
+    
 
   
 
@@ -225,23 +230,16 @@ maxmind:
 
 management:
   influx.metrics.export:
-    enabled: false
     bucket: entrada2
     org: SIDN
     token:
     uri:
     step: 1m
-  # do not send standard metrics such as for jvm to influxdb
-  # set to true if you would like this anyway
-  metrics:
-    enable: 
-      all: false
-      pcap: true
+    enabled: true
   endpoints:
-    enabled-by-default: false 
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,metrics
   health:
     livenessState:
       enabled: true

@@ -1,6 +1,5 @@
 package nl.sidn.entrada2.metric;
 
-import java.time.Instant;
 import java.util.Map;
 
 public interface Metric {
@@ -13,12 +12,6 @@ public interface Metric {
    * @return sample-size, -1 if value is based on single sample
    */
   int getSamples();
-
-  Instant getTime();
-  
-  void setTime(Instant time);
-  
-  String getLabel();
 
   double getValue();
 

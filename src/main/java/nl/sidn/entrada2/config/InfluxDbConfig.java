@@ -16,7 +16,6 @@ import lombok.Data;
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "management.influx.metrics.export")
-//@ConditionalOnProperty(prefix = "management.influx.metrics.export", name = "uri", matchIfMissing = false)
 @ConditionalOnExpression(
 	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${management.influx.metrics.export.uri}')"
 	)

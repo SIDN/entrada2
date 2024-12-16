@@ -14,10 +14,13 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.DNSRowBuilder;
 import nl.sidn.entrada2.load.DnsMetricValues;
@@ -29,6 +32,7 @@ import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.pcap.PcapReader;
 
 @Service
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 public class WorkService {
 	
@@ -89,7 +93,7 @@ public class WorkService {
 		while (working) {
 			TimeUtil.sleep(1000);
 		}
-		icebergService.commit(true);
+		flush();
 	}
 	
 	public void flush() {
@@ -140,8 +144,10 @@ public class WorkService {
 			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
 		}
 		
-		okCounter = Counter.builder("pcap").tags("server", server).tags("site", anycastSite).tag("status", "ok").register(meterRegistry);	
-		errorCounter = Counter.builder("pcap").tags("server", server).tags("site", anycastSite).tag("status", "error").register(meterRegistry);
+		okCounter = Counter.builder("entrada_pcap-file").tags("server", server, "site", anycastSite, "status", "ok").register(meterRegistry);	
+		errorCounter = Counter.builder("entrada_pcap-file").tags("server", server).tags("site", anycastSite).tag("status", "error").register(meterRegistry);
+		
+		Timer.Sample sample = Timer.start(meterRegistry);
 		
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
 		startOfWork = System.currentTimeMillis();
@@ -197,6 +203,9 @@ public class WorkService {
 			s3Service.move(bucket, key, newKey );
 			s3Service.tag(bucket, newKey, tags);
 		}
+		
+		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
+	    
 		return true;
 	}
 	
@@ -237,7 +246,8 @@ public class WorkService {
 		joiner.clearCache().forEach(rd -> {
 			
 			Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-					icebergService.newGenericRecord(), icebergService.newRdataGenericRecord());
+					icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
+			
 			icebergService.write(rowPair.getKey());
 
 			// update metrics
@@ -251,7 +261,7 @@ public class WorkService {
 			log.debug("Close Iceberg writer");
 		}
 
-		icebergService.commit();
+		icebergService.commit(false);
 
 		if (log.isDebugEnabled()) {
 			log.debug("Close pcap reader");

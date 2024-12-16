@@ -24,7 +24,7 @@ public abstract class AbstractRowBuilder {
 
   @Value("${entrada.privacy.enabled:false}")
   protected boolean privacy;
-  @Value("${management.influx.metrics.export.enabled:true}")
+  @Value("#{!T(org.apache.commons.lang3.StringUtils).isBlank('${management.influx.metrics.export.uri:}')}")
   protected boolean metricsEnabled;
 
   protected Cache<String, String> domainCache;
