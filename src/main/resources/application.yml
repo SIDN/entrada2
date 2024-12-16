@@ -82,7 +82,9 @@ entrada:
       aws:
         retention: 86400
         visibility-timeout: 300
-  # set leader to true for 1 container when using non k8s deployment
+  # set leader to true for max 1 container when using non k8s deployment
+  # this container will run additional (maintenance) tasks and scan for new s3 objects when not
+  # using s3 events
   leader: false
   provisioning:
     # auto create all required components such as the bucket and queues

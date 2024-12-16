@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import software.amazon.awssdk.services.s3.model.S3Object;
@@ -21,6 +22,9 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Slf4j
 @Component
 public class ExpiredObjectChecker {
+	
+	@Autowired
+	private LeaderService leaderService;
 	
 	@Value("${entrada.object.max-wait-time-secs:3600}")
 	private int maxWaitTime;
@@ -42,6 +46,11 @@ public class ExpiredObjectChecker {
 	
 	@Scheduled(initialDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
 	public void execute() {
+		if (!leaderService.isleader()) {
+			// only leader is allowed to continue
+			return;
+		}
+		
 		try {
 			checkForExperiredObjects();
 		} catch (Exception e) {

@@ -128,7 +128,7 @@ public class RabbitMqConfig {
      * Create template for sending json to queue
      */
     @Bean
-    public RabbitTemplate rabbitCommandTemplate(ConnectionFactory factory, ObjectMapper objectMapper){
+    public RabbitTemplate rabbitJsonTemplate(ConnectionFactory factory, ObjectMapper objectMapper){
         RabbitTemplate template = new RabbitTemplate();
         template.setConnectionFactory(factory);
         template.setMessageConverter(messageConverter(objectMapper));

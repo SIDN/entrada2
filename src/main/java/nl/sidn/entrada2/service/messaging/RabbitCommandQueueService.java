@@ -23,7 +23,7 @@ public class RabbitCommandQueueService extends AbstractRabbitQueue implements Co
 	private CommandService commandService;
 
 	@Autowired(required = false)
-	@Qualifier("rabbitCommandTemplate")
+	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")

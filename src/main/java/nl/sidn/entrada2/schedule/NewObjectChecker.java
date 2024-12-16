@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.S3EventNotification;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3Entity;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
+import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -34,16 +35,23 @@ public class NewObjectChecker {
 	@Autowired
 	private S3Service s3Service;
 	
+	@Autowired
+	private LeaderService leaderService;
+	
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 	
 	@Autowired(required = false)
-	@Qualifier("rabbitCommandTemplate")
+	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;
 	
 	
 	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:30}*1000}")
 	public void execute() {
+		if (!leaderService.isleader()) {
+			// only leader is allowed to continue
+			return;
+		}
 		// find new objects
 		log.debug("Start checking for new objects");
 		
