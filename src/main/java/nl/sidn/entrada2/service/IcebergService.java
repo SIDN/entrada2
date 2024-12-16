@@ -194,7 +194,7 @@ public class IcebergService {
 	}
 
 	public void commit(DataFile dataFile) {
-		log.info("Add new datafile to Iceberg table: " + dataFile.path());
+		log.info("Add new datafile to Iceberg table: " + dataFile.location());
 		
 		AppendFiles appendFiles = table.newAppend();
 		appendFiles.appendFile(dataFile);

@@ -33,7 +33,7 @@ public class RabbitLeaderQueueService extends AbstractRabbitQueue implements Lea
 
 	@RabbitListener(id = "${entrada.messaging.leader.name}", queues = "#{leaderQueue.name}", containerFactory = "#{rabbitListenerByteContainerFactory}", autoStartup = "false")
 	public void onMessage(DataFile message) {
-		log.info("Received RabbitMQ message, rows: {} path: {}", message.recordCount(), message.path());
+		log.info("Received RabbitMQ message, rows: {} path: {}", message.recordCount(), message.location());
 
 		if (leaderService.isleader()) {
 			icebergService.commit(message);
@@ -41,7 +41,7 @@ public class RabbitLeaderQueueService extends AbstractRabbitQueue implements Lea
 	}
 
 	public void send(DataFile message) {
-		log.info("Send new file to commit to leader queue, file : " + message.path());
+		log.info("Send new file to commit to leader queue, file : " + message.location());
 		
 		rabbitTemplate.convertAndSend(queueName + "-exchange", queueName, message);
 	}

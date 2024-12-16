@@ -80,7 +80,7 @@ public final class OpenDNSResolverCheck extends AbstractResolverCheck {
 		List<String> subnets = new ArrayList<>();
 		HttpGet get = new HttpGet(url);
 
-		try (CloseableHttpResponse response = client.execute(get)) {
+		try (@SuppressWarnings("deprecation") CloseableHttpResponse response = client.execute(get)) {
 
 			HttpEntity entity = response.getEntity();
 			String html = EntityUtils.toString(entity);

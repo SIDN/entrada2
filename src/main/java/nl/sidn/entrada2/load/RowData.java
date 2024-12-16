@@ -21,12 +21,10 @@ package nl.sidn.entrada2.load;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.pcap.packet.Packet;
 
 @Getter
-@Setter
 @AllArgsConstructor
 public class RowData {
 

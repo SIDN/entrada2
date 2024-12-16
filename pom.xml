@@ -273,13 +273,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.googlecode.java-ipv6</groupId>
-			<artifactId>java-ipv6</artifactId>
-			<version>0.17</version>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
 		</dependency>

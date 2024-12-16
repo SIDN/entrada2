@@ -77,7 +77,8 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
     log.info("Fetch CloudFlare resolver addresses from url: " + url);
 
     HttpGet get = new HttpGet(url);
-    try (CloseableHttpResponse response = client.execute(get)) {
+    try (@SuppressWarnings("deprecation")
+	CloseableHttpResponse response = client.execute(get)) {
       String content =
           StreamUtils.copyToString(response.getEntity().getContent(), StandardCharsets.UTF_8);
 

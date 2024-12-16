@@ -45,7 +45,7 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 				byte[] data = CompressionUtil.decompress(Base64.getUrlDecoder().decode(message));
 				df = (DataFile) org.springframework.amqp.utils.SerializationUtils.deserialize(data);
 				
-				log.info("Received new file to commit from leader queue, file : " + df.path());
+				log.info("Received new file to commit from leader queue, file : " + df.location());
 				
 			} catch (Exception e) {
 				throw new RuntimeException("Converting message failed", e);
@@ -60,7 +60,7 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 	}
 
 	public void send(DataFile message) {
-		log.info("Send new file to commit to leader queue, file : " + message.path());
+		log.info("Send new file to commit to leader queue, file : " + message.location());
 
 		// spring boot messaging is having trouble serializing the DataFile class to json.
 		// so we are doing this our here and send it as Base64 url-encoded String value
