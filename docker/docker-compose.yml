@@ -133,6 +133,7 @@ services:
        - path: ./docker.env
     environment:
       - ENTRADA_LEADER=false
+      - JAVA_OPTS=-Xmx4g -Xms4g
     links:
       - influxdb
       - rabbitmq
