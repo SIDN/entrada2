@@ -32,7 +32,7 @@ entrada:
     # check for expired object every x min
     expired-object-min: 10
     # check for new object every x secs
-    new-object-secs: 60
+    new-object-secs:
     # table maintainer for cleaning up old snapshots, run according to cron schedule
     table-maintainer-cron: "0 0 1 * * *"
   security:

@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 eclipse-temurin:21 as jre-build
+FROM --platform=linux/amd64 eclipse-temurin:23 as jre-build
 
 # Create a custom Java runtime
 RUN $JAVA_HOME/bin/jlink \
@@ -20,4 +20,7 @@ RUN mkdir /app
 # Copy the application code to the container
 COPY target/entrada2-*.jar /app/entrada2.jar
 
-CMD ["java", "-jar", "/app/entrada2.jar"]
+ENV JAVA_OPTS=""
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

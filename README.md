@@ -48,7 +48,7 @@ The following deployment modes are supported:
 # Build
 
 ```
-export TOOL_VERSION=0.0.9
+export TOOL_VERSION=0.0.10
 mvn clean && mvn package && docker build  --tag=sidnlabs/entrada2:$TOOL_VERSION .
 ```
 
@@ -192,6 +192,13 @@ docker compose --profile test up --scale entrada-worker=2
 The ENTRADA2 configuration options are in the [Spring Boot configuration file](https://raw.githubusercontent.com/SIDN/entrada2/main/src/main/resources/application.yml)
 All options in this file can be overidden by using environment variables, or in the case of Kubernetes you can also create a ConfigMap containing a custom configuration file.
 
+JVM options (e.g. for memory limits) can be passed to the container using the JAVA_OPTS environment variable in the docker compose configuration.
+
+```
+environment:
+   - JAVA_OPTS=-Xmx4g -Xms4g
+```
+       
 # AWS
 
 When deployed on AWS, ENTRADA2 will automatically create a new database and table using AWS Glue, the data in the table can be analyzed using Athena, Spark or any of the other compatible tools available on AWS.

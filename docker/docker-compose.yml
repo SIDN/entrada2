@@ -93,13 +93,24 @@ services:
       minio:
         condition: service_healthy
   entrada-master:
-    image: sidnlabs/entrada2:0.0.9
+    image: sidnlabs/entrada2:0.0.10
     profiles: ["test"]
     restart: always
     env_file:
        - path: ./docker.env
+    environment:
+      - JAVA_OPTS=-Xmx4g -Xms4g
+      
+        # additional opts for jmx monitoring
+        #    -Dcom.sun.management.jmxremote
+        #    -Dcom.sun.management.jmxremote.rmi.port=2222
+        #    -Dcom.sun.management.jmxremote.port=2222
+        #    -Dcom.sun.management.jmxremote.ssl=false
+        #    -Dcom.sun.management.jmxremote.authenticate=false
+        #    -Djava.rmi.server.hostname=<need hostname/ip otherwise mission control jmx connection fails>
     ports:
       - "8080:8080" 
+      #- "2222:2222"
     links:
       - influxdb
       - rabbitmq
@@ -115,7 +126,7 @@ services:
       createbucket:
         condition: service_completed_successfully
   entrada-worker:
-    image: sidnlabs/entrada2:0.0.9
+    image: sidnlabs/entrada2:0.0.10
     profiles: ["test"]
     restart: always
     env_file:

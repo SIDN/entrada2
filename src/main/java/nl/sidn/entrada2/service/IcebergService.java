@@ -205,7 +205,7 @@ public class IcebergService {
 
 		if(force || currentRecCount >= minRecords) {
 			// close the current open parquet output file
-			log.info("Stop request received or minimum record count reached ({}), closing output Parquet file", currentRecCount);
+			log.info("Commit - stop request received or minimum record count reached ({}), closing output Parquet file", currentRecCount);
 			for (DataFile dataFile : close()) {
 				// send new datafile to leader
 				leaderQueue.send(dataFile);

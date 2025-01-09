@@ -21,7 +21,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
 @ConditionalOnExpression(
-	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${entrada.schedule.new-object-min}')"
+	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${entrada.schedule.new-object-secs}')"
 	)
 @Component
 public class NewObjectChecker {
