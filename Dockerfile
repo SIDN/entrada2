@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 eclipse-temurin:23 as jre-build
+FROM eclipse-temurin:23 AS jre-build
 
 # Create a custom Java runtime
 RUN $JAVA_HOME/bin/jlink \
@@ -9,10 +9,14 @@ RUN $JAVA_HOME/bin/jlink \
          --compress=2 \
          --output /javaruntime
 
-# Define your base image
-FROM --platform=linux/amd64 debian:bookworm-slim
+# use Debian slim as base image
+FROM debian:bookworm-slim
+
+# add the JDK to the base image
 ENV JAVA_HOME=/opt/java/openjdk
-ENV PATH "${JAVA_HOME}/bin:${PATH}"
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+ENV JAVA_OPTS=""
+
 COPY --from=jre-build /javaruntime $JAVA_HOME
 
 RUN mkdir /app
@@ -20,7 +24,9 @@ RUN mkdir /app
 # Copy the application code to the container
 COPY target/entrada2-*.jar /app/entrada2.jar
 
-ENV JAVA_OPTS=""
+# use entrypoint to make sure JAVA_OPTS is passed correctly to the JVM when starting the container
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+
 ENTRYPOINT ["/entrypoint.sh"]

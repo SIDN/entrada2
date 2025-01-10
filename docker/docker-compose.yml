@@ -4,6 +4,7 @@
 #
 # example:
 # docker-compose --profile test up --scale entrada-worker=2
+# any other profile will only start the dependencies
 services:
   influxdb:
     image: influxdb:latest
