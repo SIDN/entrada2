@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: entrada2
 spec:
+  replicas: 3
   strategy:
     type: Recreate
   selector:
@@ -16,6 +17,8 @@ spec:
     spec:
       serviceAccount: entrada2
       serviceAccountName: entrada2
+      nodeSelector:
+        node-type : app
       containers:
       - name: entrada2
         image: sidnlabs/entrada2:0.0.11
@@ -62,7 +65,7 @@ spec:
              secretKeyRef:
                name: entrada2-secret
                key: maxmind.license   
-        envFrom:
-          - configMapRef:
-              name: entrada2-config
+        #envFrom:
+        #  - configMapRef:
+        #      name: entrada2
 
