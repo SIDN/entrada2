@@ -14,6 +14,8 @@ spec:
         app: entrada2
         app.kubernetes.io/name: entrada2
     spec:
+      serviceAccount: entrada2
+      serviceAccountName: entrada2
       containers:
       - name: entrada2
         image: sidnlabs/entrada2:0.0.11
