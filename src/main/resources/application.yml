@@ -144,15 +144,24 @@ spring:
 
  
 iceberg:
-  # JDBC catalog, use this when not using aws Glue catalog
+  # JDBC/REST catalog, use this when not using aws Glue catalog
   # only Postgresql is supported
   catalog:
+    type: rest
+    # REST catalog properties
+    # tested using: Lakekeeper REST Catalog (https://lakekeeper.io/)
+    uri: 
+    warehouse: 
+    oauth2-server-uri:
+    oauth2-credential:
+    outh2-scope:
+    warehouse-location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
+    # JDBC properties
     host:
     port: 5432
     name:
     user:
     password: 
-    warehouse-location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
   # see iceberg docs for: write.parquet.compression-codec
   compression: 'ZSTD'
   metadata:
@@ -237,7 +246,7 @@ management:
     token:
     uri:
     step: 1m
-    enabled: true
+    enabled: false
   endpoints:
     web:
       exposure:
@@ -254,3 +263,7 @@ management:
       enabled: true
        
 
+logging:
+  level:
+    org.apache.iceberg: DEBUG
+    org.apache.hc: DEBUG
