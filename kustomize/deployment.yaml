@@ -9,10 +9,10 @@ spec:
     matchLabels:
       app: entrada2
   template:
-	metadata: 
-	 labels:
+    metadata: 
+      labels:
         app: entrada2
-		app.kubernetes.io/name: entrada2
+        app.kubernetes.io/name: entrada2
     spec:
       containers:
       - name: entrada2
@@ -23,42 +23,42 @@ spec:
           containerPort: 8080
           protocol: TCP
         env:
-	        - name: AWS_ACCESS_KEY_ID
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-			      key: s3.access-key
-			- name: AWS_SECRET_ACCESS_KEY
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-			      key: s3.secret-access-key
-			- name: SPRING_RABBITMQ_USERNAME
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-			      key: rabbitmq.username
-	        - name: SPRING_RABBITMQ_PASSWORD
-			  valueFrom:
-			    secretKeyRef:
-				  name: entrada2-secret
-				  key: rabbitmq.password
-			- name: ICEBERG_CATALOG_OAUTH2-CREDENTIAL
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-				    key: lakekeeper.credential
-			- name: MANAGEMENT_INFLUX_TOKEN
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-			      key: influx.token
-		    - name: MAXMIND_LICENSE_PAID
-			  valueFrom:
-			    secretKeyRef:
-			      name: entrada2-secret
-			      key: maxmind.license   
-	    envFrom:
-		  - configMapRef:
-		    name: entrada2-config
+         - name: AWS_ACCESS_KEY_ID
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: s3.access-key
+         - name: AWS_SECRET_ACCESS_KEY
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: s3.secret-access-key
+         - name: SPRING_RABBITMQ_USERNAME
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: rabbitmq.username
+         - name: SPRING_RABBITMQ_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: rabbitmq.password
+         - name: ICEBERG_CATALOG_OAUTH2-CREDENTIAL
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: lakekeeper.credential
+         - name: MANAGEMENT_INFLUX_TOKEN
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: influx.token
+         - name: MAXMIND_LICENSE_PAID
+           valueFrom:
+             secretKeyRef:
+               name: entrada2-secret
+               key: maxmind.license   
+        envFrom:
+          - configMapRef:
+            name: entrada2-config
 
