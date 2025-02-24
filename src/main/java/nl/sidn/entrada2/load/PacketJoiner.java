@@ -256,9 +256,9 @@ public class PacketJoiner {
 		log.info("* ---------------------------------------	*");
 		log.info("*            PCAP DNS stats             	*");
 		log.info("* ---------------------------------------	*");
-		log.info(" {}			matched queries", matchedCounter);
-		log.info(" {}			unmatched queries", purgeCounter);
-		log.info(" {}			cache evicted queries", cacheEvictionCounter);
+		log.info("* Matched queries:       {}", matchedCounter);
+		log.info("* Unmatched queries:     {}", purgeCounter);
+		log.info("* Cache evicted queries: {}", cacheEvictionCounter);
 		log.info("* ---------------------------------------	*");
 
 		requestCache.clear();

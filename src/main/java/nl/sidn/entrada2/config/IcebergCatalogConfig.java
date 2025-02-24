@@ -32,8 +32,12 @@ public class IcebergCatalogConfig {
 	// REST catalog
 	private String uri;
 	private String warehouse;
+	
+	@Value("${iceberg.catalog.oauth2.uri}")
 	private String oauth2ServerUri;
+	@Value("${iceberg.catalog.oauth2.credential}")
 	private String oauth2Credential;
+	@Value("${iceberg.catalog.oauth2.scope}")
 	private String oauth2Scope;
 
 	// jdbc config

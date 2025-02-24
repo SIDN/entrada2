@@ -103,15 +103,15 @@ spring:
    allow-circular-references: true
  application: 
    # name of container/pod
-   name: 'entrada2'
+   name: entrada2
  rabbitmq:
     host:
     password:
     username:
     retry-attempts: 5
     backoff-interval: 1000
-    backoff-multiplier: 2
     backoff-max-interval: 5000
+    backoff-multiplier: 2
  cloud:
     bootstrap:
       enabled: false
@@ -121,7 +121,7 @@ spring:
         # name of k8s configmap to use to write leader pod name to
         config-map-name: entrada-leader
         role: master 
-        namespace: entrada
+        namespace: entrada2
         publish-failed-events: true
     aws:
       sqs:
@@ -152,9 +152,10 @@ iceberg:
     # tested using: Lakekeeper REST Catalog (https://lakekeeper.io/)
     uri: 
     warehouse: 
-    oauth2-server-uri:
-    oauth2-credential:
-    outh2-scope:
+    oauth2:
+      uri:
+      credential:
+      scope:
     warehouse-location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
     # JDBC properties
     host:
@@ -263,7 +264,7 @@ management:
       enabled: true
        
 
-logging:
-  level:
-    org.apache.iceberg: DEBUG
-    org.apache.hc: DEBUG
+#logging:
+#  level:
+#    org.apache.iceberg: DEBUG
+#    org.apache.hc: DEBUG
