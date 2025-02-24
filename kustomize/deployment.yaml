@@ -48,6 +48,11 @@ spec:
 			    secretKeyRef:
 			      name: entrada2-secret
 				    key: lakekeeper.credential
+			- name: MANAGEMENT_INFLUX_TOKEN
+			  valueFrom:
+			    secretKeyRef:
+			      name: entrada2-secret
+			      key: influx.token
 		    - name: MAXMIND_LICENSE_PAID
 			  valueFrom:
 			    secretKeyRef:
