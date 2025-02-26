@@ -3,6 +3,7 @@ package nl.sidn.entrada2.service;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -145,8 +146,11 @@ public class S3Service {
 			log.info("Error getting tags for (deleted?) key: {}", key);
 			return false;
 		} 
-		
-		
+	}
+	
+	public Map<String, String> tags(String bucket, String key) {
+		 Map<String, String> tagMap = new HashMap<>();
+		 return tags(bucket, key, tagMap)? tagMap: new HashMap<>();
 	}
 
 	public boolean delete(String bucket, String key) {

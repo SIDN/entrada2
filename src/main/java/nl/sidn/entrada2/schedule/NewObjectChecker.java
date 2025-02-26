@@ -1,8 +1,10 @@
 package nl.sidn.entrada2.schedule;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -17,6 +19,7 @@ import nl.sidn.entrada2.messaging.S3EventNotification.S3Entity;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
+import nl.sidn.entrada2.util.S3ObjectTagName;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
@@ -65,18 +68,19 @@ public class NewObjectChecker {
 
 	public void scanForNewObjects() {
 		
-		for(S3Object obj : s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"))) {
-
-			if(obj.size() == 0) {
-				// ignore directories
-				continue;
-			}
-			
-			log.info("New object found: {}/{}", bucketName, obj.key());
+		s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/")).stream()
+		.filter( obj -> obj.size() > 0)
+		// get tags for object
+		.map(obj -> Pair.of(obj.key(), s3Service.tags(bucketName, obj.key())))
+		.sorted(Comparator.comparing(obj -> obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_TS.value)))
+		.map(Pair::getKey)
+		.forEach( obj -> {
+			log.info("New object found: {}/{}", bucketName, obj);
 			
 			//  send new object to the request queue so the object can be processed by any listening entrada instance
-			rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, obj.key()));
-		}		
+			rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, obj));
+		});
+		
 	}
 	
 	private S3EventNotification createEvent(String bucket, String key) {

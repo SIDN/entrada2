@@ -92,8 +92,23 @@ Use the the following s3 tags when uploading file to S3:
 
 - entrada-ns-server: Logical name of the name server (e.g. ns1.dns.nl)
 - entrada-ns-anycast-site: Anycast site of the name server (e.g. ams)
+- entrada-object-ts: (optional) ISO 8601 timestamp when pcap was created (e.g. 2022-10-12T01:01:00.000Z)
 
 Timestamps used in pcap files are assumed to be using timezone UTC.
+The timestamp in the entrada-object-ts tag is used for sorting new s3 objects when multiple new objects are detected.
+This allows for bulk uploading older data and maintaining the correct order when processing.
+The tag entrada-object-ts is only used when minio/aws s3 events are not configured and ENTRADA2 must periodically scan for newly uploaded objects itself.
+
+
+Upload example:
+
+```
+aws s3api put-object \
+    --bucket entrada-bucket \
+    --key pcap-in/trace_tokyo_2_2023-08-14_09_20_26.pcap.gz \
+    --body trace_tokyo_2_2023-08-14_09_20_26.pcap.gz \
+    --tagging "entrada-object-ts=2024-10-12T01%3A01%3A00.000Z&entrada-ns-anycast-site=Amsterdam&entrada-ns-server=ns1.dns.nl" 
+```
 
 # Flushing output
 To prevent many small Parquet output files when the input stream contains many small pcap files, there exists a configuration option (`iceberg.parquet.min-records`, default 1000000) for setting the lower limit of the number

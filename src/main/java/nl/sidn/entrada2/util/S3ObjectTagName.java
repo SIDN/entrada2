@@ -7,7 +7,10 @@ public enum S3ObjectTagName {
 	ENTRADA_PROCESS_TS_START("entrada-process-ts-start"),
 	ENTRADA_PROCESS_TS_END("entrada-process-ts-end"),
 	ENTRADA_PROCESS_DURATION("entrada-process-duration"),
-	ENTRADA_WAIT_EXPIRED("entrada-wait-expired");
+	ENTRADA_WAIT_EXPIRED("entrada-wait-expired"),
+	// (ISO_8601)
+	// example: 2022-10-12T01:01:00.000Z
+	ENTRADA_OBJECT_TS("entrada-object-ts");
 
 	public final String value;
 	
