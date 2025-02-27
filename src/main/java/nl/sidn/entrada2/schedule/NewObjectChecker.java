@@ -70,9 +70,9 @@ public class NewObjectChecker {
 		
 		s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/")).stream()
 		.filter( obj -> obj.size() > 0)
-		// get tags for object
+		// get tags for object, may not be very efficient when many new objects are detected
 		.map(obj -> Pair.of(obj.key(), s3Service.tags(bucketName, obj.key())))
-		.sorted(Comparator.comparing(obj -> obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_TS.value)))
+		.sorted(Comparator.comparing(obj -> StringUtils.defaultString(obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_TS.value))))
 		.map(Pair::getKey)
 		.forEach( obj -> {
 			log.info("New object found: {}/{}", bucketName, obj);
