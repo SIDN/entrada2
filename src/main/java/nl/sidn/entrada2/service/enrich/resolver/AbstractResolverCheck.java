@@ -20,6 +20,7 @@
 package nl.sidn.entrada2.service.enrich.resolver;
 
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -33,7 +34,6 @@ import org.apache.commons.net.util.SubnetUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.hash.BloomFilter;
@@ -90,7 +90,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 			}
 		}
 
-		ipv4Filter = BloomFilter.create(Funnels.stringFunnel(Charsets.US_ASCII), ipv4Set.size(), 0.01);
+		ipv4Filter = BloomFilter.create(Funnels.stringFunnel(StandardCharsets.US_ASCII), ipv4Set.size(), 0.01);
 
 		for (String addr : ipv4Set) {
 			ipv4Filter.put(addr);

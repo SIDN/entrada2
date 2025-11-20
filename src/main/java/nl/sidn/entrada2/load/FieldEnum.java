@@ -48,6 +48,7 @@ public enum FieldEnum {
   tcp_rtt,
   server,
   server_location,
-  dns_rdata;
+  dns_rdata,
+  dns_cname;
 	
 }

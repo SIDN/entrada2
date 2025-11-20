@@ -19,6 +19,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 @EnableWebSecurity
 @EnableDiscoveryClient
 public class Application {
+	
 
   @Value("${spring.application.name}")
   private String appName;

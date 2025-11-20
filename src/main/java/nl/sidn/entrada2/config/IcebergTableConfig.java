@@ -97,11 +97,14 @@ public class IcebergTableConfig {
 				Types.NestedField.required(47, "server_location", Types.StringType.get()),
 				Types.NestedField.optional(48, "dns_rdata",
 						Types.ListType.ofOptional(49,
-								Types.StructType.of(Types.NestedField.required(50, "section", Types.IntegerType.get()),
+								Types.StructType.of(
+										Types.NestedField.required(50, "section", Types.IntegerType.get()),
 										Types.NestedField.required(51, "type", Types.IntegerType.get()),
-										Types.NestedField.optional(52, "data", Types.StringType.get())))));
-
-		log.info("Schema for table dns: {}", schema);
+										Types.NestedField.optional(52, "data", Types.StringType.get())
+								)
+						)
+				));
+				
 
 		return schema;
 	}
@@ -119,10 +122,14 @@ public class IcebergTableConfig {
 			catalogNs.createNamespace(namespace);
 		}
 
+		Schema schema = schema();
+		 
 		if (!catalog.tableExists(tableId)) {
 			log.info("Create new Iceberg table: {}", tableId);
 
-			PartitionSpec spec = PartitionSpec.builderFor(schema()).day("time", "day").identity("server").build();
+			PartitionSpec spec = PartitionSpec.builderFor(schema)
+					.day("time", "day")
+					.identity("server").build();
 
 			Map<String, String> props = new HashMap<>();
 			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
@@ -134,11 +141,24 @@ public class IcebergTableConfig {
 			props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(),
 					"true");
 
-			catalog.createTable(tableId, schema(), spec, tableLocation, props);
+			// use default warehouse s3 location
+			catalog.createTable(tableId, schema, spec, props);
 
 		}
+		
+		Table table = catalog.loadTable(tableId);
+		// get latest schema, may already include new columns
+		schema = table.schema();
+		// table exists, check if need to add new columns
+		if(schema.findField("dns_cname") == null) {
+			table.updateSchema()
+				.addColumn("dns_cname",   Types.ListType.ofOptional(53, Types.StringType.get()))
+				.commit();
+		}
+		
+		log.info("Schema for table: {}", table.schema());
 
-		return catalog.loadTable(tableId);
+		return table;
 	}
 
 }

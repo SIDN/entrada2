@@ -9,7 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import nl.sidn.entrada2.security.AuthenticationFilter;
 
@@ -22,14 +22,15 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     
-    return http
-    .sessionManagement( (session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-    .addFilterAfter(authenticationFilter, BasicAuthenticationFilter.class)
-    .csrf(AbstractHttpConfigurer::disable)
-    .authorizeHttpRequests((authz) -> authz
-    	.requestMatchers("/**").hasRole("ADMIN")
-        .anyRequest().authenticated()
-    ).build();
+	  return http
+	    .authorizeHttpRequests(auth -> auth
+	        .requestMatchers("/actuator/health/**").permitAll()
+	        .requestMatchers("/**").hasRole("ADMIN")
+	        .anyRequest().authenticated()
+	    )
+	    .csrf(AbstractHttpConfigurer::disable)
+	    .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+	    .addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class).build();
 
   }
   

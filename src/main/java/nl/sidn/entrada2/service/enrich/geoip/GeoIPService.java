@@ -19,6 +19,7 @@
  */
 package nl.sidn.entrada2.service.enrich.geoip;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -53,6 +54,8 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Log4j2
 @Component
 public class GeoIPService extends AbstractMaxmind {
+	
+	private static final int DECOMPRESS_STREAM_BUFFER = 256 * 1024;
 
 	private DatabaseReader geoReader;
 	private DatabaseReader asnReader;
@@ -115,8 +118,8 @@ public class GeoIPService extends AbstractMaxmind {
 		Optional<InputStream> ois = s3FileService.read(bucket, key);
 		if (ois.isPresent()) {
 
-			try {
-				return Optional.of(new DatabaseReader.Builder(ois.get()).withCache(new CHMCache(DEFAULT_CACHE_SIZE))
+			try {				
+				return Optional.of(new DatabaseReader.Builder(new BufferedInputStream(ois.get(), DECOMPRESS_STREAM_BUFFER)).withCache(new CHMCache(DEFAULT_CACHE_SIZE))
 						.fileMode(FileMode.MEMORY).build());
 			} catch (IOException e) {
 				throw new RuntimeException("Cannot read Maxmind database", e);

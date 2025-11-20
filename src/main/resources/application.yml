@@ -9,12 +9,16 @@ entrada:
     enabled: false
     # include dnssec RRs such as RRSIG in output
     dnssec: false
+  cname:
+    enabled: true
   object:
     # after wait expire mark as not picked up and send to queue again
     max-wait-time-secs: 3600
     # mark as failed after max proc time expired, high load might cause longer proc times.
     # do not set too low
     max-proc-time-secs: 7200
+    # max number of tries for decoding object
+    max-tries: 2
   process:
     # max time for pcap file to be procssed in min
     # if worker is processing pcap longer than x secs, it is marked as stalled
@@ -31,7 +35,7 @@ entrada:
     liveness-min: 1
     # check for expired object every x min
     expired-object-min: 10
-    # check for new object every x secs
+    # check for new object every x secs, disabled when left empty
     new-object-secs:
     # table maintainer for cleaning up old snapshots, run according to cron schedule
     table-maintainer-cron: "0 0 1 * * *"
@@ -44,10 +48,12 @@ entrada:
     # when enabled the IP addresses are not written to parquet file
     enabled: false
   s3:
-    # use default aws env vars so aws libs automatically get correct credentials
-    access-key: '${AWS_ACCESS_KEY_ID}'
-    secret-key: '${AWS_SECRET_ACCESS_KEY}'
-    region: ${AWS_REGION}'
+    # s3 cerdentials for bucket where source pcaps are located.
+    # this may be same bucket as bucket used for the iceberg database but this is not always the case
+    # if they are the same, the reuse the credentials for iceberg.s3 settings.
+    access-key: #'${AWS_ACCESS_KEY_ID}'
+    secret-key: #'${AWS_SECRET_ACCESS_KEY}'
+    region: #${AWS_REGION}'
     # only use endpoint when not using aws 
     endpoint:
     bucket: sidnlabs-iceberg-data
@@ -56,9 +62,8 @@ entrada:
     # optionally move processed files to a different directory, better for detecting failed objects and aws object expiration based on age
     # pcaps are deleted after procesessing when pcap-done-dir is left empty
     pcap-done-dir: pcap-done
-    # files that could not be processed correctly are moved to the "failed" directory
-    pcap-failed-dir: pcap-failed
     # location for reference data
+    pcap-delete: true
     reference-dir: reference
     # location of iceberg data files
     warehouse-dir: database
@@ -103,12 +108,12 @@ spring:
    allow-circular-references: true
  application: 
    # name of container/pod
-   name: entrada2
+   name: entrada
  rabbitmq:
     host:
     password:
     username:
-    retry-attempts: 5
+    retry-attempts: 3
     backoff-interval: 1000
     backoff-max-interval: 5000
     backoff-multiplier: 2
@@ -121,7 +126,7 @@ spring:
         # name of k8s configmap to use to write leader pod name to
         config-map-name: entrada-leader
         role: master 
-        namespace: entrada2
+        namespace: entrada
         publish-failed-events: true
     aws:
       sqs:
@@ -144,6 +149,14 @@ spring:
 
  
 iceberg:
+  # if not using lakekeeper vended credentials then need access to s3 for uploading parquet files
+  # if using lakekeeper leave iceberg s3 settings empty, these are provided by the catalog
+  s3:
+     access-key:
+     secret-key:
+     region: ${AWS_REGION}'
+      # only use endpoint when not using aws 
+     endpoint:
   # JDBC/REST catalog, use this when not using aws Glue catalog
   # only Postgresql is supported
   catalog:
@@ -172,11 +185,11 @@ iceberg:
       max: 1
   table:
     name: 'dns'
-    namespace: 'entrada2'
+    namespace: 'entrada'
     # directory for Iceberg table data
     location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}/${iceberg.table.namespace}/${iceberg.table.name}'
     # sorting allows for better compression but increases resource(cpu/ram) usage
-    sorted: true
+    #sorted: true
     # the max number of snapshots to keep when table maintenance is performed
     snapshot-max: 1
   parquet:
@@ -193,7 +206,7 @@ iceberg:
     # max Parquet filesize (mb)
     max-file-size-mb: 128
     # minimum number of records required before output Parquest file is closed
-    min-records: 1000000
+    #min-records: 1000000
     
 
   
@@ -242,7 +255,7 @@ maxmind:
 
 management:
   influx.metrics.export:
-    bucket: entrada2
+    bucket: entrada
     org: SIDN
     token:
     uri:

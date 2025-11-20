@@ -1,11 +1,17 @@
 package nl.sidn.entrada2.service.messaging;
 
+import java.io.IOException;
+
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
+
+import com.rabbitmq.client.Channel;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.Command;
@@ -27,10 +33,16 @@ public class RabbitCommandQueueService extends AbstractRabbitQueue implements Co
 	private AmqpTemplate rabbitTemplate;
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")
-	public void receiveMessageManual(Command message) {
+	public void receiveMessageManual(Command message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {
 		log.info("Received command message: {}", message);
 
 		commandService.execute(message);
+		
+		try {
+			channel.basicAck(tag, false);
+		} catch (IOException e) {
+			log.error("Error sending ack for tag: {}", tag);
+		}
 	}
 
 	public void send(Command message) {

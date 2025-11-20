@@ -10,6 +10,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -47,12 +48,12 @@ public class IcebergCatalogConfig {
 	private String name;
 	private String password;
 	private String warehouseLocation;
-	// s3 config
-	@Value("${entrada.s3.endpoint}")
+	// s3 config for pcap source bucket
+	@Value("${iceberg.s3.endpoint}")
 	private String endpoint;
-	@Value("${entrada.s3.access-key}")
+	@Value("${iceberg.s3.access-key}")
 	private String accessKey;
-	@Value("${entrada.s3.secret-key}")
+	@Value("${iceberg.s3.secret-key}")
 	private String secretKey;
 
 	@Bean
@@ -66,9 +67,15 @@ public class IcebergCatalogConfig {
 
 	}
 
+	/**
+	 * Create REST catalog, only tested with Lakekeeper and authentik/oauth2
+	 * @return
+	 */
 	private Catalog restCatalog() {
+		log.info("Creating Iceberg REST Catalog");
 
 		Map<String, String> properties = new HashMap<>();
+		properties.put(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_MANAGER_IMPL_OAUTH2);
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.rest.RESTCatalog");
 
 		properties.put(CatalogProperties.URI, uri);
@@ -77,18 +84,22 @@ public class IcebergCatalogConfig {
 		properties.put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri);
 		properties.put(OAuth2Properties.CREDENTIAL, oauth2Credential);
 		properties.put(OAuth2Properties.SCOPE, oauth2Scope);
-
-		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, secretKey);
-		properties.put(S3FileIOProperties.ACCESS_KEY_ID, accessKey);
-
-		properties.put(S3FileIOProperties.ENDPOINT, endpoint);
-		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+		
+		// authentik does not support this?
+		properties.put(OAuth2Properties.TOKEN_EXCHANGE_ENABLED, "false");
+		
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
 
-		RESTCatalog catalog = new RESTCatalog();
-		catalog.initialize("iceberg", properties);
+		RESTCatalog catalog;
+		try {
+			catalog = new RESTCatalog();
+			catalog.initialize("iceberg", properties);
+		} catch (Exception e) {
+			log.error("Error creating RESTCatalog", e);
+			throw new RuntimeException("Error creating RESTCatalog", e);
+		}
+		
 		return catalog;
-
 	}
 
 	private Catalog jdbcCatalog() {

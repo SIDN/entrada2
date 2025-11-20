@@ -68,7 +68,7 @@ public class RabbitMqConfig {
     @Bean
     public Queue commandQueue(){
         return QueueBuilder
-        		.nonDurable()
+        		.nonDurable(commandQueue + "-queue")
         		.autoDelete()
                 .build();
     }
@@ -154,11 +154,11 @@ public class RabbitMqConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(messageConverter(objectMapper));
-        factory.setPrefetchCount(0);
+        factory.setPrefetchCount(1);
         factory.setConcurrentConsumers(1);
         factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
-        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         return factory;
     }
 
@@ -180,11 +180,11 @@ public class RabbitMqConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(simpleMessageConverter());
-        factory.setPrefetchCount(0);
+        factory.setPrefetchCount(1);
         factory.setConcurrentConsumers(1);
         factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
-        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         return factory;
     }
     

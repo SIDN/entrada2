@@ -1,14 +1,23 @@
 package nl.sidn.entrada2.config;
 
 import java.net.URI;
+import java.time.Duration;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.DefaultRetryStrategy;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
@@ -31,19 +40,70 @@ public class S3Config {
 
 	@Value("${entrada.s3.bucket}")
 	private String bucketName;
+	
+	@Value("${entrada.s3.region}")
+	private String region;
+	
+	@Value("${entrada.s3.access-key}")
+	private String accessKey;
+	@Value("${entrada.s3.secret-key}")
+	private String secretKey;
 
 	private boolean isRunningOnAws() {
 		return StringUtils.isBlank(endpoint);
 	}
+	
 
+	/**
+	 * Normal and default s3 client for reading larger pcap files, has longer timeouts
+	 * @return
+	 */
 	@Bean
+	@Primary
 	public S3Client s3() {
 
 		if (isRunningOnAws()) {
 			return S3Client.builder().forcePathStyle(Boolean.TRUE).build();
 		}
 		// when not running on aws, make sure the s2 endpoint is configured
-		 return S3Client.builder().forcePathStyle(Boolean.TRUE).endpointOverride(URI.create(endpoint))
+		 return S3Client.builder()
+				 .forcePathStyle(Boolean.TRUE)
+				 .region(Region.of(region))
+				 .endpointOverride(URI.create(endpoint))
+				 .httpClientBuilder(ApacheHttpClient.builder()
+						 	.connectionTimeout(Duration.ofSeconds(5))
+			                .socketTimeout(Duration.ofSeconds(15))
+			                .maxConnections(50))
+				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+				 .overrideConfiguration(ClientOverrideConfiguration.builder()
+						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
+						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
+					        .apiCallTimeout(Duration.ofMinutes(5))  
+					        .build())
+				.build();
+	}
+	
+	/**
+	 * Only use fastClient for fast operation such as getting and setting tags
+	 * has shorter timeouts
+	 * @return
+	 */
+	@Bean
+	public S3Client fastClient() {
+			
+		 return S3Client.builder()
+				 .forcePathStyle(Boolean.TRUE)
+				 .region(Region.of(region))
+				 .endpointOverride(URI.create(endpoint))
+				 .httpClientBuilder(ApacheHttpClient.builder()
+						 	.connectionTimeout(Duration.ofSeconds(5))
+			                .socketTimeout(Duration.ofSeconds(10))
+			                .maxConnections(10))
+				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+				 
+				 .overrideConfiguration(ClientOverrideConfiguration.builder()
+						 	.retryStrategy(DefaultRetryStrategy.doNotRetry())
+					        .build())
 				.build();
 	}
 

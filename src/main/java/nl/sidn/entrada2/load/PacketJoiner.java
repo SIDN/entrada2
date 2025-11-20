@@ -9,8 +9,6 @@ import java.util.Map.Entry;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import lombok.Getter;
@@ -24,7 +22,6 @@ import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
 
 @Component
-@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 @Getter
 public class PacketJoiner {
@@ -126,7 +123,7 @@ public class PacketJoiner {
 				dnsPacket.getSrcPort());
 
 		if (log.isDebugEnabled()) {
-			log.info("Insert into cache key: {}", key);
+			log.debug("Insert into cache key: {}", key);
 		}
 
 		// put the query in the cache until we get a matching response
@@ -181,15 +178,12 @@ public class PacketJoiner {
 
 		if (log.isDebugEnabled()) {
 			log.debug("Get from cache key: " + key);
-			log.debug("request cache size before: " + requestCache.size());
+			//log.debug("request cache size before: " + requestCache.size());
 		}
 
 		RequestCacheValue request = requestCache.remove(key);
 		// check to see if the request msg exists, at the start of the pcap there may be
 		// missing queries
-		if (log.isDebugEnabled()) {
-			log.debug("request cache size after: " + requestCache.size());
-		}
 
 		if (request != null && request.getPacket() != null && request.getMessage() != null) {
 

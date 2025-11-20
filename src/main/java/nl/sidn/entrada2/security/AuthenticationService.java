@@ -12,7 +12,9 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.stereotype.Service;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class AuthenticationService {
 
@@ -22,10 +24,13 @@ public class AuthenticationService {
   private String adminToken;
 
   public Authentication getAuthentication(HttpServletRequest request) {
-    String apiKey = request.getHeader(AUTH_TOKEN_HEADER_NAME);
+    String apiKey = request.getHeader(AUTH_TOKEN_HEADER_NAME);  
+    
     if (StringUtils.isNotBlank(apiKey)) {
 
       if (StringUtils.equals(apiKey, adminToken)) {
+    	  
+    	log.debug("User login ok"); 
         return new ApiKeyAuthentication(apiKey, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
       }
 

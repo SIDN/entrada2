@@ -7,8 +7,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import com.google.common.base.CharMatcher;
@@ -19,6 +17,8 @@ import nl.sidnlabs.dnslib.message.Header;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.dnslib.message.Question;
 import nl.sidnlabs.dnslib.message.RRset;
+import nl.sidnlabs.dnslib.message.records.CNAMEResourceRecord;
+import nl.sidnlabs.dnslib.message.records.ResourceRecord;
 import nl.sidnlabs.dnslib.message.records.edns0.ClientSubnetOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDEOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDNS0Option;
@@ -30,7 +30,6 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 
 @Slf4j
 @Component
-@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class DNSRowBuilder extends AbstractRowBuilder {
 
 	private static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
@@ -40,6 +39,9 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	
 	@Value("${entrada.rdata.enabled:false}")
 	private boolean rdataEnabled;
+	
+	@Value("${entrada.cname.enabled:true}")
+	private boolean cnameEnabled;
 	
 	@Value("${entrada.rdata.dnssec:false}")
 	private boolean rdataDnsSecEnabled;
@@ -159,6 +161,25 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 					rdata(rspMessage.getAdditional(), recRdata, 2, datas);
 				}
 				record.set(FieldEnum.dns_rdata.ordinal(), datas);
+			}
+			
+			if(cnameEnabled) {
+				
+				if(!rspMessage.getAnswer().isEmpty()) {
+					
+					List<String> cnames = new ArrayList<>();
+					
+					for(RRset rrset: rspMessage.getAnswer()) {
+						if(rrset.getType() == ResourceRecordType.CNAME) {
+							for(ResourceRecord rr: rrset.getData()) {
+								cnames.add(((CNAMEResourceRecord)rr).getCname());
+							}
+						}
+					}
+					
+					record.set(FieldEnum.dns_cname.ordinal(), cnames);
+				}
+		
 			}
 		}
 

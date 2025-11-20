@@ -20,7 +20,6 @@ import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.S3ObjectTagName;
-import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
 @ConditionalOnExpression(

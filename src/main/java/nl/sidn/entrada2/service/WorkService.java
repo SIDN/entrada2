@@ -10,12 +10,11 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.Counter;
@@ -32,11 +31,10 @@ import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.pcap.PcapReader;
 
 @Service
-@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 public class WorkService {
 	
-	private static final int DECOMPRESS_STREAM_BUFFER = 64 * 1024;
+	private static final int DECOMPRESS_STREAM_BUFFER = 256 * 1024;
 	
 	@Value("${entrada.nameserver.default-name}")
 	private String defaultNsName;
@@ -55,6 +53,10 @@ public class WorkService {
 	
 	@Value("${entrada.rdata.dnssec:false}")
 	private boolean rdataDnsSecEnabled;
+	
+	@Value("${entrada.s3.pcap-delete:true}")
+	private boolean pcapDelete;
+	
 
 	@Autowired
 	private S3Service s3Service;
@@ -97,13 +99,14 @@ public class WorkService {
 	}
 	
 	public void flush() {
-		icebergService.commit(true);
+		icebergService.commit();
 	}
 
 	public boolean process(String bucket, String key) {
 		
 		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
 			// ingore input directory creation
+			log.error("Ignore create of pcap prefix: {}", key);
 			return false;
 		}
 		if(!CompressionUtil.isSupportedFormat(key)) {
@@ -111,23 +114,34 @@ public class WorkService {
 			log.error("Unsupported filetype: {}", key);
 			return false;
 		}
-		
-
+			
 		Map<String, String> tags = new HashMap<String, String>();
 		if(!s3Service.tags(bucket, key, tags)){
 			// cannot get tags, retry later
+			log.error("Cannot get tags for objec: {}", key);
 			return false;
 		}
 
-		// check if file has been processed before
-		// file will arrive here also when code below updates the tags
+		// check if file has been processed before, messages are delivered to single consumer
+		// object will also get to here when code below updates the tags and causes new event to be sent
+		// this does not cause a race condition if we check for the presence of the start_ts tag
 		if(tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
 			log.info("s3 object has already been processed (tag {} is present), do not continue processing: {}", S3ObjectTagName.ENTRADA_PROCESS_TS_START.value, key);
 			return true;
 		}
 		
+		Integer tries = 1;
+		if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
+			String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
+			if(NumberUtils.isCreatable(value)) {
+				tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) + 1;
+			}
+		}
+				
 		tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value,
 				LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+		tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries.toString());
+		
 		if(!s3Service.tag(bucket, key, tags)) {
 			// could not mark the file as being processed, do not continue
 			log.error("Claiming s3 object failed, do not continue processing: {}", key);
@@ -197,11 +211,16 @@ public class WorkService {
 			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,
 					LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 			
-			// move file to other directory prefix
-			String file = StringUtils.substringAfterLast(key, "/");
-			String newKey = pcapDirDone + "/" + file;
-			s3Service.move(bucket, key, newKey );
-			s3Service.tag(bucket, newKey, tags);
+			String tagKkey = key;
+			if(StringUtils.isNotBlank(pcapDirDone)) {
+				// move file to other directory prefix
+				String file = StringUtils.substringAfterLast(key, "/");
+				String newKey = pcapDirDone + "/" + file;
+				s3Service.move(bucket, key, newKey );
+				tagKkey = pcapDirDone + "/" + file;
+			}
+			
+			s3Service.tag(bucket, tagKkey, tags);
 		}
 		
 		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
@@ -210,7 +229,7 @@ public class WorkService {
 	}
 	
 	private boolean isDeleteObject() {
-		return StringUtils.isBlank(pcapDirDone);
+		return pcapDelete;
 	}
 
 	private boolean isMetricsEnabled() {
@@ -219,6 +238,8 @@ public class WorkService {
 
 	private void process_(PcapReader reader, String bucket, String key, String server, String anycastSite) {
 
+		// make sure previously failed process has not left data behind
+		icebergService.clear();
 
 		reader.stream().forEach(p -> {
 			
@@ -261,7 +282,7 @@ public class WorkService {
 			log.debug("Close Iceberg writer");
 		}
 
-		icebergService.commit(false);
+		icebergService.commit();
 
 		if (log.isDebugEnabled()) {
 			log.debug("Close pcap reader");

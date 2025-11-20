@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
@@ -34,6 +35,10 @@ public class S3Service {
 
 	@Autowired
 	private S3Client s3Client;
+	
+	@Autowired
+	@Qualifier("fastClient")
+	private S3Client s3FastClient;
 
 	public Optional<InputStream> read(String bucket, String key) {
 
@@ -120,7 +125,7 @@ public class S3Service {
 			Tagging tagging = Tagging.builder().tagSet(s3Tags).build();
 			PutObjectTaggingRequest tagReq = PutObjectTaggingRequest.builder().bucket(bucket).key(key).tagging(tagging)
 					.build();
-			s3Client.putObjectTagging(tagReq);
+			s3FastClient.putObjectTagging(tagReq);
 			return true;
 		} catch (Exception e) {
 			log.error("Error setting tag on key: {}", key, e);
@@ -138,12 +143,18 @@ public class S3Service {
 	public boolean tags(String bucket, String key, Map<String, String> tags) {
 		try {
 			GetObjectTaggingRequest otr = GetObjectTaggingRequest.builder().bucket(bucket).key(key).build();
-			GetObjectTaggingResponse resp = s3Client.getObjectTagging(otr);
+			GetObjectTaggingResponse resp = s3FastClient.getObjectTagging(otr);
+			
+			if(resp.tagSet().isEmpty()) {
+				log.error("No tags found for: {}", key);
+				log.error("HTTP response status for tag req: {}", resp.sdkHttpResponse().statusCode());
+			}
+			
 			Map<String, String> tmpTags = resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));
 			tags.putAll(tmpTags);
 			return true;
 		} catch(Exception e) {	
-			log.info("Error getting tags for (deleted?) key: {}", key);
+			log.error("Error getting tags for (deleted?) key: {}", key, e);
 			return false;
 		} 
 	}
@@ -158,7 +169,7 @@ public class S3Service {
 
 		try {
 			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
-			s3Client.deleteObject(req);
+			s3FastClient.deleteObject(req);
 
 		} catch (Exception e) {
 			log.error("Object delete operation failed for: " + key, e);

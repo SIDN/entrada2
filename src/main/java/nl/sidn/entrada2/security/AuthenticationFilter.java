@@ -15,7 +15,9 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class AuthenticationFilter extends GenericFilterBean {
 
@@ -26,10 +28,20 @@ public class AuthenticationFilter extends GenericFilterBean {
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
 			throws IOException, ServletException {
 
+		 // Skip health endpoints
+		 if (((HttpServletRequest)request).getServletPath().startsWith("/actuator/health")) {
+		        filterChain.doFilter(request, response);
+		        return;
+		 }
+
+		 
 		try {
 			Authentication authentication = authenticationService.getAuthentication((HttpServletRequest) request);
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 		} catch (BadCredentialsException exp) {
+			
+			log.error("Invalid credentials", exp);
+			
 			HttpServletResponse httpResponse = (HttpServletResponse) response;
 			httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		}

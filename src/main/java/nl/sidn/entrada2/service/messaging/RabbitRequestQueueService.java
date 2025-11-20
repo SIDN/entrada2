@@ -1,5 +1,7 @@
 package nl.sidn.entrada2.service.messaging;
 
+import java.io.IOException;
+
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
@@ -31,20 +33,27 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	private WorkService workService;
 	
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
-	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
+	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {
 		
 		for (S3EventNotificationRecord rec : message.getRecords()) {
 			
 			// check the getEventName, updating the tags may also generate a put event and
 			// this should not lead to processing the same file again.
+			String bucket = rec.getS3().getBucket().getName();
+			String key = UrlUtil.decode(rec.getS3().getObject().getKey());
+			
 			if (isSupportedEvent(rec.getEventName())) {
-				String bucket = rec.getS3().getBucket().getName();
-				String key = UrlUtil.decode(rec.getS3().getObject().getKey());
-				
 				log.info("Received s3 event for: {}/{}", bucket, key);
-
 				workService.process(bucket, key);
+			}else {
+				log.error("Unsupported s3 event for: {}/{}", bucket, key);
 			}
+		}
+		
+		try {
+			channel.basicAck(tag, false);
+		} catch (IOException e) {
+			log.error("Error sending ack for tag: {}", tag);
 		}
 	}
 	

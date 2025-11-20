@@ -28,8 +28,6 @@ import nl.sidnlabs.pcap.packet.Packet;
 @AllArgsConstructor
 public class RowData {
 
-  public static final RowData NULL = new RowData(null, null, null, null);
-
   private Packet request;
   private Message requestMessage;
   private Packet response;

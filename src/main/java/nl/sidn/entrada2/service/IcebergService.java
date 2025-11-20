@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -21,8 +21,6 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -31,24 +29,15 @@ import nl.sidn.entrada2.load.FieldEnum;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Service
-@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @Slf4j
 public class IcebergService {
 
-	// use a minimum no of records to prevent small parquet output files
-	// when processing small input pcap files.
-	@Value("${iceberg.parquet.min-records:1000000}")
-	private int minRecords;
-	
 	@Value("#{${iceberg.parquet.max-file-size-mb:256} * 1024 * 1024}")
 	private int maxFileSizeBytes;
 	
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
 
-	@Value("${iceberg.table.sorted:true}")
-	private boolean enableSorting;
-	
 	@Value("${iceberg.parquet.page-limit:20000}")
 	private int parquetPageLimit;
 
@@ -70,7 +59,7 @@ public class IcebergService {
 	private GenericRecord genericRecordRdata;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
-	private List<SortableGenericRecord> pageRecords;
+	private List<GenericRecord> pageRecords;
 
 	@Autowired
 	private LeaderQueue leaderQueue;
@@ -79,10 +68,12 @@ public class IcebergService {
 	public void initialize() {
 		this.genericRecord = GenericRecord.create(table.schema());
 		this.genericRecordRdata = GenericRecord.create(table.schema().findType(49).asStructType());
-		this.pageRecords = new ArrayList<SortableGenericRecord>(parquetPageLimit);
+		this.pageRecords = new ArrayList<GenericRecord>(parquetPageLimit);
 	}
 
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
+		
+		currentRecCount = 0;
 
 		// make sure to also use the spec when creating a GenericAppenderFactory
 		// otherwise iceberg will not generate the partitioning metadata
@@ -91,7 +82,7 @@ public class IcebergService {
 		fileAppenderFactory.set(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
 		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
-		// use default for WRITE_TARGET_FILE_SIZE_BYTES and set limit on minimum number of rows for each parquet file
+
 		fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
 		
 		if (enableBloomFilter) {
@@ -122,37 +113,40 @@ public class IcebergService {
 
 	public void clear() {
 		pageRecords.clear();
+		partitionedFanoutWriter = null;
 	}
 
 	public void write(GenericRecord record) {
 
 		currentRecCount++;
+		
+		if(currentRecCount % 1000 == 0) {
+			log.info("Processed {} rows", currentRecCount);
+		}
 
 		if (partitionedFanoutWriter == null) {
+			
+			if(log.isDebugEnabled()) {
+				log.debug("Create new writer");
+			}
 
 			try {
 				partitionedFanoutWriter = createWriter();
 			} catch (IOException e) {
+				
+				log.error("Error while creating writer", e);
+				
 				throw new RuntimeException("Cannot create writer", e);
 			}
 		}
 
-		// check parquet page limits
-		if (enableSorting) {
-			// do not write record to file until minimum number of records has been
-			// collected.
-			pageRecords.add(new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
-			if (currentRecCount % parquetPageLimit == 0) {
-				// have min # of record, write batch to new page in file
-				writePageBatch();
-			}
-		} else {
-			// just write unsorted recs to file now
-			try {
-				partitionedFanoutWriter.write(record);
-			} catch (Exception e) {
-				log.error("Error writing row: {}", record, e);
-			}
+		// do not write record to file until minimum number of records has been
+		// collected.
+		pageRecords.add(record);
+		//new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
+		if (currentRecCount % parquetPageLimit == 0) {
+			// have min # of record, write batch to new page in file
+			writePageBatch();
 		}
 
 	}
@@ -160,11 +154,19 @@ public class IcebergService {
 	private void writePageBatch() {
 		// sort all rows, this will help compression also to better
 		// compress the data
-		Collections.sort(pageRecords);
+		
+		log.info("writePageBatch: pageRecords = {}", pageRecords.size());
+
+		pageRecords.sort(
+			    Comparator.comparing(
+			        r -> (String) r.get(FieldEnum.dns_domainname.ordinal()),
+			        Comparator.nullsFirst(String::compareTo)
+			    )
+			);
 
 		pageRecords.stream().forEach(r -> {
 			try {
-				partitionedFanoutWriter.write(r.getRec());
+				partitionedFanoutWriter.write(r);
 			} catch (Exception e) {
 				log.error("Error writing row: {}", r, e);
 			}
@@ -174,17 +176,23 @@ public class IcebergService {
 	}
 
 	private List<DataFile> close() {
-
-		if (enableSorting) {
-			// make sure to write all rows when using sorting
-			writePageBatch();
+		
+		if(log.isDebugEnabled()) {
+			log.debug("Closing writer");
 		}
+
+		writePageBatch();
 
 		if (partitionedFanoutWriter != null) {
 			try {
 				// close writer and get datafiles
 				List<DataFile> files = Arrays.stream(partitionedFanoutWriter.dataFiles()).toList();
 				partitionedFanoutWriter = null;
+				
+				if(log.isDebugEnabled()) {
+					log.debug("Result was {} data files", files.size());
+				}
+				
 				return files;
 			} catch (Exception e) {
 				log.error("Creating datafiles failed", e);
@@ -201,17 +209,16 @@ public class IcebergService {
 		appendFiles.commit();
 	}
 
-	public void commit(boolean force) {
+	public void commit() {
 
-		if(force || currentRecCount >= minRecords) {
-			// close the current open parquet output file
-			log.info("Commit - stop request received or minimum record count reached ({}), closing output Parquet file", currentRecCount);
-			for (DataFile dataFile : close()) {
-				// send new datafile to leader
-				leaderQueue.send(dataFile);
+		// close the current open parquet output file
+		log.info("Commit - currentRecCount: {}", currentRecCount);
+		for (DataFile dataFile : close()) {
+			if(log.isDebugEnabled()) {
+				log.debug("Send datafile: {}", dataFile);
 			}
-	
-			currentRecCount = 0;
+			// send new datafile to leader
+			leaderQueue.send(dataFile);
 		}
 	}
 
@@ -244,18 +251,6 @@ public class IcebergService {
 		protected PartitionKey partition(GenericRecord record) {
 			partitionKey.partition(wrapper.wrap(record));
 			return partitionKey;
-		}
-	}
-
-
-	@lombok.Value
-	public class SortableGenericRecord implements Comparable<SortableGenericRecord> {
-		private GenericRecord rec;
-		private String domain;
-
-		@Override
-		public int compareTo(SortableGenericRecord o) {
-			return StringUtils.compare(domain, o.getDomain());
 		}
 	}
 
