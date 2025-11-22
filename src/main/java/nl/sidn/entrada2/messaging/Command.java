@@ -9,8 +9,7 @@ public class Command {
 	
 	public enum CommandType {
 		START,
-		STOP,
-		FLUSH
+		STOP
 	}
 	
 	public CommandType command;

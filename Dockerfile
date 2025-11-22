@@ -1,23 +1,4 @@
-FROM eclipse-temurin:23 AS jre-build
-
-# Create a custom Java runtime
-RUN $JAVA_HOME/bin/jlink \
-         --add-modules ALL-MODULE-PATH \
-         --strip-debug \
-         --no-man-pages \
-         --no-header-files \
-         --compress=2 \
-         --output /javaruntime
-
-# use Debian slim as base image
-FROM debian:bookworm-slim
-
-# add the JDK to the base image
-ENV JAVA_HOME=/opt/java/openjdk
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
-ENV JAVA_OPTS=""
-
-COPY --from=jre-build /javaruntime $JAVA_HOME
+FROM eclipse-temurin:25-jre-noble
 
 RUN mkdir /app
 

@@ -36,13 +36,6 @@ public class StateService {
 	}
 	
 	/**
-	 * Flush will close currently open Parquet output files and add these to the Iceberg table
-	 */
-	public void flush() {
-		commandQueue.send(new Command(CommandType.FLUSH));
-	}
-
-	/**
 	 * Stop processing new pcap files from s3 location
 	 */
 	public void stop() {

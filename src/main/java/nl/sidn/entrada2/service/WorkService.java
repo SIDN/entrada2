@@ -29,6 +29,7 @@ import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.pcap.PcapReader;
+import nl.sidnlabs.pcap.packet.Packet;
 
 @Service
 @Slf4j
@@ -95,10 +96,7 @@ public class WorkService {
 		while (working) {
 			TimeUtil.sleep(1000);
 		}
-		flush();
-	}
-	
-	public void flush() {
+		
 		icebergService.commit();
 	}
 
@@ -181,11 +179,20 @@ public class WorkService {
 			okCounter.increment();	
 			log.info("Done processing file: {}/{}, time: {}ms", bucket, key, duration);
 		} catch (Exception e) {
+			// file could not be processed, data from the file will not be added to 
+			// the table, but some files may have been uploaded and need to be removed
+			// by iceberg maintenance processes
 			log.error("Error processing file: {}/{}", bucket, key, e);
+			
+			icebergService.abort();
+			
 			errorCounter.increment();
 			return false;
 		} finally {
 			// startOfWork is also used for checking if pcap processing has stalled
+			if (log.isDebugEnabled()) {
+				log.debug("Close pcap reader");
+			}
 			try {
 				if(ois.isPresent()) {
 					ois.get().close();
@@ -283,10 +290,6 @@ public class WorkService {
 		}
 
 		icebergService.commit();
-
-		if (log.isDebugEnabled()) {
-			log.debug("Close pcap reader");
-		}
 	}
 
 	/**

@@ -14,10 +14,10 @@
             <AppenderRef ref="Console" />
         </Logger>
 
-        <Logger name="com.amazonaws" level="DEBUG" additivity="false">
+        <Logger name="com.amazonaws" level="INFO" additivity="false">
             <AppenderRef ref="Console" />
         </Logger>
-        <Logger name="software.amazon" level="DEBUG" additivity="false">
+        <Logger name="software.amazon" level="INFO" additivity="false">
             <AppenderRef ref="Console" />
         </Logger>
 

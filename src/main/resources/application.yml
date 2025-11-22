@@ -61,7 +61,7 @@ entrada:
     pcap-in-dir: pcap-in
     # optionally move processed files to a different directory, better for detecting failed objects and aws object expiration based on age
     # pcaps are deleted after procesessing when pcap-done-dir is left empty
-    pcap-done-dir: pcap-done
+    pcap-done-dir:
     # location for reference data
     pcap-delete: true
     reference-dir: reference
@@ -198,15 +198,14 @@ iceberg:
     # dictionary encoding.
     # see iceberg docs for: write.parquet.dict-size-bytes
     dictionary-max-bytes: 102400 #10240
-    # see iceberg docs for: write.parquet.page-row-limit
-    page-limit: 20000
     # see iceberg docs for: write.parquet.bloom-filter-enabled.column.dns_domainname
     # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
     # max Parquet filesize (mb)
-    max-file-size-mb: 128
+    max-file-size-mb: 512
     # minimum number of records required before output Parquest file is closed
     #min-records: 1000000
+    bloomfilter-max-size-mb: 1
     
 
   

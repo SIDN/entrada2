@@ -15,7 +15,7 @@
     <name>entrada2</name>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <spring-cloud-aws.version>3.4.1</spring-cloud-aws.version>
         <iceberg.version>1.10.0</iceberg.version>
@@ -107,7 +107,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>pcap-lib</artifactId>
-            <version>0.2.25</version>
+            <version>0.2.26-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>

@@ -1,10 +1,8 @@
 package nl.sidn.entrada2.service;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.iceberg.AppendFiles;
@@ -32,20 +30,20 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 @Slf4j
 public class IcebergService {
 
-	@Value("#{${iceberg.parquet.max-file-size-mb:256} * 1024 * 1024}")
+	@Value("#{${iceberg.parquet.max-file-size-mb:512} * 1024 * 1024}")
 	private int maxFileSizeBytes;
 	
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
-
-	@Value("${iceberg.parquet.page-limit:20000}")
-	private int parquetPageLimit;
 
 	@Value("${iceberg.parquet.dictionary-max-bytes:20000}")
 	private int parquetDictMaxBytes;
 
 	@Value("${iceberg.table.bloomfilter:true}")
 	private boolean enableBloomFilter;
+	
+	@Value("#{${iceberg.parquet.bloomfilter-max-size-mb:1} * 1024 * 1024}")
+	private int parquetBloomFilterMaxBytes;
 	
 	@Value("${iceberg.metadata.version.max:100}")
 	private int metadataVersionMax;
@@ -59,7 +57,7 @@ public class IcebergService {
 	private GenericRecord genericRecordRdata;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
-	private List<GenericRecord> pageRecords;
+	private int writeErrors;
 
 	@Autowired
 	private LeaderQueue leaderQueue;
@@ -68,7 +66,6 @@ public class IcebergService {
 	public void initialize() {
 		this.genericRecord = GenericRecord.create(table.schema());
 		this.genericRecordRdata = GenericRecord.create(table.schema().findType(49).asStructType());
-		this.pageRecords = new ArrayList<GenericRecord>(parquetPageLimit);
 	}
 
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
@@ -87,6 +84,7 @@ public class IcebergService {
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
+			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES, parquetBloomFilterMaxBytes + "");
 		}
 
 		// use small dict size otherwize the domainname column will use dictionary
@@ -97,9 +95,6 @@ public class IcebergService {
 		// potentially skip many files/rowgroups that do not contain records for a
 		// domain
 		fileAppenderFactory.set(TableProperties.PARQUET_DICT_SIZE_BYTES, "" + parquetDictMaxBytes);
-
-		// keep rowgroups relatively small (20k) so they are easier to sort
-		fileAppenderFactory.set(TableProperties.PARQUET_PAGE_ROW_LIMIT, "" + parquetPageLimit);
 
 		int partitionId = 1, taskId = 1;
 		OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
@@ -112,7 +107,9 @@ public class IcebergService {
 	}
 
 	public void clear() {
-		pageRecords.clear();
+		//pageRecords.clear();
+		currentRecCount = 0;
+		writeErrors = 0;
 		partitionedFanoutWriter = null;
 	}
 
@@ -120,8 +117,8 @@ public class IcebergService {
 
 		currentRecCount++;
 		
-		if(currentRecCount % 1000 == 0) {
-			log.info("Processed {} rows", currentRecCount);
+		if(log.isDebugEnabled() && currentRecCount % 1000 == 0) {
+			log.debug("Processed {} rows", currentRecCount);
 		}
 
 		if (partitionedFanoutWriter == null) {
@@ -139,40 +136,16 @@ public class IcebergService {
 				throw new RuntimeException("Cannot create writer", e);
 			}
 		}
-
-		// do not write record to file until minimum number of records has been
-		// collected.
-		pageRecords.add(record);
-		//new SortableGenericRecord(record, (String) record.get(FieldEnum.dns_domainname.ordinal())));
-		if (currentRecCount % parquetPageLimit == 0) {
-			// have min # of record, write batch to new page in file
-			writePageBatch();
-		}
-
-	}
-
-	private void writePageBatch() {
-		// sort all rows, this will help compression also to better
-		// compress the data
 		
-		log.info("writePageBatch: pageRecords = {}", pageRecords.size());
-
-		pageRecords.sort(
-			    Comparator.comparing(
-			        r -> (String) r.get(FieldEnum.dns_domainname.ordinal()),
-			        Comparator.nullsFirst(String::compareTo)
-			    )
-			);
-
-		pageRecords.stream().forEach(r -> {
-			try {
-				partitionedFanoutWriter.write(r);
-			} catch (Exception e) {
-				log.error("Error writing row: {}", r, e);
+		try {
+			partitionedFanoutWriter.write(record);
+		} catch (IOException e) {
+			// debug log error only, no error per row
+			writeErrors++;
+			if(log.isDebugEnabled()) {
+				log.debug("Error writing row: {}", record, e);
 			}
-		});
-
-		pageRecords.clear();
+		}
 	}
 
 	private List<DataFile> close() {
@@ -181,7 +154,8 @@ public class IcebergService {
 			log.debug("Closing writer");
 		}
 
-		writePageBatch();
+		log.info("Close Iceberg writer, records: {} errors: {}", currentRecCount, writeErrors);
+		//writePageBatch();
 
 		if (partitionedFanoutWriter != null) {
 			try {
@@ -238,7 +212,7 @@ public class IcebergService {
 		@SuppressWarnings("unchecked")
 		public WrappedPartitionedFanoutWriter(Table table, @SuppressWarnings("rawtypes") FileAppenderFactory fileAppenderFactory,
 				OutputFileFactory fileFactory) {
-			super(table.spec(), FileFormat.PARQUET, fileAppenderFactory, fileFactory, table.io(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+			super(table.spec(), FileFormat.PARQUET, fileAppenderFactory, fileFactory, table.io(), maxFileSizeBytes);
 
 			partitionKey = new PartitionKey(table.spec(), table.spec().schema());
 
@@ -252,6 +226,17 @@ public class IcebergService {
 			partitionKey.partition(wrapper.wrap(record));
 			return partitionKey;
 		}
+	}
+
+	public void abort() {
+		if (partitionedFanoutWriter == null) {
+			try {
+				partitionedFanoutWriter.abort();
+			} catch (IOException e) {
+				log.error("Error while aborting Iceberg writer, error: {}", e.getMessage());
+			}
+		}
+		
 	}
 
 }

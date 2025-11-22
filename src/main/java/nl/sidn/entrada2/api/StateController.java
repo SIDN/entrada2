@@ -33,14 +33,6 @@ public class StateController {
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
-	
-	@PutMapping(path = "/flush")
-	public ResponseEntity<Void> flush() {
-
-		stateService.flush();
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
 
 	@GetMapping
 	public ResponseEntity<APP_STATE> state() {

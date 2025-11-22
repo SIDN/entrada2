@@ -2,7 +2,9 @@ package nl.sidnlabs.entrada2;
 
 import java.io.DataInputStream;
 import java.io.InputStream;
+
 import org.springframework.core.io.ClassPathResource;
+
 import lombok.extern.log4j.Log4j2;
 import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidnlabs.pcap.PcapReader;

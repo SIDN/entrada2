@@ -45,7 +45,7 @@ public class ExpiredObjectChecker {
 	@Autowired
 	private S3Service s3Service;
 	
-	@Scheduled(initialDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}", fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
+	@Scheduled(initialDelay = 60*1000, fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
 	public void execute() {
 		if (!leaderService.isleader()) {
 			// only leader is allowed to continue
@@ -82,7 +82,7 @@ public class ExpiredObjectChecker {
 					if(!tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value)) {					
 					// check if object claim is expired
 					Optional<LocalDateTime> startDate = stringToDate(tags.get(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value));
-						if(startDate.isEmpty() || startDate.get().plusSeconds(maxProcTime).isBefore(now)) {
+						if(startDate.get().plusSeconds(maxProcTime).isBefore(now)) {
 							if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
 								String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
 								if(NumberUtils.isCreatable(value)) {
@@ -92,8 +92,9 @@ public class ExpiredObjectChecker {
 										// this will cause the object to be processed again
 										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
 										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
-										tags.put(S3ObjectTagName.ENTRADA_NOT_COMPLETED.value, "true");
 										s3Service.tag(bucketName, obj.key(), tags);
+										
+										//TODO: add metric for monitoring
 										
 										log.info("Object not processed correctly, doing retry for: {}", obj.key());
 									}

@@ -154,7 +154,7 @@ public class S3Service {
 			tags.putAll(tmpTags);
 			return true;
 		} catch(Exception e) {	
-			log.error("Error getting tags for (deleted?) key: {}", key, e);
+			log.error("Error getting tags for (deleted?) key: {}", key);
 			return false;
 		} 
 	}
