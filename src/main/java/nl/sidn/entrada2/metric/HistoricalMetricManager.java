@@ -33,9 +33,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
-import com.influxdb.client.WriteApi;
-import com.influxdb.client.domain.WritePrecision;
-import com.influxdb.client.write.Point;
+import com.influxdb.v3.client.InfluxDBClient;
+import com.influxdb.v3.client.Point;
+import com.influxdb.v3.client.write.WritePrecision;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.load.DnsMetricValues;
@@ -85,8 +85,8 @@ public class HistoricalMetricManager {
 
 	private static final Map<String, String> EMPTY_MAP = new HashMap<>();
 
-	@Autowired
-	private WriteApi influxApi;
+	@Autowired(required = false)
+	private InfluxDBClient influxClient;
 
 	public void update(DnsMetricValues dmv) {
 
@@ -210,44 +210,45 @@ public class HistoricalMetricManager {
 		if (m instanceof AvgMetric) {
 			// make sure points are all saved a float and not mix of float and int, this will cause exception
 			
-			Point point = Point.measurement(metricName).time(time, p).addTags(m.getTags())
-					.addTag("site", anycastSite)
-					.addTag("server", server)
-					.addTag("type", "avg").addField("value", (float)m.getValue());
+			Point point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p).setTags(m.getTags())
+					.setTag("site", anycastSite)
+					.setTag("server", server)
+					.setTag("type", "avg")
+					.setField("value", (float)m.getValue());
 
-			influxApi.writePoint(point);
+			influxClient.writePoint(point);
 
-			point = Point.measurement(metricName).time(time, p)
-					.addTag("server", server)
-					.addTag("site", anycastSite)
-					.addTag("type", "sample")
-					.addField("value", (float)m.getSamples());
+			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+					.setTag("server", server)
+					.setTag("site", anycastSite)
+					.setTag("type", "sample")
+					.setField("value", (float)m.getSamples());
 
-			influxApi.writePoint(point);
+			influxClient.writePoint(point);
 
-			point = Point.measurement(metricName).time(time, p)
-					.addTag("server", server)
-					.addTag("site", anycastSite)
-					.addTag("type", "min")
-					.addField("value", (float)((AvgMetric) m).getMin());
+			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+					.setTag("server", server)
+					.setTag("site", anycastSite)
+					.setTag("type", "min")
+					.setField("value", (float)((AvgMetric) m).getMin());
 
-			influxApi.writePoint(point);
+			influxClient.writePoint(point);
 
-			point = Point.measurement(metricName).time(time, p)
-					.addTag("server", server)
-					.addTag("site", anycastSite)
-					.addTag("type", "max")
-					.addField("value", (float)((AvgMetric) m).getMax());
+			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+					.setTag("server", server)
+					.setTag("site", anycastSite)
+					.setTag("type", "max")
+					.setField("value", (float)((AvgMetric) m).getMax());
 
-			influxApi.writePoint(point);
+			influxClient.writePoint(point);
 		} else {
-			Point point = Point.measurement(metricName).time(time, p)
-					.addTags(m.getTags())
-					.addTag("site", anycastSite)
-					.addTag("server", server)
-					.addField("value", m.getValue());
+			Point point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+					.setTags(m.getTags())
+					.setTag("site", anycastSite)
+					.setTag("server", server)
+					.setField("value", m.getValue());
 
-			influxApi.writePoint(point);
+			influxClient.writePoint(point);
 		}
 
 	}

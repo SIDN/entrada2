@@ -9,7 +9,7 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import com.influxdb.client.InfluxDBClient;
+import com.influxdb.v3.client.InfluxDBClient;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.LeaderService;
@@ -45,7 +45,11 @@ public class StartupListener {
 	@EventListener
 	public void onApplicationEvent(ContextClosedEvent event) {
 		if (influxClient != null) {
-			influxClient.close();
+			try {
+				influxClient.close();
+			} catch (Exception e) {
+				log.error("Error closing InfluxDB client");
+			}
 		}
 	}
 

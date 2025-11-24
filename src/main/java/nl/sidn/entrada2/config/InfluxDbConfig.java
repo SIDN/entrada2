@@ -5,12 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.influxdb.client.InfluxDBClient;
-import com.influxdb.client.InfluxDBClientFactory;
-import com.influxdb.client.WriteApi;
-import com.influxdb.client.WriteOptions;
+import com.influxdb.v3.client.InfluxDBClient;
 
-import io.reactivex.rxjava3.core.BackpressureOverflowStrategy;
 import lombok.Data;
 
 @Data
@@ -28,21 +24,21 @@ public class InfluxDbConfig {
 	
 	@Bean
 	public InfluxDBClient influxDbClient() {
-		return InfluxDBClientFactory.create(uri, token.toCharArray(), org, bucket);
+		return InfluxDBClient.getInstance(uri, token.toCharArray(), bucket);
 	}
 	
-	@Bean
-	public WriteApi influxDbWriteApi(InfluxDBClient client) {
-
-		 return client.makeWriteApi(WriteOptions.builder()
-                .batchSize(5000)
-                .flushInterval(1000)
-                .backpressureStrategy(BackpressureOverflowStrategy.DROP_OLDEST)
-                .bufferLimit(10000)
-                .jitterInterval(1000)
-                .retryInterval(5000)
-                .build());
-                
-	}
+//	@Bean
+//	public WriteApi influxDbWriteApi(InfluxDBClient client) {
+//
+//		 return client.makeWriteApi(WriteOptions.builder()
+//                .batchSize(5000)
+//                .flushInterval(1000)
+//                .backpressureStrategy(BackpressureOverflowStrategy.DROP_OLDEST)
+//                .bufferLimit(10000)
+//                .jitterInterval(1000)
+//                .retryInterval(5000)
+//                .build());
+//                
+//	}
 
 }
