@@ -89,6 +89,14 @@ public class IcebergCatalogConfig {
 		properties.put(OAuth2Properties.TOKEN_EXCHANGE_ENABLED, "false");
 		
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
+		
+		if (StringUtils.isNotBlank(endpoint)) {
+			properties.put(S3FileIOProperties.ENDPOINT, endpoint);
+		}
+
+		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, secretKey);
+		properties.put(S3FileIOProperties.ACCESS_KEY_ID, accessKey);
+		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
 
 		RESTCatalog catalog;
 		try {

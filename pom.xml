@@ -11,14 +11,14 @@
     </parent>
     <groupId>nl.sidn</groupId>
     <artifactId>entrada2</artifactId>
-    <version>0.0.13</version>
+    <version>0.0.14</version>
     <name>entrada2</name>
 
     <properties>
         <java.version>25</java.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <spring-cloud-aws.version>3.4.1</spring-cloud-aws.version>
-        <iceberg.version>1.10.0</iceberg.version>
+        <iceberg.version>1.10.1</iceberg.version>
         <aws-java-sdk.version>2.38.9</aws-java-sdk.version>
     </properties>
     <dependencies>

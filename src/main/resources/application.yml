@@ -53,7 +53,7 @@ entrada:
     # if they are the same, the reuse the credentials for iceberg.s3 settings.
     access-key: #'${AWS_ACCESS_KEY_ID}'
     secret-key: #'${AWS_SECRET_ACCESS_KEY}'
-    region: #${AWS_REGION}'
+    region: '${AWS_REGION}'
     # only use endpoint when not using aws 
     endpoint:
     bucket: sidnlabs-iceberg-data
@@ -72,6 +72,7 @@ entrada:
     request:
       # lifecycle events from s3 bucket are sent to this queue
       name: 'entrada-s3-event'
+      ttl: 60 # ttl in minutes
       aws:
         retention: 86400
         visibility-timeout: 600
@@ -154,7 +155,7 @@ iceberg:
   s3:
      access-key:
      secret-key:
-     region: ${AWS_REGION}'
+     region: '${AWS_REGION}'
       # only use endpoint when not using aws 
      endpoint:
   # JDBC/REST catalog, use this when not using aws Glue catalog

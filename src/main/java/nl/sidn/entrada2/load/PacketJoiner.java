@@ -122,9 +122,9 @@ public class PacketJoiner {
 		RequestCacheKey key = new RequestCacheKey(msg.getHeader().getId(), qname(msg), dnsPacket.getSrc(),
 				dnsPacket.getSrcPort());
 
-		if (log.isDebugEnabled()) {
-			log.debug("Insert into cache key: {}", key);
-		}
+//		if (log.isDebugEnabled()) {
+//			log.debug("Insert into cache key: {}", key);
+//		}
 
 		// put the query in the cache until we get a matching response
 		requestCache.put(key, new RequestCacheValue(msg, dnsPacket));
@@ -176,10 +176,10 @@ public class PacketJoiner {
 
 		key = new RequestCacheKey(msg.getHeader().getId(), qname, dnsPacket.getDst(), dnsPacket.getDstPort());
 
-		if (log.isDebugEnabled()) {
-			log.debug("Get from cache key: " + key);
-			//log.debug("request cache size before: " + requestCache.size());
-		}
+//		if (log.isDebugEnabled()) {
+//			log.debug("Get from cache key: " + key);
+//			//log.debug("request cache size before: " + requestCache.size());
+//		}
 
 		RequestCacheValue request = requestCache.remove(key);
 		// check to see if the request msg exists, at the start of the pcap there may be

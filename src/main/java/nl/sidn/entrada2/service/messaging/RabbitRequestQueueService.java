@@ -44,16 +44,42 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 			
 			if (isSupportedEvent(rec.getEventName())) {
 				log.info("Received s3 event for: {}/{}", bucket, key);
-				workService.process(bucket, key);
+				try {
+					workService.process(bucket, key);
+				} catch (Exception e) {
+					log.error("Unhandled exception", e);
+					done(channel, tag, false);
+					return;
+				}
 			}else {
 				log.error("Unsupported s3 event for: {}/{}", bucket, key);
 			}
 		}
 		
-		try {
-			channel.basicAck(tag, false);
-		} catch (IOException e) {
-			log.error("Error sending ack for tag: {}", tag);
+		log.info("Ack that message has been processed");
+		done(channel, tag, true);
+		
+//		try {
+//			channel.basicAck(tag, false);
+//		} catch (IOException e) {
+//			log.error("Error sending ack for tag: {}", tag);
+//		}
+	}
+	
+	private void done(Channel channel, long tag, boolean ok) {
+		log.info("Sending ack/nack");
+		if(ok) {
+			try {
+				channel.basicAck(tag, false);
+			} catch (IOException e) {
+				log.error("Error sending ack for tag: {}", tag);
+			}
+		}else {
+			try {
+				channel.basicNack(tag, false, false);
+			} catch (IOException e) {
+				log.error("Error sending ack for tag: {}", tag);
+			}
 		}
 	}
 	

@@ -29,7 +29,6 @@ import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.pcap.PcapReader;
-import nl.sidnlabs.pcap.packet.Packet;
 
 @Service
 @Slf4j
@@ -105,19 +104,19 @@ public class WorkService {
 		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
 			// ingore input directory creation
 			log.error("Ignore create of pcap prefix: {}", key);
-			return false;
+			return true;
 		}
 		if(!CompressionUtil.isSupportedFormat(key)) {
 			// ingore input directory creation
 			log.error("Unsupported filetype: {}", key);
-			return false;
+			return true;
 		}
 			
 		Map<String, String> tags = new HashMap<String, String>();
 		if(!s3Service.tags(bucket, key, tags)){
 			// cannot get tags, retry later
 			log.error("Cannot get tags for objec: {}", key);
-			return false;
+			return true;
 		}
 
 		// check if file has been processed before, messages are delivered to single consumer
@@ -143,7 +142,7 @@ public class WorkService {
 		if(!s3Service.tag(bucket, key, tags)) {
 			// could not mark the file as being processed, do not continue
 			log.error("Claiming s3 object failed, do not continue processing: {}", key);
-			return false;
+			return true;
 		}
 
 		String server = defaultNsName;
@@ -204,15 +203,24 @@ public class WorkService {
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
+				if (log.isDebugEnabled()) {
+					log.debug("Flush metrics");
+				}
 				metrics.flush(server, anycastSite);
 			}
 		}
 		
 		//cleanup after successful processing of file
 		if(isDeleteObject()) {
+			if (log.isDebugEnabled()) {
+				log.debug("Delete object: {}/{}",  bucket, key );
+			}
 			// delete input file, do not copy to output location
 			s3Service.delete(bucket, key);
 		}else {
+			if (log.isDebugEnabled()) {
+				log.debug("Set tags on object: {}/{}",  bucket, key );
+			}
 			// keep pcap file in s3, but mark as processed
 			tags.put(S3ObjectTagName.ENTRADA_PROCESS_DURATION.value, String.valueOf(duration));
 			tags.put(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value,

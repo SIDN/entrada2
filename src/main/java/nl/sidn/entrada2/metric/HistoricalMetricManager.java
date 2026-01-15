@@ -20,8 +20,10 @@
 package nl.sidn.entrada2.metric;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -174,11 +176,15 @@ public class HistoricalMetricManager {
 
 
 	public void flush(String server, String anycastSite) {
-
+		log.info("Start Flush metrics");
+		List<Point> points = new ArrayList<Point>();
+		
 		try {
 			for(Entry<String, Map<Instant, Metric>> entry : metricCache.entrySet()) {
-				entry.getValue().entrySet().stream().forEach(m -> send(m, entry.getKey(), server, anycastSite));
+				entry.getValue().entrySet().stream().forEach(m -> createPoints(points, m, entry.getKey(), server, anycastSite));
 			}
+			log.info("Start write metric {} points", points.size());
+			influxClient.writePoints(points);
 		} catch (Exception e) {
 			// cannot connect connect to influxdb?
 			log.error("Error sending metrics", e);
@@ -186,19 +192,19 @@ public class HistoricalMetricManager {
 			metricCache.clear();
 		}
 		
-		log.info("Flushed metrics");
+		log.info("Done flushing metrics");
 	}
 
-	private void send(Entry<Instant, Metric> entry, String name, String server, String anycastSite) {
-		if(log.isDebugEnabled()) {
-			log.debug("Metric: {} value: {}", name, entry);
-		}
+	private void createPoints(List<Point> points, Entry<Instant, Metric> entry, String name, String server, String anycastSite) {
+//		if(log.isDebugEnabled()) {
+//			log.debug("Metric: {} value: {}", name, entry);
+//		}
 		
-		WritePrecision p =  WritePrecision.NS;
+		WritePrecision p =  WritePrecision.MS;
 		
 		// add 1 nanosec to the last metric to prevent other pcap data from overwriting
 		// the same second
-		Instant time = entry.getKey().plusNanos(RND.nextLong(10000));
+		Instant time = entry.getKey().plusMillis(RND.nextLong(100));
 		Metric m = entry.getValue();
 		
 		String metricName = name;
@@ -207,49 +213,54 @@ public class HistoricalMetricManager {
 			metricName = parts[0];
 		}
 
+		
 		if (m instanceof AvgMetric) {
 			// make sure points are all saved a float and not mix of float and int, this will cause exception
 			
-			Point point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p).setTags(m.getTags())
+			Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p).setTags(m.getTags())
 					.setTag("site", anycastSite)
 					.setTag("server", server)
 					.setTag("type", "avg")
 					.setField("value", (float)m.getValue());
 
-			influxClient.writePoint(point);
+			points.add(point);
 
-			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
 					.setTag("server", server)
 					.setTag("site", anycastSite)
 					.setTag("type", "sample")
 					.setField("value", (float)m.getSamples());
 
-			influxClient.writePoint(point);
+			points.add(point);
 
-			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
 					.setTag("server", server)
 					.setTag("site", anycastSite)
 					.setTag("type", "min")
 					.setField("value", (float)((AvgMetric) m).getMin());
 
-			influxClient.writePoint(point);
+			points.add(point);
 
-			point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
 					.setTag("server", server)
 					.setTag("site", anycastSite)
 					.setTag("type", "max")
 					.setField("value", (float)((AvgMetric) m).getMax());
 
-			influxClient.writePoint(point);
+			points.add(point);
 		} else {
-			Point point = Point.measurement(metricName).setTimestamp(time.getEpochSecond(), p)
+			Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
 					.setTags(m.getTags())
 					.setTag("site", anycastSite)
 					.setTag("server", server)
 					.setField("value", m.getValue());
 
-			influxClient.writePoint(point);
+			points.add(point);
+			
 		}
+		
+		//return points;
+		//influxClient.writePoints(points);
 
 	}
 

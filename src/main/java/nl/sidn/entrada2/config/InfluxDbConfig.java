@@ -26,19 +26,5 @@ public class InfluxDbConfig {
 	public InfluxDBClient influxDbClient() {
 		return InfluxDBClient.getInstance(uri, token.toCharArray(), bucket);
 	}
-	
-//	@Bean
-//	public WriteApi influxDbWriteApi(InfluxDBClient client) {
-//
-//		 return client.makeWriteApi(WriteOptions.builder()
-//                .batchSize(5000)
-//                .flushInterval(1000)
-//                .backpressureStrategy(BackpressureOverflowStrategy.DROP_OLDEST)
-//                .bufferLimit(10000)
-//                .jitterInterval(1000)
-//                .retryInterval(5000)
-//                .build());
-//                
-//	}
 
 }
