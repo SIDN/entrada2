@@ -104,19 +104,30 @@ public class WorkService {
 		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
 			// ingore input directory creation
 			log.error("Ignore create of pcap prefix: {}", key);
+			cleanup(bucket, key, new HashMap<String, String>(), 0);
 			return true;
 		}
 		if(!CompressionUtil.isSupportedFormat(key)) {
 			// ingore input directory creation
 			log.error("Unsupported filetype: {}", key);
+			cleanup(bucket, key, new HashMap<String, String>(), 0);
+			return true;
+		}
+		
+		if(!s3Service.exists(bucket, key)){
+			//if(log.isDebugEnabled()) {
+			log.info("Object no longer exists: {}", key);
+			//}
+			
+			// this is ok, object already processsed by other instance
 			return true;
 		}
 			
 		Map<String, String> tags = new HashMap<String, String>();
 		if(!s3Service.tags(bucket, key, tags)){
 			// cannot get tags, retry later
-			log.error("Cannot get tags for objec: {}", key);
-			return true;
+			log.error("Cannot get tags for object: {}", key);
+			return false;
 		}
 
 		// check if file has been processed before, messages are delivered to single consumer
@@ -210,6 +221,14 @@ public class WorkService {
 			}
 		}
 		
+		cleanup(bucket, key, tags, duration);
+		
+		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
+	    
+		return true;
+	}
+
+	private void cleanup(String bucket, String key, Map<String, String> tags, long duration) {
 		//cleanup after successful processing of file
 		if(isDeleteObject()) {
 			if (log.isDebugEnabled()) {
@@ -237,10 +256,6 @@ public class WorkService {
 			
 			s3Service.tag(bucket, tagKkey, tags);
 		}
-		
-		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
-	    
-		return true;
 	}
 	
 	private boolean isDeleteObject() {

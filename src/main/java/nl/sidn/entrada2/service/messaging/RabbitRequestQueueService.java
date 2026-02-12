@@ -35,29 +35,37 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
 	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {
 		
+		String bucket = null;
+		String key = null;
+		boolean result = false;
+		
+		//always single record?
 		for (S3EventNotificationRecord rec : message.getRecords()) {
 			
 			// check the getEventName, updating the tags may also generate a put event and
 			// this should not lead to processing the same file again.
-			String bucket = rec.getS3().getBucket().getName();
-			String key = UrlUtil.decode(rec.getS3().getObject().getKey());
+			bucket = rec.getS3().getBucket().getName();
+			key = UrlUtil.decode(rec.getS3().getObject().getKey());
 			
 			if (isSupportedEvent(rec.getEventName())) {
 				log.info("Received s3 event for: {}/{}", bucket, key);
 				try {
-					workService.process(bucket, key);
+					result = workService.process(bucket, key);
 				} catch (Exception e) {
 					log.error("Unhandled exception", e);
-					done(channel, tag, false);
-					return;
+					result = false;
+					break;
 				}
 			}else {
 				log.error("Unsupported s3 event for: {}/{}", bucket, key);
+				result = true;
 			}
 		}
 		
-		log.info("Ack that message has been processed");
-		done(channel, tag, true);
+		done(channel, tag, result);
+		
+//		log.info("Ack that message has been processed, key: {}", key);
+//		done(channel, tag, true);
 		
 //		try {
 //			channel.basicAck(tag, false);

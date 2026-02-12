@@ -38,6 +38,9 @@ public class RabbitMqConfig {
 	
 	@Value("${entrada.messaging.leader.name}")
 	private String leaderQueue;
+	
+	@Value("${entrada.messaging.leader.batchSize:50}")
+	private int leaderQueueBatchSize;
 
 	@Value("${spring.rabbitmq.retry-attempts}")
 	private int retryAttempts;
@@ -175,16 +178,21 @@ public class RabbitMqConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerByteContainerFactory(
             ConnectionFactory connectionFactory,
-            RetryOperationsInterceptor retryInterceptor,
-            ObjectMapper objectMapper) {
+            RetryOperationsInterceptor retryInterceptor) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
+        
         factory.setMessageConverter(simpleMessageConverter());
-        factory.setPrefetchCount(1);
         factory.setConcurrentConsumers(1);
         factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
-        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        factory.setBatchListener(true);
+        factory.setConsumerBatchEnabled(true);
+        factory.setPrefetchCount(leaderQueueBatchSize);
+        factory.setBatchSize(leaderQueueBatchSize);
+        // Wait time before processing batch if not full (in milliseconds)
+        factory.setReceiveTimeout(5000L);        
         return factory;
     }
     

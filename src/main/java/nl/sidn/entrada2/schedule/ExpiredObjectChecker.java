@@ -68,7 +68,9 @@ public class ExpiredObjectChecker {
 		// find objects that have ts_start < (now - max_proc_time) and have no ts_end
 		for(S3Object obj : s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"))) {
 			
-			log.debug("Checking: {}", obj.key());
+			if(log.isDebugEnabled()) {
+				log.debug("Checking: {}", obj.key());
+			}
 			
 			if(obj.size() == 0) {
 				// ignore directories
@@ -91,6 +93,8 @@ public class ExpiredObjectChecker {
 										// expired object and max tries not yet reached, remove  start tag
 										// this will cause the object to be processed again
 										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
+										//remove detected just in case
+										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
 										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
 										s3Service.tag(bucketName, obj.key(), tags);
 										
@@ -102,7 +106,7 @@ public class ExpiredObjectChecker {
 							}
 						}
 					}
-				}else {
+				} else {
 					// object has not yet been picked up by a worker, maybe queue was unavailable
 					// resend it to the queue to make sure it will be processed
 					LocalDateTime objDate = LocalDateTime.ofInstant(obj.lastModified(), localZone );
@@ -110,6 +114,8 @@ public class ExpiredObjectChecker {
 						// setting the tags to the object again, will cause an s3:ObjectCreated:PutTagging event to be sent to the queue
 						log.info("Object {} was not picked up, resending it to queue for processing",obj.key());
 						tags.put(S3ObjectTagName.ENTRADA_WAIT_EXPIRED.value, "true");
+						//remove detected
+						tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
 						s3Service.tag(bucketName,  obj.key(), tags);
 					}
 				}				

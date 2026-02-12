@@ -2,9 +2,9 @@ package nl.sidn.entrada2.schedule;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,6 +20,7 @@ import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.S3ObjectTagName;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
 @ConditionalOnExpression(
@@ -67,18 +68,47 @@ public class NewObjectChecker {
 
 	public void scanForNewObjects() {
 		
-		s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/")).stream()
-		.filter( obj -> obj.size() > 0)
-		// get tags for object, may not be very efficient when many new objects are detected
-		.map(obj -> Pair.of(obj.key(), s3Service.tags(bucketName, obj.key())))
-		.sorted(Comparator.comparing(obj -> StringUtils.defaultString(obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_TS.value))))
-		.map(Pair::getKey)
-		.forEach( obj -> {
-			log.info("New object found: {}/{}", bucketName, obj);
+		int counter = 0;
+		List<S3Object> s3Objects = s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"));
+		
+		s3Objects.sort(Comparator.comparing(S3Object::key));
+		
+		for( S3Object s3Object: s3Objects) {
 			
-			//  send new object to the request queue so the object can be processed by any listening entrada instance
-			rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, obj));
-		});
+			 Map<String, String> tags = s3Service.tags(bucketName, s3Object.key());
+			 if(StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
+				 
+				if(log.isDebugEnabled()) {
+					log.debug("New object found: {}/{}", bucketName, s3Object.key());
+				}
+				
+				rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, s3Object.key()));
+				
+				tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
+				s3Service.tag(bucketName, s3Object.key(), tags);
+				
+				counter++;
+				 
+			 }
+		}
+		
+		log.info("Detected {} new objects", counter);
+		
+//		//.filter( obj -> obj.size() > 0)
+//		// get tags for object, may not be very efficient when many new objects are detected
+//		.map(obj -> Pair.of(obj.key(), s3Service.tags(bucketName, obj.key())))
+//		.sorted(Comparator.comparing(obj -> StringUtils.defaultString(obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))))
+//		.map(Pair::getKey)
+//		.forEach( obj -> {
+//			if(log.isDebugEnabled()) {
+//				log.debug("New object found: {}/{}", bucketName, obj);
+//			}
+//			
+//			//ENTRADA_OBJECT_DETECTED
+//			
+//			//  send new object to the request queue so the object can be processed by any listening entrada instance
+//			rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, obj));
+//		});
 		
 	}
 	

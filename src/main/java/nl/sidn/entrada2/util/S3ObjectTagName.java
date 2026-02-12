@@ -10,6 +10,7 @@ public enum S3ObjectTagName {
 	ENTRADA_WAIT_EXPIRED("entrada-wait-expired"),
 	ENTRADA_OBJECT_TRIES("entrada-object-tries"),
 	// (ISO_8601)
+	ENTRADA_OBJECT_DETECTED("entrada-object-detected"),
 	// example: 2022-10-12T01:01:00.000Z
 	ENTRADA_OBJECT_TS("entrada-object-ts");
 

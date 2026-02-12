@@ -175,12 +175,25 @@ public class IcebergService {
 		return Collections.emptyList();
 	}
 
-	public void commit(DataFile dataFile) {
-		log.info("Add new datafile to Iceberg table: " + dataFile.location());
+	public void commit(DataFile dataFile) {	
+		commit(Collections.singletonList(dataFile));
+	}
+	
+	public void commit(List<DataFile> dataFiles) {
+		AppendFiles appendFiles = null;
 		
-		AppendFiles appendFiles = table.newAppend();
-		appendFiles.appendFile(dataFile);
-		appendFiles.commit();
+		if(dataFiles.size() > 0) {
+			appendFiles = table.newAppend();
+		}
+		
+		for(DataFile dataFile: dataFiles) {
+			log.info("Append Iceberg datafile, rows: {} path: {}", dataFile.recordCount(), dataFile.location());
+			appendFiles.appendFile(dataFile);
+		}
+		
+		if(dataFiles.size() > 0) {
+			appendFiles.commit();
+		}
 	}
 
 	public void commit() {

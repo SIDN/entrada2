@@ -2,6 +2,7 @@ package nl.sidn.entrada2.service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -22,9 +23,12 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
@@ -98,10 +102,27 @@ public class S3Service {
 
 	public List<S3Object> ls(String bucket, String key) {
 
-		ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key).build();
-
+		String marker = null;
+		List<S3Object> s3objects = new ArrayList<S3Object>();
+		
 		try {
-			return s3Client.listObjects(listObjects).contents();
+			do {
+				ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key)
+						.marker(marker)
+						.build();
+	
+				ListObjectsResponse listing = s3Client.listObjects(listObjects);
+					
+				s3objects.addAll(listing.contents());
+	
+			    marker = listing.nextMarker();
+			    
+			    if(log.isDebugEnabled()) {
+			    	log.debug("ls received {} objects sofar", s3objects.size());
+			    }
+			} while (marker != null);
+		
+			return s3objects;
 		} catch (Exception e) {
 			log.error("Read error", e);
 		}
@@ -127,8 +148,12 @@ public class S3Service {
 					.build();
 			s3FastClient.putObjectTagging(tagReq);
 			return true;
-		} catch (Exception e) {
-			log.error("Error setting tag on key: {}", key, e);
+		} catch (Exception e) {		
+			if(log.isDebugEnabled()) {
+				log.debug("Error setting tag on key: {}", key, e);
+			}else {
+				log.error("Error setting tag on key: {}", key);
+			}
 		}
 		return false;
 	}
@@ -154,7 +179,9 @@ public class S3Service {
 			tags.putAll(tmpTags);
 			return true;
 		} catch(Exception e) {	
-			log.error("Error getting tags for (deleted?) key: {}", key);
+			if(log.isDebugEnabled()) {
+				log.debug("Error getting tags for (deleted?) key: {}", key);
+			}
 			return false;
 		} 
 	}
@@ -208,5 +235,20 @@ public class S3Service {
 
 		return true;
 	}
+
+	public boolean exists(String bucket, String key) {
+	    try {
+	        s3Client.headObject(HeadObjectRequest.builder()
+	                .bucket(bucket)
+	                .key(key)
+	                .build());
+	        return true;
+	    } catch (S3Exception e) {
+	        if (e.statusCode() == 404) {
+	            return false;
+	        }
+	        throw e; // other errors bubble up
+	    }
+}
 
 }

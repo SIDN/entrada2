@@ -85,6 +85,7 @@ entrada:
     leader:
       # the leader will listen to this queue
       name: 'entrada-leader'
+      batchSize: 50
       aws:
         retention: 86400
         visibility-timeout: 300
