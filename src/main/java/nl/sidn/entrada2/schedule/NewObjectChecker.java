@@ -1,6 +1,7 @@
 package nl.sidn.entrada2.schedule;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,47 +70,39 @@ public class NewObjectChecker {
 	public void scanForNewObjects() {
 		
 		int counter = 0;
+		int counterAdded = 0;
 		List<S3Object> s3Objects = s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"));
 		
 		s3Objects.sort(Comparator.comparing(S3Object::key));
+		Map<String, String> tags = new HashMap<String, String>();
 		
 		for( S3Object s3Object: s3Objects) {
 			
-			 Map<String, String> tags = s3Service.tags(bucketName, s3Object.key());
-			 if(StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
-				 
-				if(log.isDebugEnabled()) {
-					log.debug("New object found: {}/{}", bucketName, s3Object.key());
-				}
-				
-				rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, s3Object.key()));
-				
-				tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
-				s3Service.tag(bucketName, s3Object.key(), tags);
-				
-				counter++;
-				 
+			 if(s3Service.tags(bucketName, s3Object.key(), tags)){
+				 if(StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
+					 
+					if(log.isDebugEnabled()) {
+						log.debug("New object found: {}/{}", bucketName, s3Object.key());
+					}
+					
+					tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
+					if(s3Service.tag(bucketName, s3Object.key(), tags)) {
+						rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, s3Object.key()));
+						counterAdded++;
+					}else {
+						// problem setting tags
+						log.error("Failed to set tags on newly detected object: ", s3Object.key());
+					}
+					
+					counter++;
+					 
+				 }
 			 }
+			 
+			 tags.clear();
 		}
 		
-		log.info("Detected {} new objects", counter);
-		
-//		//.filter( obj -> obj.size() > 0)
-//		// get tags for object, may not be very efficient when many new objects are detected
-//		.map(obj -> Pair.of(obj.key(), s3Service.tags(bucketName, obj.key())))
-//		.sorted(Comparator.comparing(obj -> StringUtils.defaultString(obj.getValue().get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))))
-//		.map(Pair::getKey)
-//		.forEach( obj -> {
-//			if(log.isDebugEnabled()) {
-//				log.debug("New object found: {}/{}", bucketName, obj);
-//			}
-//			
-//			//ENTRADA_OBJECT_DETECTED
-//			
-//			//  send new object to the request queue so the object can be processed by any listening entrada instance
-//			rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, obj));
-//		});
-		
+		log.info("Detected {} new object(s) and added {} object(s) to request queue", counter, counterAdded);
 	}
 	
 	private S3EventNotification createEvent(String bucket, String key) {

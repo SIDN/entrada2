@@ -129,7 +129,7 @@ public class IcebergTableConfig {
 
 			PartitionSpec spec = PartitionSpec.builderFor(schema)
 					.day("time", "day")
-					.identity("server").build();
+					.build();
 
 			Map<String, String> props = new HashMap<>();
 			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);

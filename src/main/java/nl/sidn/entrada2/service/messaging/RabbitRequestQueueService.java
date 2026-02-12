@@ -63,19 +63,9 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 		}
 		
 		done(channel, tag, result);
-		
-//		log.info("Ack that message has been processed, key: {}", key);
-//		done(channel, tag, true);
-		
-//		try {
-//			channel.basicAck(tag, false);
-//		} catch (IOException e) {
-//			log.error("Error sending ack for tag: {}", tag);
-//		}
 	}
 	
 	private void done(Channel channel, long tag, boolean ok) {
-		log.info("Sending ack/nack");
 		if(ok) {
 			try {
 				channel.basicAck(tag, false);

@@ -179,7 +179,7 @@ iceberg:
     user:
     password: 
   # see iceberg docs for: write.parquet.compression-codec
-  compression: 'ZSTD'
+  compression: zstd
   metadata:
     delete-after-commit: true
     version:
@@ -204,9 +204,9 @@ iceberg:
     # using bloomfilter may result in larger data files but query execution performance may improve
     bloomfilter: true
     # max Parquet filesize (mb)
-    max-file-size-mb: 512
+    # max-file-size-mb: 512
     # minimum number of records required before output Parquest file is closed
-    #min-records: 1000000
+    min-records: 10000000
     bloomfilter-max-size-mb: 1
     
 

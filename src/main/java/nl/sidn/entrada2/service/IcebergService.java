@@ -30,14 +30,14 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 @Slf4j
 public class IcebergService {
 
-	@Value("#{${iceberg.parquet.max-file-size-mb:512} * 1024 * 1024}")
-	private int maxFileSizeBytes;
-	
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
 
 	@Value("${iceberg.parquet.dictionary-max-bytes:20000}")
 	private int parquetDictMaxBytes;
+	
+	@Value("${iceberg.parquet.min-records:1000000}")
+	private int parquetMinRecords;
 
 	@Value("${iceberg.table.bloomfilter:true}")
 	private boolean enableBloomFilter;
@@ -48,6 +48,7 @@ public class IcebergService {
 	@Value("${iceberg.metadata.version.max:100}")
 	private int metadataVersionMax;
 
+	// number of recs written to current file
 	private long currentRecCount;
 
 	@Autowired
@@ -80,7 +81,7 @@ public class IcebergService {
 		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
 		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
 
-		fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
+		//fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");
@@ -106,7 +107,7 @@ public class IcebergService {
 
 	}
 
-	public void clear() {
+	private void clear() {
 		//pageRecords.clear();
 		currentRecCount = 0;
 		writeErrors = 0;
@@ -117,8 +118,8 @@ public class IcebergService {
 
 		currentRecCount++;
 		
-		if(log.isDebugEnabled() && currentRecCount % 1000 == 0) {
-			log.debug("Processed {} rows", currentRecCount);
+		if(currentRecCount % 100000 == 0) {
+			log.info("Processed {} rows", currentRecCount);
 		}
 
 		if (partitionedFanoutWriter == null) {
@@ -195,8 +196,18 @@ public class IcebergService {
 			appendFiles.commit();
 		}
 	}
+	
+	public void commit(boolean force) {
+		if(force || currentRecCount > parquetMinRecords) {
+			// even though we have a check for parquetMinRecords there can still be some small
+			// parquet files when processing data around date boundary
+			commit();
+			// remove any old metrics and writers
+			clear();
+		}
+	}
 
-	public void commit() {
+	private void commit() {
 
 		// close the current open parquet output file
 		log.info("Commit - currentRecCount: {}", currentRecCount);
@@ -225,7 +236,7 @@ public class IcebergService {
 		@SuppressWarnings("unchecked")
 		public WrappedPartitionedFanoutWriter(Table table, @SuppressWarnings("rawtypes") FileAppenderFactory fileAppenderFactory,
 				OutputFileFactory fileFactory) {
-			super(table.spec(), FileFormat.PARQUET, fileAppenderFactory, fileFactory, table.io(), maxFileSizeBytes);
+			super(table.spec(), FileFormat.PARQUET, fileAppenderFactory, fileFactory, table.io(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
 			partitionKey = new PartitionKey(table.spec(), table.spec().schema());
 

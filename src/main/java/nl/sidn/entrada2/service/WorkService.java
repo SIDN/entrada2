@@ -96,15 +96,14 @@ public class WorkService {
 			TimeUtil.sleep(1000);
 		}
 		
-		icebergService.commit();
+		icebergService.commit(true);
 	}
 
 	public boolean process(String bucket, String key) {
 		
 		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
 			// ingore input directory creation
-			log.error("Ignore create of pcap prefix: {}", key);
-			cleanup(bucket, key, new HashMap<String, String>(), 0);
+			log.error("Ignore create event for pcap prefix: {}", key);
 			return true;
 		}
 		if(!CompressionUtil.isSupportedFormat(key)) {
@@ -115,9 +114,7 @@ public class WorkService {
 		}
 		
 		if(!s3Service.exists(bucket, key)){
-			//if(log.isDebugEnabled()) {
 			log.info("Object no longer exists: {}", key);
-			//}
 			
 			// this is ok, object already processsed by other instance
 			return true;
@@ -172,6 +169,8 @@ public class WorkService {
 		Timer.Sample sample = Timer.start(meterRegistry);
 		
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
+		
+		// startOfWork is also used for checking if pcap processing has stalled
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
 		Optional<InputStream> ois = null;
@@ -194,15 +193,9 @@ public class WorkService {
 			// by iceberg maintenance processes
 			log.error("Error processing file: {}/{}", bucket, key, e);
 			
-			icebergService.abort();
-			
+			tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
 			errorCounter.increment();
-			return false;
 		} finally {
-			// startOfWork is also used for checking if pcap processing has stalled
-			if (log.isDebugEnabled()) {
-				log.debug("Close pcap reader");
-			}
 			try {
 				if(ois.isPresent()) {
 					ois.get().close();
@@ -214,9 +207,6 @@ public class WorkService {
 			startOfWork = 0;
 			working = false;
 			if(isMetricsEnabled()) {
-				if (log.isDebugEnabled()) {
-					log.debug("Flush metrics");
-				}
 				metrics.flush(server, anycastSite);
 			}
 		}
@@ -268,9 +258,6 @@ public class WorkService {
 
 	private void process_(PcapReader reader, String bucket, String key, String server, String anycastSite) {
 
-		// make sure previously failed process has not left data behind
-		icebergService.clear();
-
 		reader.stream().forEach(p -> {
 			
 			joiner.join(p).forEach(rd -> {
@@ -312,7 +299,7 @@ public class WorkService {
 			log.debug("Close Iceberg writer");
 		}
 
-		icebergService.commit();
+		icebergService.commit(false);
 	}
 
 	/**

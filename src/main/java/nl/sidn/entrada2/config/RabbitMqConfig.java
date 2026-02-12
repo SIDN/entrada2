@@ -1,6 +1,7 @@
 package nl.sidn.entrada2.config;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Binding;
@@ -70,8 +71,9 @@ public class RabbitMqConfig {
     
     @Bean
     public Queue commandQueue(){
+    	// create unique queue per instance so every instance receives the commands
         return QueueBuilder
-        		.nonDurable(commandQueue + "-queue")
+        		.nonDurable(commandQueue + "-queue:" + UUID.randomUUID().toString())
         		.autoDelete()
                 .build();
     }

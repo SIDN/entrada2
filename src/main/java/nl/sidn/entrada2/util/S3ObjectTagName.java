@@ -7,6 +7,7 @@ public enum S3ObjectTagName {
 	ENTRADA_PROCESS_TS_START("entrada-process-ts-start"),
 	ENTRADA_PROCESS_TS_END("entrada-process-ts-end"),
 	ENTRADA_PROCESS_DURATION("entrada-process-duration"),
+	ENTRADA_PROCESS_FAILED("entrada-process-failed"),
 	ENTRADA_WAIT_EXPIRED("entrada-wait-expired"),
 	ENTRADA_OBJECT_TRIES("entrada-object-tries"),
 	// (ISO_8601)

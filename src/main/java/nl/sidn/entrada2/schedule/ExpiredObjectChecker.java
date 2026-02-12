@@ -60,11 +60,14 @@ public class ExpiredObjectChecker {
 	}
 	
 	public void checkForExperiredObjects() {
-		 Map<String, String> tags = new HashMap<String, String>();
+		Map<String, String> tags = new HashMap<String, String>();
 		
-		 LocalDateTime now = LocalDateTime.now();
-		 ZoneId localZone = ZoneId.systemDefault();
-			
+		LocalDateTime now = LocalDateTime.now();
+		ZoneId localZone = ZoneId.systemDefault();
+		
+		int counterIncomplete = 0;
+		int counterNotPickedUp = 0;
+		
 		// find objects that have ts_start < (now - max_proc_time) and have no ts_end
 		for(S3Object obj : s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"))) {
 			
@@ -92,36 +95,41 @@ public class ExpiredObjectChecker {
 									if(tries < maxTries){
 										// expired object and max tries not yet reached, remove  start tag
 										// this will cause the object to be processed again
+										log.info("Object not processed correctly, doing retry for: {}", obj.key());
+										
 										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
 										//remove detected just in case
 										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
 										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
 										s3Service.tag(bucketName, obj.key(), tags);
 										
-										//TODO: add metric for monitoring
-										
-										log.info("Object not processed correctly, doing retry for: {}", obj.key());
+										counterIncomplete++;
 									}
 								}
 							}
 						}
 					}
-				} else {
-					// object has not yet been picked up by a worker, maybe queue was unavailable
-					// resend it to the queue to make sure it will be processed
+				}else if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value) ){
 					LocalDateTime objDate = LocalDateTime.ofInstant(obj.lastModified(), localZone );
 					if(objDate.plusSeconds(maxWaitTime).isBefore(now)) {
+						// object has not yet been picked up by a worker, maybe queue was unavailable
+						// resend it to the queue to make sure it will be processed
+						
 						// setting the tags to the object again, will cause an s3:ObjectCreated:PutTagging event to be sent to the queue
 						log.info("Object {} was not picked up, resending it to queue for processing",obj.key());
 						tags.put(S3ObjectTagName.ENTRADA_WAIT_EXPIRED.value, "true");
-						//remove detected
+						//remove detected, the will cause renew checker to also add it to queue again if not using events
 						tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
 						s3Service.tag(bucketName,  obj.key(), tags);
+						
+						counterNotPickedUp++;
 					}
 				}				
 			}	
 			tags.clear();
 		}
+		
+		log.info("Found {} incomplete object(s) and {} not picked up objects", counterIncomplete, counterNotPickedUp);
 	}
 
 	

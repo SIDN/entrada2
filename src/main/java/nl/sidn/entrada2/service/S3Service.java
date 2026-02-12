@@ -4,7 +4,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -151,8 +150,6 @@ public class S3Service {
 		} catch (Exception e) {		
 			if(log.isDebugEnabled()) {
 				log.debug("Error setting tag on key: {}", key, e);
-			}else {
-				log.error("Error setting tag on key: {}", key);
 			}
 		}
 		return false;
@@ -184,11 +181,6 @@ public class S3Service {
 			}
 			return false;
 		} 
-	}
-	
-	public Map<String, String> tags(String bucket, String key) {
-		 Map<String, String> tagMap = new HashMap<>();
-		 return tags(bucket, key, tagMap)? tagMap: new HashMap<>();
 	}
 
 	public boolean delete(String bucket, String key) {
