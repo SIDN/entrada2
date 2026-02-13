@@ -72,13 +72,13 @@ public class S3Config {
 				 .endpointOverride(URI.create(endpoint))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))
-			                .socketTimeout(Duration.ofSeconds(15))
+			                .socketTimeout(Duration.ofSeconds(10))
 			                .maxConnections(50))
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
-						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
-					        .apiCallTimeout(Duration.ofMinutes(5))  
+						 	.apiCallAttemptTimeout(Duration.ofSeconds(15))  // per attempt
+					        .apiCallTimeout(Duration.ofSeconds(30))  
 					        .build())
 				.build();
 	}

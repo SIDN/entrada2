@@ -1,5 +1,10 @@
 package nl.sidn.entrada2.util;
 
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
+
 public enum S3ObjectTagName {
 	
 	ENTRADA_NS_SERVER("entrada-ns-server"),
@@ -10,6 +15,7 @@ public enum S3ObjectTagName {
 	ENTRADA_PROCESS_FAILED("entrada-process-failed"),
 	ENTRADA_WAIT_EXPIRED("entrada-wait-expired"),
 	ENTRADA_OBJECT_TRIES("entrada-object-tries"),
+	ENTRADA_OBJECT_OFFSET("entrada-object-offset"),
 	// (ISO_8601)
 	ENTRADA_OBJECT_DETECTED("entrada-object-detected"),
 	// example: 2022-10-12T01:01:00.000Z
@@ -19,6 +25,15 @@ public enum S3ObjectTagName {
 	
 	private S3ObjectTagName(String value) {
 		this.value = value;
+	}
+	
+	public int readFromTags(Map<String, String> tags, int defaultValue) {
+		//String value = tags.get(value);
+		if(StringUtils.isNotBlank(value) && NumberUtils.isCreatable(value)) {
+			return NumberUtils.createInteger(value);
+		}
+		
+		return defaultValue;
 	}
 	
 }

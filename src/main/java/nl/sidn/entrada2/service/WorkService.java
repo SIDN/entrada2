@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -81,6 +82,8 @@ public class WorkService {
 	private Counter errorCounter;
 	private boolean working;
 
+	private AtomicInteger processed;
+	
 	public WorkService(MeterRegistry meterRegistry) {
 		this.meterRegistry = meterRegistry;
 	}
@@ -174,27 +177,37 @@ public class WorkService {
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
 		Optional<InputStream> ois = null;
+		
+		int fileOffset = S3ObjectTagName.ENTRADA_OBJECT_OFFSET.readFromTags(tags, 0);
+		
+		boolean fileProcessed = false;
+		working = true;
 		try {
-			working = true;
 			ois = s3Service.read(bucket, key);
 			if (ois.isPresent()) {
 				Optional<PcapReader> oreader = createReader(key, ois.get());
 				if (oreader.isPresent()) {
-					process_(oreader.get(), bucket, key, server, anycastSite);
+					if(process_(oreader.get(), bucket, key, server, anycastSite, fileOffset)) {
+						//ok
+						okCounter.increment();	
+						fileProcessed = true;
+					}else {
+						// file could not be processed, data from the file will not be added to 
+						// the table, but some files may have been uploaded and need to be removed
+						// by iceberg maintenance processes
+						int offset = processed.get();
+						log.error("Error processing file: {}/{} offset {}", bucket, key, offset);
+						
+						tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
+						// save offset of last row processed of, when retrying skip forward to this row
+						tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
+						errorCounter.increment();
+					}
 				}
 			}
 			
 			duration = System.currentTimeMillis() - startOfWork;
-			okCounter.increment();	
-			log.info("Done processing file: {}/{}, time: {}ms", bucket, key, duration);
-		} catch (Exception e) {
-			// file could not be processed, data from the file will not be added to 
-			// the table, but some files may have been uploaded and need to be removed
-			// by iceberg maintenance processes
-			log.error("Error processing file: {}/{}", bucket, key, e);
-			
-			tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
-			errorCounter.increment();
+			log.info("Done processing file: {}/{}, time: {}ms", bucket, key, duration);			
 		} finally {
 			try {
 				if(ois.isPresent()) {
@@ -204,14 +217,20 @@ public class WorkService {
 				// ignore close error
 				log.error("Error while closing inpustream for: {}/{}",  bucket, key);
 			}
-			startOfWork = 0;
-			working = false;
+			
 			if(isMetricsEnabled()) {
 				metrics.flush(server, anycastSite);
 			}
+			startOfWork = 0;
+			working = false;
 		}
 		
-		cleanup(bucket, key, tags, duration);
+		if(fileProcessed) {
+			cleanup(bucket, key, tags, duration);
+		}else {
+			// only set tags, do not delete or move file
+			s3Service.tag(bucket, key, tags);
+		}
 		
 		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
 	    
@@ -256,50 +275,58 @@ public class WorkService {
 		return metrics != null;
 	}
 
-	private void process_(PcapReader reader, String bucket, String key, String server, String anycastSite) {
+	private boolean process_(PcapReader reader, String bucket, String key, String server, String anycastSite, int offset) {
+		
+		processed = new AtomicInteger(offset);
 
-		reader.stream().forEach(p -> {
-			
-			joiner.join(p).forEach(rd -> {
-				// for better performance, only create a newRdataGenericRecord when rdata output is enabled
+		try {
+			reader.stream().skip(offset).forEach(p -> {
+				
+				joiner.join(p).forEach(rd -> {
+					// for better performance, only create a newRdataGenericRecord when rdata output is enabled
+					Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
+							icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
+
+					// save all records from file in memory and only commit (write to file)
+					// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
+					icebergService.write(rowPair.getKey());
+					
+					processed.incrementAndGet();
+
+					// update metrics
+					if(isMetricsEnabled()) {
+						metrics.update(rowPair.getValue());
+					}
+				});
+			});
+
+			if (log.isDebugEnabled()) {
+				log.debug("Extracted all data from file, now clear joiner cache");
+			}
+
+			// clear joiner cache, unmatched queries will get rcode -1
+			joiner.clearCache().forEach(rd -> {
+				
 				Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
 						icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
-
-				// save all records from file in memory and only commit (write to file)
-				// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
+				
 				icebergService.write(rowPair.getKey());
 
 				// update metrics
 				if(isMetricsEnabled()) {
 					metrics.update(rowPair.getValue());
 				}
+
 			});
-		});
+				
 
-		if (log.isDebugEnabled()) {
-			log.debug("Extracted all data from file, now clear joiner cache");
+			icebergService.commit(false);
+		} catch (Exception e) {
+			log.error("Error while processing file {} offset {}", key, processed.get(), e);
+			return false;
 		}
-
-		// clear joiner cache, unmatched queries will get rcode -1
-		joiner.clearCache().forEach(rd -> {
-			
-			Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
-					icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
-			
-			icebergService.write(rowPair.getKey());
-
-			// update metrics
-			if(isMetricsEnabled()) {
-				metrics.update(rowPair.getValue());
-			}
-
-		});
-
-		if (log.isDebugEnabled()) {
-			log.debug("Close Iceberg writer");
-		}
-
-		icebergService.commit(false);
+		
+		return true;
 	}
 
 	/**
