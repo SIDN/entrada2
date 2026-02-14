@@ -30,14 +30,8 @@ public class StartupListener {
 	@Autowired(required = false)
 	private InfluxDBClient influxClient;
 
-	@Autowired
-	PublicSuffixListParser pslValidator;
-
 	@EventListener
 	public void onApplicationEvent(ContextRefreshedEvent event) {
-		//TODO: fix downlaod timeut, currently it is possible that the leader is elected before the metadata is downloaded, which can cause issues when processing the first files
-		pslValidator.downloadWhenRequired();
-
 		if (leaderService.isleader()) {
 			log.info("This is the leader, start listening to leader queue");
 			leaderQueue.start();

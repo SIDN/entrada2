@@ -32,7 +32,7 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	@Autowired
 	private WorkService workService;
 	
-	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue")
+	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue", autoStartup = "false")
 	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {
 		
 		String bucket = null;

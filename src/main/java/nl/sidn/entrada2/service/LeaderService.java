@@ -31,7 +31,7 @@ public class LeaderService {
 	@Autowired
 	private List<DnsResolverCheck> resolverChecks;
 	@Autowired
-	private PublicSuffixListParser pslValidator;
+	private PublicSuffixListParser publicSuffixListParser;
 
 	/* leader property is used for non k8s deployments */
 	@Value("${entrada.leader:false}")
@@ -62,7 +62,7 @@ public class LeaderService {
 		log.info("Leader is starting metadata downloads");
 		geoIPService.downloadWhenRequired();
 		resolverChecks.stream().forEach(c -> c.download());
-		pslValidator.downloadWhenRequired();
+		publicSuffixListParser.downloadWhenRequired();
 	}
 	
 	/**

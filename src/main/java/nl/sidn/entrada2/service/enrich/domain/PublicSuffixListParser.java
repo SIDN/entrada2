@@ -2,17 +2,12 @@ package nl.sidn.entrada2.service.enrich.domain;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import feign.Response;
@@ -30,6 +25,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Log4j2
 public class PublicSuffixListParser {
     
+    private static final String PSL_URL = "https://publicsuffix.org/list/public_suffix_list.dat";
     private static final String PSL_FILENAME = "public_suffix_list.dat";
     
     @Value("${entrada.s3.bucket}")
@@ -37,9 +33,6 @@ public class PublicSuffixListParser {
     
     @Value("${entrada.s3.reference-dir}")
     private String directory;
-    
-    @Value("${entrada.psl.max-age-hr:168}") // 7 days default
-    private int maxAge;
     
     @Value("${entrada.tlds:}")
     private String hotTlds;
@@ -49,11 +42,7 @@ public class PublicSuffixListParser {
     
     @Autowired
     private PublicSuffixListClient pslClient;
-    
-   // private List<S3Object> s3Objects;
-    private Instant lastUpdateTime = null;
-    private boolean needUpdate = true;
-    
+        
     private final TrieNode root = new TrieNode();
     private final Set<String> exactMatches = new HashSet<>(50000);
     private final Map<String, Set<String>> wildcardRules = new ConcurrentHashMap<>();
@@ -79,14 +68,7 @@ public class PublicSuffixListParser {
         boolean isWildcard = false;
         boolean isException = false;
     }
-    
-    /**
-     * Set update flag to trigger reload from S3
-     */
-    public void update() {
-        needUpdate = true;
-    }
-    
+
     /**
      * Load PSL data from S3
      */
@@ -101,7 +83,7 @@ public class PublicSuffixListParser {
                     .filter(line -> !line.trim().isEmpty() && !line.startsWith("//"))
                     .collect(Collectors.toList());
             buildTrie(rules);
-            lastUpdateTime = Instant.now();
+
             log.info("PSL loaded: {} exact rules, {} wildcard rules, {} exception rules", 
                      exactMatches.size(), wildcardRules.size(), exceptionRules.size());
         } else {
@@ -118,73 +100,37 @@ public class PublicSuffixListParser {
         // Use direct HEAD request to check if object exists and get its metadata
         Optional<S3Object> s3Object = s3Service.headObject(bucket, key);
         
-        if (s3Object.isPresent()) {
-            Instant s3LastModified = s3Object.get().lastModified();
-            
-            if (lastUpdateTime == null || s3LastModified.isAfter(lastUpdateTime)) {
-                download();
-            } else {
-                log.info("No new PSL found on S3");
-            }
-        } else {
-            // Object doesn't exist, download it
-            log.info("PSL not found on S3, downloading");
+        if (s3Object.isEmpty()) {
             download();
         }
+
+        load();
     }
     
     /**
      * Downloads PSL from remote using HEAD request to check if update is needed
      */
     private void download() {
-        String filename = PSL_FILENAME;
+
+        log.info("Downloading Public Suffix List");
         
-        ResponseEntity<Void> resPeek;
-        try {
-            resPeek = pslClient.peek();
-        } catch (Exception e) {
-            log.error("Error while checking for new PSL online", e);
-            return;
+        Response response = pslClient.getList();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(response.body().asInputStream(), StandardCharsets.UTF_8))) {
+            String content = reader.lines().collect(Collectors.joining("\n"));
+            s3Service.write(bucket, directory + "/" + PSL_FILENAME, content);
+            log.info("PSL successfully downloaded and saved to S3");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to download PSL", e);
         }
-        
-        ZonedDateTime lastModifiedRemote = ZonedDateTime.parse(
-                resPeek.getHeaders().getFirst("last-modified"), 
-                DateTimeFormatter.RFC_1123_DATE_TIME);
-        
-        Instant instant = lastModifiedRemote.toInstant();
-        
-        // if (!s3Objects.stream().anyMatch(p -> StringUtils.containsIgnoreCase(p.key(), filename))
-        //         || s3Objects.stream().anyMatch(
-        //                 p -> StringUtils.containsIgnoreCase(p.key(), filename) && instant.isAfter(p.lastModified()))) {
-            
-            log.info("Downloading Public Suffix List");
-            
-            // Download PSL
-            try {
-                Response response = pslClient.getList();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(response.body().asInputStream(), StandardCharsets.UTF_8))) {
-                    String content = reader.lines().collect(Collectors.joining("\n"));
-                    s3Service.write(bucket, directory + "/" + filename, content);
-                    log.info("PSL successfully downloaded and saved to S3");
-                } catch (IOException e) {
-                    log.error("Error downloading PSL", e);
-                }
-            } catch (Exception e) {
-                log.error("Error downloading PSL", e);
-            }
-        // } else {
-        //     log.info("No new PSL found online");
-        // }
     }
   
     /**
      * Direct PSL download for testing (when S3 is not available)
      */
     public void downloadPSLDirectAndLoad() throws IOException {
-        String pslUrl = "https://publicsuffix.org/list/public_suffix_list.dat";
-        
-        try (InputStream is = java.net.URI.create(pslUrl).toURL().openStream();
+
+        try (InputStream is = java.net.URI.create(PSL_URL).toURL().openStream();
              BufferedReader reader = new BufferedReader(
                      new InputStreamReader(is, StandardCharsets.UTF_8))) {
             List<String> rules = reader.lines()
@@ -192,7 +138,6 @@ public class PublicSuffixListParser {
                     .collect(Collectors.toList());
 
             buildTrie(rules);
-            needUpdate = false;
         }   
     }
     
@@ -386,10 +331,6 @@ public class PublicSuffixListParser {
      * @return true if parsing succeeded, false otherwise
      */
     public boolean parseDomainInto(String domain, DomainResult result) {
-        if (needUpdate) {
-            load();
-            needUpdate = false;
-        }
         
         result.reset();
         
