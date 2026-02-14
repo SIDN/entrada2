@@ -119,7 +119,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>dnslib</artifactId>
-            <version>0.2.18</version>
+            <version>0.2.19-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>

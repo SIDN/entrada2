@@ -50,18 +50,18 @@ public class S3Service {
 		try {
 			return Optional.of(s3Client.getObject(objectRequest));
 		} catch (Exception e) {
-			log.error("Error object getting {} from bucket {}", key, bucket, e);
+			log.error("Error object getting {} from bucket {}, error: {}", key, bucket, e.getMessage());
 			return Optional.empty();
 		}
 	}
 
-	public Optional<String> readObectAsString(String bucket, String key) {
+	public Optional<String> readObjectAsString(String bucket, String key) {
 
 		try (InputStream is = read(bucket, key).get()) {
-			return Optional.of(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
+			return Optional.ofNullable(StreamUtils.copyToString(is, StandardCharsets.UTF_8));
 
 		} catch (Exception e) {
-			log.error("Error object getting {} from bucket {}", key, bucket, e);
+			log.error("Error object getting {} from bucket {}, error: {}", key, bucket, e.getMessage());
 		}
 		return Optional.empty();
 	}
@@ -230,7 +230,7 @@ public class S3Service {
 
 	public boolean exists(String bucket, String key) {
 	    try {
-	        s3Client.headObject(HeadObjectRequest.builder()
+	        s3FastClient.headObject(HeadObjectRequest.builder()
 	                .bucket(bucket)
 	                .key(key)
 	                .build());
@@ -241,6 +241,37 @@ public class S3Service {
 	        }
 	        throw e; // other errors bubble up
 	    }
-}
+	}
+	
+	/**
+	 * Get object metadata using HEAD request
+	 * @param bucket
+	 * @param key
+	 * @return Optional containing S3Object with metadata, empty if not found
+	 */
+	public Optional<S3Object> headObject(String bucket, String key) {
+	    try {
+	        software.amazon.awssdk.services.s3.model.HeadObjectResponse response = 
+	            s3FastClient.headObject(HeadObjectRequest.builder()
+	                .bucket(bucket)
+	                .key(key)
+	                .build());
+	        
+	        // Convert HeadObjectResponse to S3Object
+	        S3Object s3Object = S3Object.builder()
+	            .key(key)
+	            .lastModified(response.lastModified())
+	            .size(response.contentLength())
+	            .build();
+	            
+	        return Optional.of(s3Object);
+	    } catch (S3Exception e) {
+	        if (e.statusCode() == 404) {
+	            return Optional.empty();
+	        }
+	        log.error("Error getting object metadata", e);
+	        return Optional.empty();
+	    }
+	}
 
 }

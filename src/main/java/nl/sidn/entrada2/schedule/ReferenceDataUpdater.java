@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.LeaderService;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import nl.sidn.entrada2.service.enrich.geoip.GeoIPService;
 import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
 
@@ -22,6 +23,9 @@ public class ReferenceDataUpdater {
 
 	@Autowired
 	private List<DnsResolverCheck> resolverChecks;
+	
+	@Autowired
+	private PublicSuffixListParser pslValidator;
 
 	/**
 	 * Check if reference data needs to be updated. No need to do this during
@@ -33,12 +37,14 @@ public class ReferenceDataUpdater {
 			// load new ref data from source to shared s3 location
 			geoIPService.downloadWhenRequired();
 			resolverChecks.stream().forEach(c -> c.download());
+			//pslValidator.downloadWhenRequired();
 		}
 		
 		// load data from from shared s3 location
 		log.info("Set flag to enable updating reference data at next object received");
 		geoIPService.update();
 		resolverChecks.stream().forEach(c -> c.update());
+		//pslValidator.update();
 	}
 
 }

@@ -102,7 +102,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	@Override
 	public List<String> loadFromFile() {
 
-		Optional<String> os = s3.readObectAsString(bucket, directory + "/" + getFilename());
+		Optional<String> os = s3.readObjectAsString(bucket, directory + "/" + getFilename());
 		if (os.isPresent()) {
 			return Splitter.on("\n").splitToList(os.get());
 

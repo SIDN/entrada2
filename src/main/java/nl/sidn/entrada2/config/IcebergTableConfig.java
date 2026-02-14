@@ -156,6 +156,18 @@ public class IcebergTableConfig {
 				.commit();
 		}
 		
+		if(schema.findField("dns_tld") == null) {
+			table.updateSchema()
+				.addColumn("dns_tld", Types.StringType.get())
+				.commit();
+		}
+		
+		if(schema.findField("dns_qname_full") == null) {
+			table.updateSchema()
+				.addColumn("dns_qname_full", Types.StringType.get())
+				.commit();
+		}
+		
 		log.info("Schema for table: {}", table.schema());
 
 		return table;

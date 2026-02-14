@@ -6,12 +6,12 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.google.common.base.CharMatcher;
-
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.dnslib.message.Header;
 import nl.sidnlabs.dnslib.message.Message;
@@ -24,7 +24,6 @@ import nl.sidnlabs.dnslib.message.records.edns0.EDEOption;
 import nl.sidnlabs.dnslib.message.records.edns0.EDNS0Option;
 import nl.sidnlabs.dnslib.message.records.edns0.OPTResourceRecord;
 import nl.sidnlabs.dnslib.types.ResourceRecordType;
-import nl.sidnlabs.dnslib.util.NameUtil;
 import nl.sidnlabs.pcap.packet.Packet;
 import nl.sidnlabs.pcap.packet.PacketFactory;
 
@@ -46,6 +45,10 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	@Value("${entrada.rdata.dnssec:false}")
 	private boolean rdataDnsSecEnabled;
 
+	@Autowired
+	private PublicSuffixListParser domainParser;
+	private PublicSuffixListParser.DomainResult result = new PublicSuffixListParser.DomainResult();
+	
 	public Pair<GenericRecord, DnsMetricValues> build(RowData combo, String server, String location,
 			GenericRecord record, GenericRecord recRdata) {
 		// try to be as efficient as possible, every object created here or expensive
@@ -183,10 +186,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			}
 		}
 
-		String qname = null;
-		String domainname = null;
-		int labels = -1;
-
 		// a question is not always there, e.g. UPDATE message
 		if (question != null) {
 			// question can be from req or resp
@@ -200,43 +199,19 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			// unassigned, private or unknown, get raw value
 			record.set(FieldEnum.dns_qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
 
-			// remove non asccii chars
-			qname = CharMatcher.ascii().negate().or(CharMatcher.whitespace()).removeFrom(question.getQName());
-			
-			if (NameUtil.isValid(qname)) {
-				// only create domainname when qname contains only valid ascii chars
-				domainname = domainCache.peek(qname);
-				labels = NameUtil.labels(qname);
-
-				if (domainname == null) {
-					domainname = NameUtil.domainname(qname);
-					if (domainname != null) {
-						domainCache.put(qname, domainname);
-					}
-				}
+			boolean parserStatus = domainParser.parseDomainInto(question.getQName(), result);
+			if(!parserStatus || result.publicSuffix == null) {
+				// cannot get tld, save full fqdn
+				record.set(FieldEnum.dns_qname_full.ordinal(), result.fullDomain);
+			}else {
+				record.set(FieldEnum.dns_qname.ordinal(), result.subdomain);
+				record.set(FieldEnum.dns_domainname.ordinal(), result.registeredDomain);
+				record.set(FieldEnum.dns_tld.ordinal(), result.publicSuffix);
 			}
+
+			record.set(FieldEnum.dns_labels.ordinal(), result.labels);
 		}
-		
-		// only save the part of the qname thats not part the domainname, this saves 
-		// a lots of storage and io cost when analyzing the data
-
-
-		// if no domainname found in qname, then save full qname
-		if (domainname == null) {
-			record.set(FieldEnum.dns_qname.ordinal(), qname);
-		} else {
-			record.set(FieldEnum.dns_domainname.ordinal(), domainname);
-			// check if qname and domain are same length, if same then qname is not saved.
-			if (domainname.length() != qname.length() - 1) {
-				// get substring, include 2 dots. 1 at the end and 1 between qname part and domain part
-				record.set(FieldEnum.dns_qname.ordinal(), qname.substring(0, qname.length() - (domainname.length() + 2)));
-			}
-		}
-
-		if (labels > -1) {
-			record.set(FieldEnum.dns_labels.ordinal(), Integer.valueOf(labels));
-		}
-
+	
 		record.set(FieldEnum.server_location.ordinal(), location);
 
 		// values from request OR response now
@@ -297,8 +272,28 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		return Pair.of(record, metricsBuilder.build());
 	}
-
 	
+//	private String toAsciiFast(String input) {
+//	    char[] chars = input.toCharArray();
+//	    boolean updated = false;
+//	    for (int i = 0; i < chars.length; i++) {
+//	        if (chars[i] < 32 || chars[i] > 126) {  // non-printable ASCII
+//	            chars[i] = '?';
+//	            
+//	            if(!updated) {
+//	            	updated = true;
+//	            }
+//	        }
+//	    }
+//	    
+//	    if(updated) {
+//	    	return new String(chars);
+//	    }
+//	    
+//	    return input;
+//	}
+
+
 	private void rdata(List<RRset> rrSetList, GenericRecord rec, int section, List<GenericRecord> datas){
 		for(RRset rrset: rrSetList) {
 		

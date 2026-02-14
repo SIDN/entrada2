@@ -1,4 +1,8 @@
 entrada:
+  # comma-separated list of most frequently used TLDs for fast-path optimization
+  # configure based on your traffic patterns for best performance
+  # leave empty to disable hot TLD optimization
+  tlds: 'nl,amsterdam,aws' 
   nameserver:
     # when the s3 objects has no tags for name and/or site then the following values will be used
     default-name: default-ns
@@ -39,6 +43,9 @@ entrada:
     new-object-secs:
     # table maintainer for cleaning up old snapshots, run according to cron schedule
     table-maintainer-cron: "0 0 1 * * *"
+  psl:
+    # max age of local copy of PSL before downloading update (hours)
+    max-age-hr: 168
   security:
     # token used for access to REST API (use X-API-KEY HTTP header) and actuator endpoints
     # this is a test token, and it being here IS NOT as security issue
@@ -147,6 +154,10 @@ spring:
           # Feign client for downloading Maxmind databases
           maxmindClient:
             url: 'https://download.maxmind.com/app/geoip_download?suffix=tar.gz'
+            dismiss404: false
+          # client for downloading PSL
+          publicSuffixListClient:
+            url: 'https://publicsuffix.org/list/public_suffix_list.dat'
             dismiss404: false
 
  

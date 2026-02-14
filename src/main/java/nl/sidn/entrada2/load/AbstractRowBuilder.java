@@ -16,7 +16,6 @@ import nl.sidn.entrada2.service.enrich.resolver.ResolverEnrichment;
 public abstract class AbstractRowBuilder {
 
   protected static final int STATUS_COUNT = 100000;
-  private final static int CACHE_MAX_SIZE = 50000;
   private final static int ENRICHMENT_CACHE_MAX_SIZE = 50000;
   
   @Autowired
@@ -26,8 +25,6 @@ public abstract class AbstractRowBuilder {
   protected boolean privacy;
   @Value("#{!T(org.apache.commons.lang3.StringUtils).isBlank('${management.influx.metrics.export.uri:}')}")
   protected boolean metricsEnabled;
-
-  protected Cache<String, String> domainCache;
 
   protected Cache<String, List<EnrichmentValue>> enrichmentCache;
 
@@ -45,8 +42,6 @@ public abstract class AbstractRowBuilder {
   }
 
   public AbstractRowBuilder() {
-
-    domainCache = new Cache2kBuilder<String, String>() {}.entryCapacity(CACHE_MAX_SIZE).build();
     enrichmentCache = new Cache2kBuilder<String, List<EnrichmentValue>>() {}
         .entryCapacity(ENRICHMENT_CACHE_MAX_SIZE)
         .build();

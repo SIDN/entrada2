@@ -77,8 +77,8 @@ public class S3Config {
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
-						 	.apiCallAttemptTimeout(Duration.ofSeconds(15))  // per attempt
-					        .apiCallTimeout(Duration.ofSeconds(30))  
+						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
+					        .apiCallTimeout(Duration.ofMinutes(5))  
 					        .build())
 				.build();
 	}

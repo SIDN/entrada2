@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export TOOL_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+
 echo "Build image for version $TOOL_VERSION"
 
 mvn clean && mvn package &&  \

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import nl.sidn.entrada2.service.enrich.geoip.GeoIPService;
 import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
@@ -29,6 +30,8 @@ public class LeaderService {
 	private GeoIPService geoIPService;
 	@Autowired
 	private List<DnsResolverCheck> resolverChecks;
+	@Autowired
+	private PublicSuffixListParser pslValidator;
 
 	/* leader property is used for non k8s deployments */
 	@Value("${entrada.leader:false}")
@@ -59,6 +62,7 @@ public class LeaderService {
 		log.info("Leader is starting metadata downloads");
 		geoIPService.downloadWhenRequired();
 		resolverChecks.stream().forEach(c -> c.download());
+		pslValidator.downloadWhenRequired();
 	}
 	
 	/**
