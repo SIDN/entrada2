@@ -2,7 +2,7 @@ entrada:
   # comma-separated list of most frequently used TLDs for fast-path optimization
   # configure based on your traffic patterns for best performance
   # leave empty to disable hot TLD optimization
-  tlds: 'nl,amsterdam,aws' 
+  tlds: 'nl' 
   nameserver:
     # when the s3 objects has no tags for name and/or site then the following values will be used
     default-name: default-ns
@@ -170,7 +170,6 @@ spring:
  
 iceberg:
   # if not using lakekeeper vended credentials then need access to s3 for uploading parquet files
-  # if using lakekeeper leave iceberg s3 settings empty, these are provided by the catalog
   s3:
      access-key:
      secret-key:

@@ -1,6 +1,6 @@
 # ENTRADA2
 
-A tool for converting captured DNS data (PCAP) to an [Apache Iceberg](https://iceberg.apache.org/) table, using the [Apache Parquet](https://parquet.apache.org/) data format.
+ENTRADA2 is a scalable, high-performance platform for processing, enriching, and analyzing DNS traffic data. It ingests raw DNS packet captures (PCAP), transforms them into efficient [Apache Parquet](https://parquet.apache.org/) files, and stores them in the [Apache Iceberg](https://iceberg.apache.org/) open table format for advanced analytics. ENTRADA2 enriches DNS records with geolocation, ASN, public resolver detection, and other metadata, supporting real-time and batch workflows across local, Kubernetes, and AWS environments. With built-in support for S3-compatible storage, message queuing, and integration with query engines such as Spark, Trino and Athena, ENTRADA2 enables powerful, flexible analysis of DNS data for security, research, and operational insights.
 
 ENTRADA2 is an improvement on [ENTRADA](https://github.com/SIDN/entrada) and includes support for multiple deployment types: Kubernetes, AWS and local deployment using Docker Compose.
 
@@ -14,7 +14,7 @@ A DNS query and response are combined into a single record and enriched by addin
 
 ## Features
 
-ENTRADA2 supports:
+ENTRADA2 supports the following features: 
 
 - S3 storage (Rustfs, AWS)
 - Open table format (Apache Iceberg)
@@ -24,6 +24,8 @@ ENTRADA2 supports:
 - Query engine (Trino, AWS Athena, Spark)
 
 ## Changes from ENTRADA
+
+ENTRADA2 includes the following improvements and changes compared to ENTRADA:
 
 - Removed Hadoop support
 - Improved support for S3 object storage
@@ -142,6 +144,13 @@ select count(1)
 from dns;
 ```
 
+Show partitions of DNS table:
+
+```sql
+select * 
+from "dns$partitions"
+```
+
 Get the domain names that received the most queries (top 25):
 
 ```sql
@@ -211,6 +220,115 @@ docker compose --profile test up --scale entrada-worker=2
 ## Configuration
 
 The ENTRADA2 configuration options are in the [Spring Boot configuration file](https://raw.githubusercontent.com/SIDN/entrada2/main/src/main/resources/application.yml). All options in this file can be overridden by using environment variables, or in the case of Kubernetes you can also create a ConfigMap containing a custom configuration file.
+
+### ENTRADA Configuration Options
+
+The following table lists all configuration options starting with `entrada.`:
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `entrada.tlds` | Comma-separated list of most frequently used TLDs for fast-path optimization | `nl` |
+| `entrada.nameserver.default-name` | Default name server name when S3 objects have no tags | `default-ns` |
+| `entrada.nameserver.default-site` | Default anycast site when S3 objects have no tags | `default-site` |
+| `entrada.rdata.enabled` | Enable rdata from DNS response records in Parquet output (dns_rdata column) | `false` |
+| `entrada.rdata.dnssec` | Include DNSSEC RRs such as RRSIG in output | `false` |
+| `entrada.cname.enabled` | Enable CNAME record processing | `true` |
+| `entrada.filter.tlds` | TLDs to filter out - DNS data for these TLDs will not be stored | (empty) |
+| `entrada.object.max-wait-time-secs` | Max wait time before marking object as not picked up and resending to queue | `3600` |
+| `entrada.object.max-proc-time-secs` | Max processing time before marking object as failed | `7200` |
+| `entrada.object.max-tries` | Max number of attempts for decoding an object | `2` |
+| `entrada.process.max-proc-time-secs` | Max time for PCAP processing before worker is marked as stalled | `600` |
+| `entrada.process.max-request-cache-size` | Max size of internal DNS request cache for matching requests to responses | `1000000` |
+| `entrada.schedule.updater-min` | Interval in minutes to update reference data | `120` |
+| `entrada.schedule.liveness-min` | Interval in minutes to check for stalled workers | `1` |
+| `entrada.schedule.expired-object-min` | Interval in minutes to check for expired objects | `10` |
+| `entrada.schedule.new-object-secs` | Interval in seconds to check for new objects (disabled when empty) | (empty) |
+| `entrada.security.token` | Token for REST API and actuator endpoints access (use X-API-KEY HTTP header) | `94591089610224297274859827590711` |
+| `entrada.metrics.bin-size-secs` | Time bin size in seconds for historical metrics aggregation | `10` |
+| `entrada.privacy.enabled` | When enabled, IP addresses are not written to Parquet files | `false` |
+| `entrada.s3.access-key` | S3 access key for bucket containing source PCAPs | (empty) |
+| `entrada.s3.secret-key` | S3 secret key for bucket containing source PCAPs | (empty) |
+| `entrada.s3.region` | S3 region | `${AWS_REGION}` |
+| `entrada.s3.endpoint` | S3 endpoint (only when not using AWS) | (empty) |
+| `entrada.s3.bucket` | S3 bucket name for PCAP files and Iceberg data | `sidnlabs-iceberg-data` |
+| `entrada.s3.pcap-in-prefixes` | List of S3 prefixes for new PCAP files | `pcap-in/provider1`, `pcap-in/provider2` |
+| `entrada.s3.pcap-done-dir` | Directory for processed PCAP files (deleted if empty) | (empty) |
+| `entrada.s3.pcap-delete` | Delete PCAPs after processing | `true` |
+| `entrada.s3.reference-dir` | Directory for reference data | `reference` |
+| `entrada.s3.warehouse-dir` | Directory for Iceberg data files | `database` |
+| `entrada.messaging.request.name` | Queue name for S3 bucket lifecycle events | `entrada-s3-event` |
+| `entrada.messaging.request.ttl` | Queue TTL in minutes | `60` |
+| `entrada.messaging.request.aws.retention` | AWS SQS message retention period in seconds | `86400` |
+| `entrada.messaging.request.aws.visibility-timeout` | AWS SQS visibility timeout in seconds | `600` |
+| `entrada.messaging.command.name` | Queue name for sending commands to all instances | `entrada-command` |
+| `entrada.messaging.command.aws.retention` | AWS SQS retention period for command queue in seconds | `60` |
+| `entrada.messaging.command.aws.visibility-timeout` | AWS SQS visibility timeout for command queue in seconds | `1` |
+| `entrada.messaging.leader.name` | Queue name for leader container | `entrada-leader` |
+| `entrada.messaging.leader.batchSize` | Leader queue batch size | `50` |
+| `entrada.messaging.leader.aws.retention` | AWS SQS retention period for leader queue in seconds | `86400` |
+| `entrada.messaging.leader.aws.visibility-timeout` | AWS SQS visibility timeout for leader queue in seconds | `300` |
+| `entrada.leader` | Set to true for leader container (max 1) when using non-Kubernetes deployment | `false` |
+| `entrada.provisioning.enabled` | Auto-create required components (bucket and queues) | `true` |
+
+### Iceberg Configuration Options
+
+The following table lists all configuration options starting with `iceberg.`:
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `iceberg.s3.access-key` | S3 access key for Iceberg operations (leave empty if using Lakekeeper vended credentials) | (empty) |
+| `iceberg.s3.secret-key` | S3 secret key for Iceberg operations (leave empty if using Lakekeeper vended credentials) | (empty) |
+| `iceberg.s3.region` | S3 region for Iceberg operations | `${AWS_REGION}` |
+| `iceberg.s3.endpoint` | S3 endpoint (only when not using AWS) | (empty) |
+| `iceberg.catalog.type` | Catalog type (rest, jdbc, or glue for AWS) | `rest` |
+| `iceberg.catalog.uri` | REST catalog URI | (empty) |
+| `iceberg.catalog.warehouse` | REST catalog warehouse identifier | (empty) |
+| `iceberg.catalog.oauth2.uri` | OAuth2 token endpoint URI for REST catalog authentication | (empty) |
+| `iceberg.catalog.oauth2.credential` | OAuth2 credential for REST catalog authentication | (empty) |
+| `iceberg.catalog.oauth2.scope` | OAuth2 scope for REST catalog authentication | (empty) |
+| `iceberg.catalog.warehouse-location` | S3 location for Iceberg warehouse | `s3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}` |
+| `iceberg.catalog.host` | JDBC catalog host (PostgreSQL only) | (empty) |
+| `iceberg.catalog.port` | JDBC catalog port | `5432` |
+| `iceberg.catalog.name` | JDBC catalog database name | (empty) |
+| `iceberg.catalog.user` | JDBC catalog username | (empty) |
+| `iceberg.catalog.password` | JDBC catalog password | (empty) |
+| `iceberg.compression` | Parquet compression codec (see Iceberg docs) | `zstd` |
+| `iceberg.metadata.delete-after-commit` | Delete old metadata files after commit | `true` |
+| `iceberg.metadata.version.max` | Maximum number of previous metadata versions to keep | `1` |
+| `iceberg.table.name` | Iceberg table name | `dns` |
+| `iceberg.table.namespace` | Iceberg table namespace | `entrada` |
+| `iceberg.table.location` | S3 location for Iceberg table data | `s3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}/${iceberg.table.namespace}/${iceberg.table.name}` |
+| `iceberg.parquet.dictionary-max-mb` | Maximum dictionary size in MB for Parquet encoding | `2` |
+| `iceberg.parquet.bloomfilter` | Enable Bloom filter for dns_domainname column | `true` |
+| `iceberg.parquet.min-records` | Minimum number of records required before closing Parquet output file | `10000000` |
+| `iceberg.parquet.bloomfilter-max-size-mb` | Maximum Bloom filter size in MB | `1` |
+
+### MaxMind GeoIP Configuration Options
+
+The following table lists all configuration options starting with `maxmind.`:
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `maxmind.max-age-hr` | Max age in hours of local MaxMind database before downloading update | `24` |
+| `maxmind.license.free` | MaxMind license key for free GeoLite2 databases | (empty) |
+| `maxmind.license.paid` | MaxMind license key for paid GeoIP2 databases | (empty) |
+| `maxmind.country.free` | Database name for free country database | `GeoLite2-Country` |
+| `maxmind.country.paid` | Database name for paid country database | `GeoIP2-Country` |
+| `maxmind.asn.free` | Database name for free ASN database | `GeoLite2-ASN` |
+| `maxmind.asn.paid` | Database name for paid ASN/ISP database | `GeoIP2-ISP` |
+
+### InfluxDB Metrics Configuration Options
+
+The following table lists all configuration options starting with `management.influx.metrics.export.`:
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `management.influx.metrics.export.bucket` | InfluxDB bucket name for storing metrics | `entrada` |
+| `management.influx.metrics.export.org` | InfluxDB organization name | `SIDN` |
+| `management.influx.metrics.export.token` | InfluxDB authentication token | (empty) |
+| `management.influx.metrics.export.uri` | InfluxDB server URI | (empty) |
+| `management.influx.metrics.export.step` | Metrics export interval | `1m` |
+| `management.influx.metrics.export.enabled` | Enable metrics export to InfluxDB | `false` |
 
 JVM options (e.g., for memory limits) can be passed to the container using the JAVA_OPTS environment variable in the Docker Compose configuration:
 
