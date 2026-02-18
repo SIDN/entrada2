@@ -224,6 +224,7 @@ public class HistoricalMetricManager {
 		}
 	}
 
+	@SuppressWarnings("null")
 	private void createPoints(List<Point> points, Entry<Instant, Metric> entry, String name) {
 		WritePrecision p = WritePrecision.MS;
 		
@@ -241,49 +242,54 @@ public class HistoricalMetricManager {
 			metricName = parts[0];
 		}
 
-		if (m instanceof AvgMetric) {
-			// make sure points are all saved a float and not mix of float and int, this will cause exception
-			
-			Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p).setTags(m.getTags())
-					.setTag("site", anycastSite)
-					.setTag("server", server)
-					.setTag("type", "avg")
-					.setField("value", (float)m.getValue());
+		Map<String, String> safeTags = m.getTags() != null ? m.getTags() : EMPTY_MAP;
 
-			points.add(point);
+		if(metricName != null ){
+			if (m instanceof AvgMetric) {
+				// make sure points are all saved a float and not mix of float and int, this will cause exception
+				
+				Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p).setTags(safeTags)
+						.setTag("site", anycastSite)
+						.setTag("server", server)
+						.setTag("type", "avg")
+						.setField("value", (float)m.getValue());
 
-			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
-					.setTag("server", server)
-					.setTag("site", anycastSite)
-					.setTag("type", "sample")
-					.setField("value", (float)m.getSamples());
+				points.add(point);
 
-			points.add(point);
+				point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
+						.setTags(safeTags)
+						.setTag("server", server)
+						.setTag("site", anycastSite)
+						.setTag("type", "sample")
+						.setField("value", (float)m.getSamples());
 
-			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
-					.setTag("server", server)
-					.setTag("site", anycastSite)
-					.setTag("type", "min")
-					.setField("value", (float)((AvgMetric) m).getMin());
+				points.add(point);
 
-			points.add(point);
+				point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
+						.setTag("server", server)
+						.setTag("site", anycastSite)
+						.setTag("type", "min")
+						.setField("value", (float)((AvgMetric) m).getMin());
 
-			point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
-					.setTag("server", server)
-					.setTag("site", anycastSite)
-					.setTag("type", "max")
-					.setField("value", (float)((AvgMetric) m).getMax());
+				points.add(point);
 
-			points.add(point);
-		} else {
-			Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
-					.setTags(m.getTags())
-					.setTag("site", anycastSite)
-					.setTag("server", server)
-					.setField("value", m.getValue());
+				point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
+						.setTag("server", server)
+						.setTag("site", anycastSite)
+						.setTag("type", "max")
+						.setField("value", (float)((AvgMetric) m).getMax());
 
-			points.add(point);
-			
+				points.add(point);
+			} else {
+					Point point = Point.measurement(metricName).setTimestamp(time.toEpochMilli(), p)
+							.setTags(safeTags)
+							.setTag("site", anycastSite)
+							.setTag("server", server)
+							.setField("value", m.getValue());
+
+					points.add(point);
+				
+			}
 		}
 	}
 

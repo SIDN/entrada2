@@ -51,11 +51,7 @@ public class PublicSuffixListParser {
     // Fast-path cache for common single-label TLDs (huge performance boost)
     private final Set<String> singleLabelTLDs = new HashSet<>();
     private final Set<String> multiLabelTLDs = new HashSet<>();
-    
-    // Performance optimization: track TLD hit counts for statistics
-    private final Map<String, Integer> tldHitCounts = new ConcurrentHashMap<>();
-    private boolean enableStatistics = false;
-    
+       
     // Hot TLD cache for ultra-fast lookups (parsed from configuration)
     private Set<String> hotTldCache = null;
     
@@ -198,10 +194,6 @@ public class PublicSuffixListParser {
             current.children.putIfAbsent(label, new TrieNode());
             current = current.children.get(label);
         }
-        
-        // current.isEnd = true;
-        // current.isWildcard = isWildcard;
-        // current.isException = isException;
     }
   
     /**
@@ -226,7 +218,6 @@ public class PublicSuffixListParser {
                 // Try 2-label match - avoid StringBuilder for 2 labels
                 String twoLabel = secondLabel + "." + tld;
                 if (multiLabelTLDs.contains(twoLabel)) {
-                    if (enableStatistics) tldHitCounts.merge(twoLabel, 1, Integer::sum);
                     return twoLabel;
                 }
                 
@@ -235,7 +226,6 @@ public class PublicSuffixListParser {
                     String thirdLabel = labels[labels.length - 3];
                     String threeLabel = thirdLabel + "." + twoLabel;
                     if (multiLabelTLDs.contains(threeLabel)) {
-                        if (enableStatistics) tldHitCounts.merge(threeLabel, 1, Integer::sum);
                         return threeLabel;
                     }
                     
@@ -244,7 +234,6 @@ public class PublicSuffixListParser {
                         String fourthLabel = labels[labels.length - 4];
                         String fourLabel = fourthLabel + "." + threeLabel;
                         if (multiLabelTLDs.contains(fourLabel)) {
-                            if (enableStatistics) tldHitCounts.merge(fourLabel, 1, Integer::sum);
                             return fourLabel;
                         }
                     }
@@ -252,7 +241,6 @@ public class PublicSuffixListParser {
             }
             
             // Simple single-label TLD - most common case!
-            if (enableStatistics) tldHitCounts.merge(tld, 1, Integer::sum);
             return tld;
         }
         

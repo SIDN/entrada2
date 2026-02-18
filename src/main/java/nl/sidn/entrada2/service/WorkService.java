@@ -352,7 +352,7 @@ public class WorkService {
 			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, DECOMPRESS_STREAM_BUFFER, file);
 			// Add BufferedInputStream after decompressor to avoid many small reads into DataInputStream
 			BufferedInputStream bufferedDecompressor = new BufferedInputStream(decompressor, PCAP_READ_BUFFER);
-			return Optional.of(new PcapReader(new DataInputStream(bufferedDecompressor), null, true, !rdataEnabled));
+			return Optional.of(new PcapReader(new DataInputStream(bufferedDecompressor), !rdataEnabled));
 		} catch (IOException e) {
 			log.error("Error creating pcap reader for: " + file, e);
 			try {

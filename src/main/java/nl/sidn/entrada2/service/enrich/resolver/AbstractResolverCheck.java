@@ -155,7 +155,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 			// do v4 check only
 			if (isIpv4InFilter(address)) {
 				// the address may be in the cidr list
-				return subnetChecker.match(address);
+				return subnetChecker.match(address, inetAddress);
 			}
 
 			// the v4 addr is for sure not in the v4 cidr list
@@ -164,7 +164,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 		}
 		
 		// check v6
-		return subnetChecker.match(address);
+		return subnetChecker.match(address, inetAddress);
 
 	}
 

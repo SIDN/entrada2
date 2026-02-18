@@ -1,5 +1,7 @@
 package nl.sidn.entrada2.config;
 
+import java.util.Objects;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +26,7 @@ public class InfluxDbConfig {
 	
 	@Bean
 	public InfluxDBClient influxDbClient() {
-		return InfluxDBClient.getInstance(uri, token.toCharArray(), bucket);
+		return InfluxDBClient.getInstance(Objects.requireNonNull(uri), token.toCharArray(), bucket);
 	}
 
 }

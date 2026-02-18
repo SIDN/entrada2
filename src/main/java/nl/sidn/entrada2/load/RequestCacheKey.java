@@ -19,8 +19,10 @@
  */
 package nl.sidn.entrada2.load;
 
+import lombok.Value;
 import nl.sidn.entrada2.util.StringUtil;
 
+@Value
 public class RequestCacheKey {
 
 	private final int id;

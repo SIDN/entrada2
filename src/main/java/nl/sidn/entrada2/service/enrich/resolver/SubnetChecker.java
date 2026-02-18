@@ -120,18 +120,17 @@ public class SubnetChecker {
 		return masked;
 	}
 
-	public boolean match(String ip) {
+	public boolean match(String ip, InetAddress inetAddress) {
 		Boolean cached = cache.peek(ip);
 		if(cached != null) {
 			return cached.booleanValue();
 		}
 		
-		InetAddress ipAddress = stringToInetAddr(ip);
-		if (ipAddress == null) {
+		if (inetAddress == null) {
 			return false;
 		}
 
-		byte[] ipBytes = ipAddress.getAddress();
+		byte[] ipBytes = inetAddress.getAddress();
 
 		// Determine if the IP is IPv4 or IPv6
 		boolean isIpv4 = ipBytes.length == 4;
@@ -154,15 +153,6 @@ public class SubnetChecker {
 
 		cache.put(ip, Boolean.FALSE);
 		return false; // No matching CIDR found
-	}
-
-	private InetAddress stringToInetAddr(String ip) {
-		try {
-			return InetAddress.getByName(ip);
-		} catch (UnknownHostException e) {
-			return null;
-		}
-
 	}
 
 	private boolean compareBytes(byte[] a, byte[] b) {

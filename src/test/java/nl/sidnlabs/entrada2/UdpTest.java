@@ -43,7 +43,7 @@ public class UdpTest extends AbstractTest {
     assertEquals(1, count);
 
     DNSPacket p = (DNSPacket) pckts.get(0);
-    assertEquals(512, p.getMessage().getPseudo().getUdpPlayloadSize());
+    assertEquals(512, p.getMessages().get(0).getPseudo().getUdpPlayloadSize());
   }
 
   @Test

@@ -131,7 +131,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			// unassigned, private or unknown, get raw value
 			record.set(FieldEnum.dns_qtype.ordinal(), Integer.valueOf(question.getQTypeValue()));
 			
-			if (metricsEnabled) {
+			if (metricsEnabled && metricsBuilder != null) {
 				metricsBuilder.dnsQtype(question.getQType());
 			}
 			
@@ -173,30 +173,24 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			id = requestHeader.getId();
 			opcode = requestHeader.getRawOpcode();
 
-			//if (question != null) {
-				// request specific
+			record.set(FieldEnum.dns_req_len.ordinal(),  Integer.valueOf(reqMessage.getBytes()));
 
-				//question = reqMessage.getQuestions().get(0);
+			int tcpRtt = reqTransport.getTcpHandshakeRTT();
+			if (tcpRtt != -1) {
+				// found tcp handshake info
+				record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(tcpRtt));
 
-				record.set(FieldEnum.dns_req_len.ordinal(),  Integer.valueOf(reqMessage.getBytes()));
-
-				int tcpRtt = reqTransport.getTcpHandshakeRTT();
-				if (tcpRtt != -1) {
-					// found tcp handshake info
-					record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(tcpRtt));
-
-					if (metricsEnabled) {
-						metricsBuilder.tcpHandshake(tcpRtt);
-					}
+				if (metricsEnabled && metricsBuilder != null) {
+					metricsBuilder.tcpHandshake(tcpRtt);
 				}
-			//}
+			}
 
 			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
 			record.set(FieldEnum.dns_rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
 			record.set(FieldEnum.dns_cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
 			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
 
-			if (metricsEnabled) {
+			if (metricsEnabled && metricsBuilder != null) {
 				metricsBuilder.dnsQuery(true);
 			}
 
@@ -214,35 +208,27 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			id = responseHeader.getId();
 			opcode = responseHeader.getRawOpcode();
 
-			//if (!rspMessage.getQuestions().isEmpty()) {
-				// response specific
+			record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 
-				// if (question == null) {
-				// 	question = rspMessage.getQuestions().get(0);
-				// }
+			// these are the values that are retrieved from the response
+			rcode = responseHeader.getRawRcode();
 
-				record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
+			record.set(FieldEnum.dns_aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
+			record.set(FieldEnum.dns_tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
+			record.set(FieldEnum.dns_ra.ordinal(), Boolean.valueOf(responseHeader.isRa()));
+			record.set(FieldEnum.dns_ad.ordinal(), Boolean.valueOf(responseHeader.isAd()));
+			record.set(FieldEnum.dns_ancount.ordinal(), Integer.valueOf(responseHeader.getAnCount()));
+			record.set(FieldEnum.dns_arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
+			record.set(FieldEnum.dns_nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
+			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
 
-				// these are the values that are retrieved from the response
-				rcode = responseHeader.getRawRcode();
+			// EDNS0 for response
+			writeResponseOptions(rspMessage, record);
 
-				record.set(FieldEnum.dns_aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
-				record.set(FieldEnum.dns_tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
-				record.set(FieldEnum.dns_ra.ordinal(), Boolean.valueOf(responseHeader.isRa()));
-				record.set(FieldEnum.dns_ad.ordinal(), Boolean.valueOf(responseHeader.isAd()));
-				record.set(FieldEnum.dns_ancount.ordinal(), Integer.valueOf(responseHeader.getAnCount()));
-				record.set(FieldEnum.dns_arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
-				record.set(FieldEnum.dns_nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
-				record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
+			if (metricsEnabled && metricsBuilder != null) {
+				metricsBuilder.dnsResponse(true);
+			}
 
-				// EDNS0 for response
-				writeResponseOptions(rspMessage, record);
-
-				if (metricsEnabled) {
-					metricsBuilder.dnsResponse(true);
-
-				}
-			//}
 			
 			if(rdataEnabled) {
 				// parsing and creating rdata output consumes lot of cpu/memory, it is disabled by default
@@ -326,14 +312,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			int procTime = (int)(rspTransport.getTsMilli() - reqTransport.getTsMilli());
 			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
 			
-			if (metricsEnabled) {
+			if (metricsEnabled && metricsBuilder != null) {
 				metricsBuilder.procTime(procTime);
 			}
 		}
 
 		// create metrics
 		DnsMetricValues metrics = null;
-		if (metricsEnabled) {
+		if (metricsEnabled && metricsBuilder != null) {
 			metricsBuilder.dnsRcode(rcode);
 			metricsBuilder.dnsOpcode(opcode);
 			metricsBuilder.ipV4(transport.getIpVersion() == 4);

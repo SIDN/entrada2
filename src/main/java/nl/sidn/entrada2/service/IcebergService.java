@@ -193,10 +193,12 @@ public class IcebergService {
 		
 		for(DataFile dataFile: dataFiles) {
 			log.info("Append Iceberg datafile, rows: {} path: {}", dataFile.recordCount(), dataFile.location());
-			appendFiles.appendFile(dataFile);
+			if(appendFiles != null) {
+				appendFiles.appendFile(dataFile);
+			}
 		}
 		
-		if(dataFiles.size() > 0) {
+		if(dataFiles.size() > 0 && appendFiles != null) {
 			appendFiles.commit();
 		}
 	}
