@@ -17,6 +17,7 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
+import org.apache.iceberg.types.Types.StructType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,7 @@ public class IcebergService {
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
 
-	@Value("${iceberg.parquet.dictionary-max-bytes:20000}")
+	@Value("#{${iceberg.parquet.dictionary-max-mb:2}*1024*1024}")
 	private int parquetDictMaxBytes;
 	
 	@Value("${iceberg.parquet.min-records:1000000}")
@@ -54,19 +55,22 @@ public class IcebergService {
 	@Autowired
 	private Table table;
 	
-	private GenericRecord genericRecord;
-	private GenericRecord genericRecordRdata;
+	// Store schemas instead of template records to avoid copy overhead
+	private StructType recordSchema;
+	private StructType rdataSchema;
 	private PartitionedFanoutWriter<GenericRecord> partitionedFanoutWriter;
 
 	private int writeErrors;
+
+	private boolean flush = false;
 
 	@Autowired
 	private LeaderQueue leaderQueue;
 
 	@PostConstruct
 	public void initialize() {
-		this.genericRecord = GenericRecord.create(table.schema());
-		this.genericRecordRdata = GenericRecord.create(table.schema().findType(49).asStructType());
+		this.recordSchema = table.schema().asStruct();
+		this.rdataSchema = table.schema().findType(49).asStructType();
 	}
 
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {
@@ -108,7 +112,7 @@ public class IcebergService {
 	}
 
 	private void clear() {
-		//pageRecords.clear();
+		flush = false;
 		currentRecCount = 0;
 		writeErrors = 0;
 		partitionedFanoutWriter = null;
@@ -198,7 +202,7 @@ public class IcebergService {
 	}
 	
 	public void commit(boolean force) {
-		if(force || currentRecCount > parquetMinRecords) {
+		if(force || flush || currentRecCount > parquetMinRecords) {
 			// even though we have a check for parquetMinRecords there can still be some small
 			// parquet files when processing data around date boundary
 			commit();
@@ -207,7 +211,7 @@ public class IcebergService {
 		}
 	}
 
-	private void commit() {
+	public void commit() {
 
 		// close the current open parquet output file
 		log.info("Commit - currentRecCount: {}", currentRecCount);
@@ -221,11 +225,13 @@ public class IcebergService {
 	}
 
 	public GenericRecord newGenericRecord() {
-		return genericRecord.copy();
+		// Create fresh record - faster than copying empty template (avoids deep copy loop)
+		return GenericRecord.create(recordSchema);
 	}
 	
 	public GenericRecord newRdataGenericRecord() {
-		return genericRecordRdata.copy();
+		// Create fresh record - faster than copying empty template (avoids deep copy loop)
+		return GenericRecord.create(rdataSchema);
 	}
 
 	private class WrappedPartitionedFanoutWriter extends PartitionedFanoutWriter<GenericRecord> {
@@ -261,6 +267,10 @@ public class IcebergService {
 			}
 		}
 		
+	}
+
+	public void flush() {
+		flush = true;
 	}
 
 }

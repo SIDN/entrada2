@@ -1,8 +1,12 @@
 package nl.sidn.entrada2.load;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
+
+import javax.annotation.PostConstruct;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
@@ -35,6 +39,8 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	private static final int RCODE_RESPONSE_WITHOUT_QUERY = -2;
 	private static final int ID_UNKNOWN = -1;
 	private static final int OPCODE_UNKNOWN = -1;
+
+	public static final Pair<GenericRecord, DnsMetricValues> FILTERED = Pair.of(null, null); 
 	
 	@Value("${entrada.rdata.enabled:false}")
 	private boolean rdataEnabled;
@@ -44,11 +50,50 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	
 	@Value("${entrada.rdata.dnssec:false}")
 	private boolean rdataDnsSecEnabled;
+	
+	@Value("#{'${entrada.filter.tlds:}'.toLowerCase().split(',')}")
+	private List<String> filteredTldsList;
+	
+	private Set<String> filteredTlds;
 
 	@Autowired
 	private PublicSuffixListParser domainParser;
 	private PublicSuffixListParser.DomainResult result = new PublicSuffixListParser.DomainResult();
 	
+	@PostConstruct
+	public void init() {
+		// Convert list to Set for O(1) lookup performance
+		// Filter out empty strings from the split
+		if (filteredTldsList != null && !filteredTldsList.isEmpty()) {
+			filteredTlds = new HashSet<>();
+			for (String tld : filteredTldsList) {
+				if (tld != null && !tld.trim().isEmpty()) {
+					filteredTlds.add(tld.trim().toLowerCase());
+				}
+			}
+			if (filteredTlds.isEmpty()) {
+				filteredTlds = Collections.emptySet();
+			}
+		} else {
+			filteredTlds = Collections.emptySet();
+		}
+		
+		if (!filteredTlds.isEmpty()) {
+			log.info("TLD filtering enabled for: {}", filteredTlds);
+		}
+	}
+	
+	/**
+	 * Build a GenericRecord from the given RowData, extracting relevant information from the DNS request and response messages.
+	 * This method is designed to be as efficient as possible, minimizing object creation and expensive calculations
+	 * When tld is in filter list, FILTERED constant is returned, which is not written to iceberg and does not cause offset to increase, but it does count as processed for metrics and retry purposes
+	 * @param combo
+	 * @param server
+	 * @param location
+	 * @param record
+	 * @param recRdata
+	 * @return A Pair containing the GenericRecord and DnsMetricValues, or the FILTERED constant if the TLD is in the filter list.
+	 */
 	public Pair<GenericRecord, DnsMetricValues> build(RowData combo, String server, String location,
 			GenericRecord record, GenericRecord recRdata) {
 		// try to be as efficient as possible, every object created here or expensive
@@ -65,7 +110,54 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		Packet transport = combo.getRequest() != null ? combo.getRequest() : combo.getResponse();
 		Question question = null;
 
-		DnsMetricValues.DnsMetricValuesBuilder metricsBuilder = DnsMetricValues.builder().time(transport.getTsMilli());
+		// Cache timestamp to avoid multiple calls
+		long tsMilli = transport.getTsMilli();
+		
+		// Lazy initialization - only create metrics builder if enabled
+		DnsMetricValues.DnsMetricValuesBuilder metricsBuilder = null;
+		if (metricsEnabled) {
+			metricsBuilder = DnsMetricValues.builder().time(tsMilli);
+		}
+
+		if (reqMessage != null && !reqMessage.getQuestions().isEmpty() ) {
+			question = reqMessage.getQuestions().get(0);
+		}else if (rspMessage != null && !rspMessage.getQuestions().isEmpty() ) {
+			question = rspMessage.getQuestions().get(0);
+		}
+
+		// a question is not always there, e.g. UPDATE message
+		if (question != null) {
+			// question can be from req or resp
+			// unassigned, private or unknown, get raw value
+			record.set(FieldEnum.dns_qtype.ordinal(), Integer.valueOf(question.getQTypeValue()));
+			
+			if (metricsEnabled) {
+				metricsBuilder.dnsQtype(question.getQType());
+			}
+			
+			// unassigned, private or unknown, get raw value
+			record.set(FieldEnum.dns_qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
+
+			boolean parserStatus = domainParser.parseDomainInto(question.getQName(), result);
+			if(!parserStatus || result.publicSuffix == null) {
+				// cannot get tld, save full fqdn
+				record.set(FieldEnum.dns_qname_full.ordinal(), result.fullDomain);
+			}else {
+				// Fast TLD filtering check - O(1) Set lookup
+				if (!filteredTlds.isEmpty() && result.publicSuffix != null) {
+					if (filteredTlds.contains(result.publicSuffix)) {
+						// TLD is in filter list - do not store this data
+						return FILTERED;
+					}
+				}
+				
+				record.set(FieldEnum.dns_qname.ordinal(), result.subdomain);
+				record.set(FieldEnum.dns_domainname.ordinal(), result.registeredDomain);
+				record.set(FieldEnum.dns_tld.ordinal(), result.publicSuffix);
+			}
+
+			record.set(FieldEnum.dns_labels.ordinal(), result.labels);
+		}
 
 		// check to see it a response was found, if not then use -1 value for rcode
 		// otherwise use the rcode returned by the server in the response.
@@ -81,22 +173,23 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			id = requestHeader.getId();
 			opcode = requestHeader.getRawOpcode();
 
-			if (!reqMessage.getQuestions().isEmpty()) {
+			//if (question != null) {
 				// request specific
 
-				question = reqMessage.getQuestions().get(0);
+				//question = reqMessage.getQuestions().get(0);
 
-				record.set(FieldEnum.dns_req_len.ordinal(), Integer.valueOf(reqMessage.getBytes()));
+				record.set(FieldEnum.dns_req_len.ordinal(),  Integer.valueOf(reqMessage.getBytes()));
 
-				if (reqTransport.getTcpHandshakeRTT() != -1) {
+				int tcpRtt = reqTransport.getTcpHandshakeRTT();
+				if (tcpRtt != -1) {
 					// found tcp handshake info
-					record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(reqTransport.getTcpHandshakeRTT()));
+					record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(tcpRtt));
 
 					if (metricsEnabled) {
-						metricsBuilder.tcpHandshake(reqTransport.getTcpHandshakeRTT());
+						metricsBuilder.tcpHandshake(tcpRtt);
 					}
 				}
-			}
+			//}
 
 			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
 			record.set(FieldEnum.dns_rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
@@ -121,12 +214,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			id = responseHeader.getId();
 			opcode = responseHeader.getRawOpcode();
 
-			if (!rspMessage.getQuestions().isEmpty()) {
+			//if (!rspMessage.getQuestions().isEmpty()) {
 				// response specific
 
-				if (question == null) {
-					question = rspMessage.getQuestions().get(0);
-				}
+				// if (question == null) {
+				// 	question = rspMessage.getQuestions().get(0);
+				// }
 
 				record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 
@@ -149,11 +242,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 					metricsBuilder.dnsResponse(true);
 
 				}
-			}
+			//}
 			
 			if(rdataEnabled) {
 				// parsing and creating rdata output consumes lot of cpu/memory, it is disabled by default
-				List<GenericRecord> datas = new ArrayList<GenericRecord>();
+				// Use reasonable initial capacity to reduce resizing
+				List<GenericRecord> datas = new ArrayList<>(16);
 				if(!rspMessage.getAnswer().isEmpty()) {
 					rdata(rspMessage.getAnswer(), recRdata, 0, datas);
 				}
@@ -166,50 +260,25 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				record.set(FieldEnum.dns_rdata.ordinal(), datas);
 			}
 			
-			if(cnameEnabled) {
+			if(cnameEnabled && !rspMessage.getAnswer().isEmpty()) {
+				// Lazy initialization - only create list if CNAMEs found
+				List<String> cnames = null;
 				
-				if(!rspMessage.getAnswer().isEmpty()) {
-					
-					List<String> cnames = new ArrayList<>();
-					
-					for(RRset rrset: rspMessage.getAnswer()) {
-						if(rrset.getType() == ResourceRecordType.CNAME) {
-							for(ResourceRecord rr: rrset.getData()) {
-								cnames.add(((CNAMEResourceRecord)rr).getCname());
+				for(RRset rrset: rspMessage.getAnswer()) {
+					if(rrset.getType() == ResourceRecordType.CNAME) {
+						for(ResourceRecord rr: rrset.getData()) {
+							if(cnames == null) {
+								cnames = new ArrayList<>(4);
 							}
+							cnames.add(((CNAMEResourceRecord)rr).getCname());
 						}
 					}
-					
+				}
+				
+				if(cnames != null) {
 					record.set(FieldEnum.dns_cname.ordinal(), cnames);
 				}
-		
 			}
-		}
-
-		// a question is not always there, e.g. UPDATE message
-		if (question != null) {
-			// question can be from req or resp
-			// unassigned, private or unknown, get raw value
-			record.set(FieldEnum.dns_qtype.ordinal(), Integer.valueOf(question.getQTypeValue()));
-			
-			if (metricsEnabled) {
-				metricsBuilder.dnsQtype(question.getQType());
-			}
-			
-			// unassigned, private or unknown, get raw value
-			record.set(FieldEnum.dns_qclass.ordinal(), Integer.valueOf(question.getQClassValue()));
-
-			boolean parserStatus = domainParser.parseDomainInto(question.getQName(), result);
-			if(!parserStatus || result.publicSuffix == null) {
-				// cannot get tld, save full fqdn
-				record.set(FieldEnum.dns_qname_full.ordinal(), result.fullDomain);
-			}else {
-				record.set(FieldEnum.dns_qname.ordinal(), result.subdomain);
-				record.set(FieldEnum.dns_domainname.ordinal(), result.registeredDomain);
-				record.set(FieldEnum.dns_tld.ordinal(), result.publicSuffix);
-			}
-
-			record.set(FieldEnum.dns_labels.ordinal(), result.labels);
 		}
 	
 		record.set(FieldEnum.server_location.ordinal(), location);
@@ -217,9 +286,10 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		// values from request OR response now
 		// if no request found in the request then use values from the response.
 		record.set(FieldEnum.dns_id.ordinal(), Integer.valueOf(id));
+		// Cast to int to ensure Integer boxing (getRawOpcode returns char which would box to Character)
 		record.set(FieldEnum.dns_opcode.ordinal(), Integer.valueOf(opcode));
 		record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
-		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(transport.getTsMilli()));
+		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(tsMilli));
 		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(transport.getIpVersion()));
 
 		int prot = transport.getProtocol();
@@ -253,46 +323,27 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		// calculate the processing time
 		if (reqTransport != null && rspTransport != null) {
-			Integer procTime = Integer.valueOf((int)(rspTransport.getTsMilli() - reqTransport.getTsMilli()));
+			int procTime = (int)(rspTransport.getTsMilli() - reqTransport.getTsMilli());
 			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
 			
 			if (metricsEnabled) {
-				metricsBuilder.procTime(procTime.intValue());
+				metricsBuilder.procTime(procTime);
 			}
 		}
 
 		// create metrics
+		DnsMetricValues metrics = null;
 		if (metricsEnabled) {
 			metricsBuilder.dnsRcode(rcode);
 			metricsBuilder.dnsOpcode(opcode);
 			metricsBuilder.ipV4(transport.getIpVersion() == 4);
 			metricsBuilder.ProtocolUdp(prot == PacketFactory.PROTOCOL_UDP);
 			metricsBuilder.country((String) record.get(FieldEnum.ip_geo_country.ordinal()));
+			metrics = metricsBuilder.build();
 		}
 
-		return Pair.of(record, metricsBuilder.build());
+		return Pair.of(record, metrics);
 	}
-	
-//	private String toAsciiFast(String input) {
-//	    char[] chars = input.toCharArray();
-//	    boolean updated = false;
-//	    for (int i = 0; i < chars.length; i++) {
-//	        if (chars[i] < 32 || chars[i] > 126) {  // non-printable ASCII
-//	            chars[i] = '?';
-//	            
-//	            if(!updated) {
-//	            	updated = true;
-//	            }
-//	        }
-//	    }
-//	    
-//	    if(updated) {
-//	    	return new String(chars);
-//	    }
-//	    
-//	    return input;
-//	}
-
 
 	private void rdata(List<RRset> rrSetList, GenericRecord rec, int section, List<GenericRecord> datas){
 		for(RRset rrset: rrSetList) {
@@ -302,16 +353,16 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				continue;
 			}
 			
-			datas.addAll(rrset.getData().stream()
-					.map( rr -> {
-						// create a copy of the empty dafault record for each new row/record
-						GenericRecord data = rec.copy();
-						data.set(RdataFieldEnum.dns_rdata_section.ordinal(), section);
-						data.set(RdataFieldEnum.dns_rdata_type.ordinal(), rr.getType().getValue());
-						data.set(RdataFieldEnum.dns_rdata_data.ordinal(), rr.rDataToString());
-						return data;
-					})
-					.collect(Collectors.toList()));
+			// Replace stream with simple loop for better performance
+			List<ResourceRecord> records = rrset.getData();
+			for (ResourceRecord rr : records) {
+				// create a copy of the empty default record for each new row/record
+				GenericRecord data = rec.copy();
+				data.set(RdataFieldEnum.dns_rdata_section.ordinal(), section);
+				data.set(RdataFieldEnum.dns_rdata_type.ordinal(), rr.getType().getValue());
+				data.set(RdataFieldEnum.dns_rdata_data.ordinal(), rr.rDataToString());
+				datas.add(data);
+			}
 		}
 		
 	}
@@ -341,18 +392,22 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				// see: https://datatracker.ietf.org/doc/html/rfc6891
 				// 12 bits code: upper 8 bits are in opt.getRcode() and lower 4 bits are in message.getHeader().getRawRcode()
 				int extendedRcode = ((int) opt.getRcode() << 4) | message.getHeader().getRawRcode();
-				record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(extendedRcode));
+				record.set(FieldEnum.dns_rcode.ordinal(),  Integer.valueOf(extendedRcode));
 			}
 			
-			List<Integer> errors = new ArrayList<>();
+			// Lazy initialization - only create list if errors found
+			List<Integer> errors = null;
 			for (EDNS0Option option : opt.getOptions()) {
 				if (option instanceof EDEOption) {
+					if (errors == null) {
+						errors = new ArrayList<>(2);
+					}
 					int code = ((EDEOption) option).getCode();
 					errors.add(code);
 				}
 			}
 			
-			if(errors != null && errors.size() > 0) {
+			if(errors != null) {
 				record.set(FieldEnum.edns_ext_error.ordinal(), errors);
 			}
 		}
@@ -369,13 +424,16 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		OPTResourceRecord opt = message.getPseudo();
 		if (opt != null) {
-			List<Integer> ednsOptions = new ArrayList<>();
+			// Lazy initialization - only create list if options found
+			List<Integer> ednsOptions = null;
 			record.set(FieldEnum.edns_udp.ordinal(), Integer.valueOf(opt.getUdpPlayloadSize()));
 			record.set(FieldEnum.edns_version.ordinal(), Integer.valueOf(opt.getVersion()));
 			record.set(FieldEnum.edns_do.ordinal(), Boolean.valueOf(opt.isDnssecDo()));
 
 			for (EDNS0Option option : opt.getOptions()) {
-
+				if (ednsOptions == null) {
+					ednsOptions = new ArrayList<>(4);
+				}
 				ednsOptions.add(option.getCode());
 
 				if (option instanceof ClientSubnetOption) {
@@ -393,7 +451,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 			}
 
-			if(ednsOptions != null && !ednsOptions.isEmpty()) {
+			if(ednsOptions != null) {
 				record.set(FieldEnum.edns_options.ordinal(), ednsOptions);
 			}
 		}

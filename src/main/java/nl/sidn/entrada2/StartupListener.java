@@ -13,7 +13,6 @@ import com.influxdb.v3.client.InfluxDBClient;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.LeaderService;
-import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import nl.sidn.entrada2.service.messaging.LeaderQueue;
 
 @Component

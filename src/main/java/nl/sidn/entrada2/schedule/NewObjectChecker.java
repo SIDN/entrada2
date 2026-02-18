@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.config.EntradaS3Properties;
 import nl.sidn.entrada2.messaging.S3EventNotification;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3Entity;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
@@ -23,18 +24,23 @@ import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+/**
+ * This class is responsible for checking for new objects in the configured s3 bucket and prefixes, it does this by listing all objects and checking if they have a specific tag, if not it adds the tag and sends a message to the request queue
+ * The tag is used to prevent multiple instances of Entrada from processing the same object when running in a clustered environment
+ * The class is only active when the property "entrada.schedule.new-object-secs" is set to a value greater than 0
+ * 
+ * This is only used as a fallback for when S3 event notifications are not available, it is recommended to use S3 event notifications instead of this class for better performance and reliability
+ * 
+ */
 @Slf4j
 @ConditionalOnExpression(
 	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${entrada.schedule.new-object-secs}')"
 	)
 @Component
 public class NewObjectChecker {
-	
-	@Value("${entrada.s3.bucket}")
-	private String bucketName;
-	
-	@Value("${entrada.s3.pcap-in-dir}")
-	private String pcapInDir;
+
+	@Autowired
+	private EntradaS3Properties s3Properties;
 
 	@Autowired
 	private S3Service s3Service;
@@ -57,57 +63,54 @@ public class NewObjectChecker {
 			return;
 		}
 		// find new objects
-		log.debug("Start checking for new objects");
+		log.info("Start checking for new objects");
 		
 		try {
-			scanForNewObjects();
+			for(String prefix: s3Properties.getPcapInPrefixes()) {
+				log.info("Start checking for new objects with prefix: {}", prefix);
+				int counterAdded = scanForNewObjects(prefix);
+				log.info("Detected {} new object(s) for prefix: {}", counterAdded, prefix);
+			}
 		} catch (Exception e) {
 			log.error("Unexpected exception while scanning for new objects");
 		}
-		
 	}
 
-	public void scanForNewObjects() {
+	public int scanForNewObjects(String prefix) {
 		
-		int counter = 0;
 		int counterAdded = 0;
-		List<S3Object> s3Objects = s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"));
-		
+		List<S3Object> s3Objects = s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix,"/"));
+
 		s3Objects.sort(Comparator.comparing(S3Object::key));
 		Map<String, String> tags = new HashMap<String, String>();
 		
 		for( S3Object s3Object: s3Objects) {
-			
-			 if(s3Service.tags(bucketName, s3Object.key(), tags)){
+
+			 if(s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)){
 				 if(StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
 					 
 					if(log.isDebugEnabled()) {
-						log.debug("New object found: {}/{}", bucketName, s3Object.key());
+						log.debug("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
 					}
 					
 					tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
-					if(s3Service.tag(bucketName, s3Object.key(), tags)) {
-						rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(bucketName, s3Object.key()));
+					if(s3Service.tag(s3Properties.getBucket(), s3Object.key(), tags)) {
+						rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(s3Properties.getBucket(), s3Object.key()));
 						counterAdded++;
 					}else {
 						// problem setting tags
 						log.error("Failed to set tags on newly detected object: ", s3Object.key());
 					}
-					
-					counter++;
-					 
 				 }
 			 }
-			 
 			 tags.clear();
 		}
-		
-		log.info("Detected {} new object(s) and added {} object(s) to request queue", counter, counterAdded);
+		return counterAdded;
 	}
 	
 	private S3EventNotification createEvent(String bucket, String key) {
 		 new S3EventNotification.S3BucketEntity(bucket, null, null);
-			S3Entity e = new S3Entity(null, new S3EventNotification.S3BucketEntity(bucketName, null, null),
+			S3Entity e = new S3Entity(null, new S3EventNotification.S3BucketEntity(s3Properties.getBucket(), null, null),
 					new S3EventNotification.S3ObjectEntity(key, null, null, null, null), null);
 			
 			List<S3EventNotificationRecord> records = List.of(new S3EventNotificationRecord(null, "s3:ObjectCreated:Put", null, null, null, null, null, e, null ,null,null, null, null));

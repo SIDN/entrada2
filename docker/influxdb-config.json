@@ -1,0 +1,6 @@
+{
+  "DEFAULT_INFLUX_SERVER": "http://host.docker.internal:8181",
+  "DEFAULT_INFLUX_DATABASE": "entrada2",
+  "DEFAULT_API_TOKEN": "apiv3_wkemsdlkfm9843ewsankjdbnk2387oiwjnswq2d323",
+  "DEFAULT_SERVER_NAME": "ENTRADA2 Metrics Server"
+  }

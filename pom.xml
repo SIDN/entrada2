@@ -6,12 +6,12 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.7</version>
+        <version>3.5.10</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
     <groupId>nl.sidn</groupId>
     <artifactId>entrada2</artifactId>
-    <version>0.0.15</version>
+    <version>0.0.16</version>
     <name>entrada2</name>
 
     <properties>

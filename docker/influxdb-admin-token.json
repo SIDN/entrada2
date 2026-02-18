@@ -1,0 +1,5 @@
+{
+  "token": "apiv3_wkemsdlkfm9843ewsankjdbnk2387oiwjnswq2d323",
+  "name": "admin",
+  "description": "Token for testing purposes, this is not a security risk as this token is only used in local development"
+}

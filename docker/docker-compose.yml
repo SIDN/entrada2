@@ -6,15 +6,31 @@
 # docker-compose --profile test up --scale entrada-worker=2
 # any other profile will only start the dependencies
 services:
-  influxdb:
-    image: influxdb:latest
+  influxdb3-core:
+    image: influxdb:3-core
     restart: always
     env_file:
        - path: ./docker.env
-    volumes:
-      - entradaInfluxDbVolume:/var/lib/influxdb2:rw
     ports:
-      - "8086:8086"
+      - 8181:8181
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=memory
+      - --admin-token-file=/app-root/config/admin-token.json
+    volumes:
+      - ./influxdb-admin-token.json:/app-root/config/admin-token.json
+  influxdb-explorer:
+    image: influxdata/influxdb3-ui
+    restart: always
+    env_file:
+       - path: ./docker.env
+    command: ["--mode=admin"]
+    volumes:
+      - ./influxdb-config.json:/app-root/config/config.json
+    ports:
+      - "8888:80" 
   rabbitmq:
     image: rabbitmq:3-management
     restart: always
@@ -28,39 +44,21 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
-  minio:
-    image: quay.io/minio/minio:latest
+  rustfs:
+    image: rustfs/rustfs:1.0.0-alpha.83
     restart: always
     env_file:
        - path: ./docker.env
     volumes:
-      - entradaMinioVolume:/data:rw
+      - entradaS3Volume:/data:rw
     ports:
       - "9000:9000"
-      - "9090:9090"
-    command: server /data --console-address ":9090"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "9001:9001"
     links:
       - rabbitmq
     depends_on:
       rabbitmq:
         condition: service_healthy
-  createbucket:
-    image: minio/mc
-    env_file:
-       - path: ./docker.env
-    depends_on:
-      minio:
-        condition: service_healthy
-    links:
-      - minio
-    entrypoint: ["/bin/sh","/init-minio.sh"]
-    volumes:
-       - ./init-minio.sh:/init-minio.sh
   postgresql:
     image: postgres:17
     restart: always
@@ -77,7 +75,7 @@ services:
       - ./initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
       - entradaPostgresqlVolume:/pgdata:rw
   trino:
-    image: trinodb/trino:446
+    image: trinodb/trino:479
     restart: always
     env_file:
        - path: ./docker.env
@@ -86,15 +84,13 @@ services:
     ports:
       - "8085:8080"
     links:
-      - minio  
+      - rustfs
       - postgresql
     depends_on:
       postgresql:
         condition: service_healthy
-      minio:
-        condition: service_healthy
   entrada-master:
-    image: sidnlabs/entrada2:0.0.12
+    image: sidnlabs/entrada2:0.0.16
     profiles: ["test"]
     restart: always
     env_file:
@@ -115,19 +111,17 @@ services:
     links:
       - influxdb
       - rabbitmq
-      - minio
+      - rustfs
       - postgresql
     depends_on:
       postgresql:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       createbucket:
         condition: service_completed_successfully
   entrada-worker:
-    image: sidnlabs/entrada2:0.0.12
+    image: sidnlabs/entrada2:0.0.16
     profiles: ["test"]
     restart: always
     env_file:
@@ -138,12 +132,10 @@ services:
     links:
       - influxdb
       - rabbitmq
-      - minio
+      - rustfs
       - postgresql
     depends_on:
       postgresql:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -153,7 +145,8 @@ services:
         condition: service_started
 volumes:
   entradaInfluxDbVolume:
-  entradaMinioVolume:
+  entradaS3Volume:
   entradaPostgresqlVolume:
+  entradaInfluxPluginsVolume:
   
 

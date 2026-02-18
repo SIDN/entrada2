@@ -4,6 +4,7 @@ import java.net.URI;
 import java.time.Duration;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,22 +36,11 @@ public class S3Config {
 	@Value("${entrada.provisioning.enabled:true}")
 	private boolean provisioningEnabled;
 
-	@Value("${entrada.s3.endpoint}")
-	private String endpoint;
-
-	@Value("${entrada.s3.bucket}")
-	private String bucketName;
-	
-	@Value("${entrada.s3.region}")
-	private String region;
-	
-	@Value("${entrada.s3.access-key}")
-	private String accessKey;
-	@Value("${entrada.s3.secret-key}")
-	private String secretKey;
+	@Autowired
+	private EntradaS3Properties s3Properties;
 
 	private boolean isRunningOnAws() {
-		return StringUtils.isBlank(endpoint);
+		return StringUtils.isBlank(s3Properties.getEndpoint());
 	}
 	
 
@@ -68,17 +58,17 @@ public class S3Config {
 		// when not running on aws, make sure the s2 endpoint is configured
 		 return S3Client.builder()
 				 .forcePathStyle(Boolean.TRUE)
-				 .region(Region.of(region))
-				 .endpointOverride(URI.create(endpoint))
+				 .region(Region.of(s3Properties.getRegion()))
+				 .endpointOverride(URI.create(s3Properties.getEndpoint()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
-						 	.connectionTimeout(Duration.ofSeconds(5))
-			                .socketTimeout(Duration.ofSeconds(10))
+						 	.connectionTimeout(Duration.ofSeconds(30))
+			                .socketTimeout(Duration.ofSeconds(30))
 			                .maxConnections(50))
-				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
 						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
-					        .apiCallTimeout(Duration.ofMinutes(5))  
+					        .apiCallTimeout(Duration.ofMinutes(5))  // total time for all attempts. ls may take a long time to download, so set it high
 					        .build())
 				.build();
 	}
@@ -93,13 +83,13 @@ public class S3Config {
 			
 		 return S3Client.builder()
 				 .forcePathStyle(Boolean.TRUE)
-				 .region(Region.of(region))
-				 .endpointOverride(URI.create(endpoint))
+				 .region(Region.of(s3Properties.getRegion()))
+				 .endpointOverride(URI.create(s3Properties.getEndpoint()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))
 			                .socketTimeout(Duration.ofSeconds(10))
 			                .maxConnections(10))
-				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(DefaultRetryStrategy.doNotRetry())
@@ -109,16 +99,16 @@ public class S3Config {
 
 	@PostConstruct
 	private void init() {
-		log.info("Using s3 endpoint: {}", endpoint);
-		log.info("Using s3 bucket: {}", bucketName);
+		log.info("Using s3 endpoint: {}", s3Properties.getEndpoint());
+		log.info("Using s3 bucket: {}", s3Properties.getBucket());
 		
 		if(!provisioningEnabled) {
 			log.info("Provisioning is disabled, do not create required bucket");
 			return;
 		}
 
-		if (!isBucketExist(s3(), bucketName)) {
-			createBucket(s3(), bucketName, isRunningOnAws());
+		if (!isBucketExist(s3(), s3Properties.getBucket())) {
+			createBucket(s3(), s3Properties.getBucket(), isRunningOnAws());
 		}
 	}
 

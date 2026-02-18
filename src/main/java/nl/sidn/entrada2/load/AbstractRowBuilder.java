@@ -15,7 +15,6 @@ import nl.sidn.entrada2.service.enrich.resolver.ResolverEnrichment;
 
 public abstract class AbstractRowBuilder {
 
-  protected static final int STATUS_COUNT = 100000;
   private final static int ENRICHMENT_CACHE_MAX_SIZE = 50000;
   
   @Autowired

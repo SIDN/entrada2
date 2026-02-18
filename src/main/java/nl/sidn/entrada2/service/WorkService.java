@@ -1,5 +1,6 @@
 package nl.sidn.entrada2.service;
 
+import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,16 +36,16 @@ import nl.sidnlabs.pcap.PcapReader;
 @Slf4j
 public class WorkService {
 	
-	private static final int DECOMPRESS_STREAM_BUFFER = 256 * 1024;
+	// Increased from 256KB to 512KB for better throughput on large PCAP files
+	private static final int DECOMPRESS_STREAM_BUFFER = 512 * 1024;
+	// Buffer after decompression, before DataInputStream for PcapReader
+	private static final int PCAP_READ_BUFFER = 256 * 1024;
 	
 	@Value("${entrada.nameserver.default-name}")
 	private String defaultNsName;
 
 	@Value("${entrada.nameserver.default-site}")
 	private String defaultNsSite;
-	
-	@Value("${entrada.s3.pcap-in-dir}")
-	private String pcapDirIn;
 	
 	@Value("${entrada.s3.pcap-done-dir}")
 	private String pcapDirDone;
@@ -101,14 +102,14 @@ public class WorkService {
 		
 		icebergService.commit(true);
 	}
+	
+	public void flush() {
+		log.info("Flushing Iceberg writer");
+		icebergService.flush();
+	}
 
 	public boolean process(String bucket, String key) {
 		
-		if(StringUtils.equalsIgnoreCase(pcapDirIn, key)) {
-			// ingore input directory creation
-			log.error("Ignore create event for pcap prefix: {}", key);
-			return true;
-		}
 		if(!CompressionUtil.isSupportedFormat(key)) {
 			// ingore input directory creation
 			log.error("Unsupported filetype: {}", key);
@@ -204,13 +205,16 @@ public class WorkService {
 						errorCounter.increment();
 					}
 				}
+			}else {
+				log.error("Error getting inputstream for file: {}/{}", bucket, key);
+				errorCounter.increment();
 			}
 			
 			duration = System.currentTimeMillis() - startOfWork;
 			log.info("Done processing file: {}/{}, time: {}ms", bucket, key, duration);			
 		} finally {
 			try {
-				if(ois.isPresent()) {
+				if(ois != null && ois.isPresent()) {
 					ois.get().close();
 				}
 			}catch (Exception e) {
@@ -218,9 +222,6 @@ public class WorkService {
 				log.error("Error while closing inpustream for: {}/{}",  bucket, key);
 			}
 			
-			if(isMetricsEnabled()) {
-				metrics.flush(server, anycastSite);
-			}
 			startOfWork = 0;
 			working = false;
 		}
@@ -278,6 +279,9 @@ public class WorkService {
 	private boolean process_(PcapReader reader, String bucket, String key, String server, String anycastSite, int offset) {
 		
 		processed = new AtomicInteger(offset);
+		
+		// cache metrics check to avoid repeated method calls in hot loop
+		boolean metricsEnabled = isMetricsEnabled();
 
 		try {
 			reader.stream().skip(offset).forEach(p -> {
@@ -289,13 +293,16 @@ public class WorkService {
 
 					// save all records from file in memory and only commit (write to file)
 					// when file has been read succesfully, to prevent reading same packets again from file when doing retry.
-					icebergService.write(rowPair.getKey());
-					
-					processed.incrementAndGet();
+					// ignore filtered records, these are not written to iceberg and do not cause offset to increase, but they do count as processed for metrics and retry purposes
+					if(rowPair != DNSRowBuilder.FILTERED){
+						icebergService.write(rowPair.getKey());
+						
+						processed.incrementAndGet();
 
-					// update metrics
-					if(isMetricsEnabled()) {
-						metrics.update(rowPair.getValue());
+						// update metrics
+						if(metricsEnabled) {
+							metrics.update(rowPair.getValue(), server, anycastSite);
+						}
 					}
 				});
 			});
@@ -310,15 +317,16 @@ public class WorkService {
 				Pair<GenericRecord, DnsMetricValues> rowPair = rowBuilder.build(rd, server, anycastSite,
 						icebergService.newGenericRecord(), rdataEnabled? icebergService.newRdataGenericRecord(): null);
 				
-				icebergService.write(rowPair.getKey());
+				if(rowPair != DNSRowBuilder.FILTERED){
+					icebergService.write(rowPair.getKey());
 
-				// update metrics
-				if(isMetricsEnabled()) {
-					metrics.update(rowPair.getValue());
+					// update metrics
+					if(metricsEnabled) {
+						metrics.update(rowPair.getValue(), server, anycastSite);
+					}
 				}
 
-			});
-				
+			});				
 
 			icebergService.commit(false);
 		} catch (Exception e) {
@@ -342,7 +350,9 @@ public class WorkService {
 
 		try {
 			InputStream decompressor = CompressionUtil.getDecompressorStreamWrapper(is, DECOMPRESS_STREAM_BUFFER, file);
-			return Optional.of(new PcapReader(new DataInputStream(decompressor), null, true, !rdataEnabled));
+			// Add BufferedInputStream after decompressor to avoid many small reads into DataInputStream
+			BufferedInputStream bufferedDecompressor = new BufferedInputStream(decompressor, PCAP_READ_BUFFER);
+			return Optional.of(new PcapReader(new DataInputStream(bufferedDecompressor), null, true, !rdataEnabled));
 		} catch (IOException e) {
 			log.error("Error creating pcap reader for: " + file, e);
 			try {

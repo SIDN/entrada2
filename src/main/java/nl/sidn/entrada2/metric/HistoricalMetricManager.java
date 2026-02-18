@@ -22,17 +22,18 @@ package nl.sidn.entrada2.metric;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.context.annotation.Scope;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.influxdb.v3.client.InfluxDBClient;
@@ -47,10 +48,12 @@ import nl.sidn.entrada2.load.DnsMetricValues;
  * files. The timestamp of a packets in the PCAP file is used when generating
  * the metrics and NOT the timestamp at the point in time when the packet was
  * read from the PCAP.
+ * 
+ * Thread-safe singleton that aggregates metrics in memory and periodically
+ * flushes them to InfluxDB asynchronously.
  */
 @Slf4j
 @Component
-@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @ConditionalOnExpression(
 	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${management.influx.metrics.export.uri}')"
 	)
@@ -74,6 +77,7 @@ public class HistoricalMetricManager {
 
 	public static final String METRIC_IMPORT_TCP_HANDSHAKE_RTT = "entrada_tcp_rtt";
 	
+	// Reusable tag maps to avoid creating new maps for every metric
 	public static final Map<String, String> IP_V4_TAG_MAP = Map.of("version", "4");
 	public static final Map<String, String> IP_V6_TAG_MAP = Map.of("version", "6");
 	
@@ -81,131 +85,155 @@ public class HistoricalMetricManager {
 	public static final Map<String, String> NETWORK_TCP_TAG_MAP = Map.of("protocol", "TCP");
 
 	private static final Random RND = new Random();
+	private static final Map<String, String> EMPTY_MAP = Map.of();
 
-	// name -> time -> value
-	private Map<String, Map<Instant, Metric>> metricCache = new HashMap<>();
+	// Thread-safe cache: name -> time -> value
+	private final Map<String, Map<Instant, Metric>> metricCache = new ConcurrentHashMap<>();
 
-	private static final Map<String, String> EMPTY_MAP = new HashMap<>();
+	@Value("${entrada.metrics.bin-size-secs:10}")
+	private int binSizeSeconds;
 
 	@Autowired(required = false)
 	private InfluxDBClient influxClient;
 
-	public void update(DnsMetricValues dmv) {
+	public void update(DnsMetricValues dmv, String server, String anycastSite) {
 
 		if (dmv == null) {
 			// do nothing
 			return;
 		}
 
-		// this is the influx step size, using 1 second!
-		Instant time = Instant.ofEpochSecond(dmv.time / 1000);
+		// Round timestamp to configured bin size (e.g., 10 seconds)
+		long epochSeconds = dmv.time / 1000;
+		long binnedSeconds = (epochSeconds / binSizeSeconds) * binSizeSeconds;
+		Instant time = Instant.ofEpochSecond(binnedSeconds);
 
 		if (dmv.dnsQuery) {
-			update(METRIC_IMPORT_DNS_QUERY_COUNT, time, 1, true);
+			update(METRIC_IMPORT_DNS_QUERY_COUNT, time, 1, true, EMPTY_MAP, server, anycastSite);
 		}
 
 		if (dmv.dnsResponse) {
-			update(METRIC_IMPORT_DNS_RESPONSE_COUNT, time, 1, true);
+			update(METRIC_IMPORT_DNS_RESPONSE_COUNT, time, 1, true, EMPTY_MAP, server, anycastSite);
 		}
 
 		if(dmv.dnsQtype != null) {
-		update(METRIC_IMPORT_DNS_QTYPE + METRIC_SEPERATOR + dmv.dnsQtype.name(), time, 1, true,
-				Map.of("qtype", dmv.dnsQtype.name()));
+			String qtypeName = dmv.dnsQtype.name();
+			update(METRIC_IMPORT_DNS_QTYPE + METRIC_SEPERATOR + qtypeName, time, 1, true,
+					Map.of("qtype", qtypeName), server, anycastSite);
 		}
 		
 		update(METRIC_IMPORT_DNS_RCODE + METRIC_SEPERATOR + dmv.dnsRcode, time, 1, true,
-				Map.of("rcode", String.valueOf(dmv.dnsRcode)));
+				Map.of("rcode", String.valueOf(dmv.dnsRcode)), server, anycastSite);
 		update(METRIC_IMPORT_DNS_OPCODE + METRIC_SEPERATOR + dmv.dnsOpcode, time, 1, true,
-				Map.of("opcode", String.valueOf(dmv.dnsOpcode)));
+				Map.of("opcode", String.valueOf(dmv.dnsOpcode)), server, anycastSite);
 
 		if (StringUtils.isNotEmpty(dmv.country)) {
 			update(METRIC_IMPORT_COUNTRY_COUNT + METRIC_SEPERATOR + dmv.country, time, 1, true,
-					Map.of("name", dmv.country));
+					Map.of("name", dmv.country), server, anycastSite);
 		}
 
 		if (dmv.ProtocolUdp) {
-			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "udp", time, 1, true, NETWORK_UDP_TAG_MAP);
+			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "udp", time, 1, true, NETWORK_UDP_TAG_MAP, server, anycastSite);
 		} else {
-			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "tcp", time, 1, true, NETWORK_TCP_TAG_MAP);
+			update(METRIC_IMPORT_NETWORK_PROT + METRIC_SEPERATOR + "tcp", time, 1, true, NETWORK_TCP_TAG_MAP, server, anycastSite);
 			if (dmv.hasTcpHandshake()) {
-				update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false);
+				update(METRIC_IMPORT_TCP_HANDSHAKE_RTT, time, dmv.tcpHandshake, false, EMPTY_MAP, server, anycastSite);
 			}
 		}
 
 		if (dmv.ipV4) {
-			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "4", time, 1, true, IP_V4_TAG_MAP);
+			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "4", time, 1, true, IP_V4_TAG_MAP, server, anycastSite);
 		} else {
-			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "6", time, 1, true, IP_V6_TAG_MAP);
+			update(METRIC_IMPORT_IP_COUNT + METRIC_SEPERATOR + "6", time, 1, true, IP_V6_TAG_MAP, server, anycastSite);
 		}
 		
 		
-		update(METRIC_IMPORT_DNS_PROC_TIME, time, (int)dmv.procTime, false);
+		update(METRIC_IMPORT_DNS_PROC_TIME, time, (int)dmv.procTime, false, EMPTY_MAP, server, anycastSite);
 		
 	}
 
-	private void update(String name, Instant time, int value, boolean counter) {
-		update(name, time, value, counter, EMPTY_MAP);
-	}
-
-	private void update(String name, Instant time, int value, boolean counter, Map<String, String> tags) {
-
-		Map<Instant, Metric> metricValues = metricCache.get(name);
-
-		if (metricValues == null) {
-			metricValues = new LinkedHashMap<>();
-			Metric m = createMetric(value, counter, tags);
-			metricValues.put(time, m);
-			metricCache.put(name, metricValues);
-		} else {
-			Metric m = metricValues.get(time);
-			
-			if (m != null) {
-				m.update(value);
-			}else {
-				metricValues.put(time, createMetric(value, counter, tags));
+	private void update(String name, Instant time, int value, boolean counter, Map<String, String> tags, String server, String anycastSite) {
+		// Use computeIfAbsent for thread-safe lazy initialization
+		Map<Instant, Metric> metricValues = metricCache.computeIfAbsent(name, k -> new ConcurrentHashMap<>());
+		
+		// Use computeIfAbsent or merge for atomic update
+		metricValues.compute(time, (k, existingMetric) -> {
+			if (existingMetric == null) {
+				return createMetric(value, counter, tags, server, anycastSite);
+			} else {
+				existingMetric.update(value);
+				return existingMetric;
 			}
-		}
+		});
 	}
 
-	public static Metric createMetric(int value, boolean counter, Map<String, String> labels) {
+	public static Metric createMetric(int value, boolean counter, Map<String, String> labels, String server, String anycastSite) {
 		if (counter) {
-			return new SumMetric(value, labels);
+			return new SumMetric(value, labels, server, anycastSite);
 		}
-		return new AvgMetric(value, labels);
+		return new AvgMetric(value, labels, server, anycastSite);
 	}
 
-
-	public void flush(String server, String anycastSite) {
-		log.info("Start Flush metrics");
-		List<Point> points = new ArrayList<Point>();
+	/**
+	 * Flush metrics to InfluxDB asynchronously.
+	 * This method runs on a separate thread and will not block the caller.
+	 * Server and anycast site information is already stored in each metric.
+	 */
+	@Async("metricsTaskExecutor")
+	public void flush() {
+		if (log.isDebugEnabled() && metricCache.isEmpty()) {
+			log.debug("No metrics to flush");
+			return;
+		}
+		
+		log.info("Start async flush of metrics (entries: {})", metricCache.size());
+		
+		// Create snapshot and clear cache atomically
+		Map<String, Map<Instant, Metric>> snapshot = new HashMap<>(metricCache);
+		metricCache.clear();
+		
+		List<Point> points = new ArrayList<>();
 		
 		try {
-			for(Entry<String, Map<Instant, Metric>> entry : metricCache.entrySet()) {
-				entry.getValue().entrySet().stream().forEach(m -> createPoints(points, m, entry.getKey(), server, anycastSite));
+			for(Entry<String, Map<Instant, Metric>> entry : snapshot.entrySet()) {
+				entry.getValue().entrySet().forEach(m -> createPoints(points, m, entry.getKey()));
 			}
-			log.info("Start write metric {} points", points.size());
-			influxClient.writePoints(points);
+			log.info("Writing {} metric points to InfluxDB", points.size());
+			if (influxClient != null && !points.isEmpty()) {
+				influxClient.writePoints(points);
+				log.info("Successfully wrote {} points to InfluxDB", points.size());
+			}
 		} catch (Exception e) {
-			// cannot connect connect to influxdb?
-			log.error("Error sending metrics", e);
-		}finally {
-			metricCache.clear();
+			// cannot connect to influxdb?
+			log.error("Error sending {} metrics to InfluxDB", points.size(), e);
 		}
 		
-		log.info("Done flushing metrics");
+		log.debug("Done flushing metrics");
+	}
+	
+	/**
+	 * Automatically flush metrics every 60 seconds.
+	 * This is a fallback to ensure metrics are eventually written even if
+	 * flush() is not called explicitly.
+	 */
+	@Scheduled(fixedDelayString = "${entrada.metrics.flush.interval:60000}")
+	public void autoFlush() {
+		if (!metricCache.isEmpty()) {
+			log.info("Auto-flushing metrics (scheduled task)");
+			flush();
+		}
 	}
 
-	private void createPoints(List<Point> points, Entry<Instant, Metric> entry, String name, String server, String anycastSite) {
-//		if(log.isDebugEnabled()) {
-//			log.debug("Metric: {} value: {}", name, entry);
-//		}
+	private void createPoints(List<Point> points, Entry<Instant, Metric> entry, String name) {
+		WritePrecision p = WritePrecision.MS;
 		
-		WritePrecision p =  WritePrecision.MS;
-		
-		// add 1 nanosec to the last metric to prevent other pcap data from overwriting
-		// the same second
+		// add random milliseconds to prevent overwrites
 		Instant time = entry.getKey().plusMillis(RND.nextLong(100));
 		Metric m = entry.getValue();
+		
+		// Get server and site from the metric itself
+		String server = m.getServer();
+		String anycastSite = m.getAnycastSite();
 		
 		String metricName = name;
 		String[] parts = StringUtils.split(name, METRIC_SEPERATOR);
@@ -213,7 +241,6 @@ public class HistoricalMetricManager {
 			metricName = parts[0];
 		}
 
-		
 		if (m instanceof AvgMetric) {
 			// make sure points are all saved a float and not mix of float and int, this will cause exception
 			
@@ -258,10 +285,6 @@ public class HistoricalMetricManager {
 			points.add(point);
 			
 		}
-		
-		//return points;
-		//influxClient.writePoints(points);
-
 	}
 
 }

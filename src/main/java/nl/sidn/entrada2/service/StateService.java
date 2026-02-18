@@ -41,6 +41,13 @@ public class StateService {
 	public void stop() {
 		commandQueue.send(new Command(CommandType.STOP));
 	}
+	
+	/**
+	 * Flush and commit all open Iceberg writers
+	 */
+	public void flush() {
+		commandQueue.send(new Command(CommandType.FLUSH));
+	}
 
 	public void setState(APP_STATE state) {
 		this.state = state;

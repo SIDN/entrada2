@@ -75,8 +75,8 @@ public class AwsQueueConfig {
 	@Value("${entrada.s3.bucket}")
 	private String bucketName;
 
-	@Value("${entrada.s3.pcap-in-dir}")
-	private String pcapDirectory;
+	@Value("${entrada.s3.pcap-in-prefixes}")
+	private List<String> pcapPrefixes;
 
 	@Autowired
 	private SqsClient sqsClient;
@@ -116,7 +116,10 @@ public class AwsQueueConfig {
 			}
 
 			// create event for s3 bucket
-			createBucketEventNotificationFor(optQueueArn.get());
+			for(String prefix: pcapPrefixes) {
+				log.info("Create bucket event notification for prefix: {}", prefix);
+				createBucketEventNotificationFor(optQueueArn.get(), prefix);
+			}
 		}
 
 		// create fifo queue where entrada will send new file event to
@@ -186,11 +189,11 @@ public class AwsQueueConfig {
 		return requestQueueUrl;
 	}
 
-	public void createBucketEventNotificationFor(String queueArn) {
+	public void createBucketEventNotificationFor(String queueArn, String prefix) {
 
 		S3KeyFilter fltr = S3KeyFilter.builder()
 				.filterRules(FilterRule.builder().name("prefix")
-						.value(StringUtils.appendIfMissing(pcapDirectory , "/")).build())
+						.value(StringUtils.appendIfMissing(prefix , "/")).build())
 				.build();
 
 		NotificationConfigurationFilter filterConf = NotificationConfigurationFilter.builder().key(fltr).build();

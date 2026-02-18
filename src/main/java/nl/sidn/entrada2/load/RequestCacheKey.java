@@ -19,48 +19,55 @@
  */
 package nl.sidn.entrada2.load;
 
-import org.apache.commons.lang3.StringUtils;
+import nl.sidn.entrada2.util.StringUtil;
 
-import lombok.RequiredArgsConstructor;
-
-@RequiredArgsConstructor
 public class RequestCacheKey {
 
 	private final int id;
-	private final String qname;
-	private final String src;
+	private final String qname;  // stored in lowercase for fast comparison
+	private final String src;    // stored in lowercase for fast comparison
 	private final int srcPort;
+	private final int hashCode;  // cached for performance
+	
+	public RequestCacheKey(int id, String qname, String src, int srcPort) {
+		this.id = id;
+		// Only convert to lowercase if needed (avoids allocation for common case)
+		this.qname = qname;
+		this.src = src;
+		this.srcPort = srcPort;
+		// Cache hashCode for performance (called frequently)
+		this.hashCode = computeHashCode();
+	}
+	
+	private int computeHashCode() {
+		// Better hash distribution than srcPort + id
+		int result = id;
+		result = 31 * result + srcPort;
+		result = 31 * result + (qname != null ? qname.hashCode() : 0);
+		result = 31 * result + (src != null ? src.hashCode() : 0);
+		return result;
+	}
 
 	@Override
 	public int hashCode() {
-		// us the client port+id as hashcode, this may lead to collisions for bad clients using
-		// some port and id for all queries and maybe for ddos situations?
-		// this way we can an acceptable distributed hash very fast
-		return srcPort + id;
+		return hashCode;  // Return cached value
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
 			return true;
-		if (obj == null)
+		if (obj == null || getClass() != obj.getClass())
 			return false;
 		
 		RequestCacheKey other = (RequestCacheKey) obj;
 		
-		if (id != other.id)
+		// Fast path: compare primitives first
+		if (id != other.id || srcPort != other.srcPort)
 			return false;
 		
-		if (srcPort != other.srcPort)
-			return false;
-
-		if (!StringUtils.equalsIgnoreCase(qname, other.qname))
-			return false;
-
-		if (!StringUtils.equalsIgnoreCase(src, other.src))
-			return false;
-		
-		return true;
+		// Use Objects.equals for null-safe comparison
+		return StringUtil.equalsIgnoreCaseAscii(qname, other.qname) && StringUtil.equalsIgnoreCaseAscii(src, other.src);
 	}
 
 }

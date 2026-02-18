@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import feign.Response;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.S3Service;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -22,7 +22,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
  * Downloads PSL using OpenFeign client and stores in S3
  */
 @Component
-@Log4j2
+@Slf4j
 public class PublicSuffixListParser {
     
     private static final String PSL_URL = "https://publicsuffix.org/list/public_suffix_list.dat";
@@ -64,9 +64,9 @@ public class PublicSuffixListParser {
      */
     private static class TrieNode {
         Map<String, TrieNode> children = new HashMap<>();
-        boolean isEnd = false;
-        boolean isWildcard = false;
-        boolean isException = false;
+        // boolean isEnd = false;
+        // boolean isWildcard = false;
+        // boolean isException = false;
     }
 
     /**
@@ -199,9 +199,9 @@ public class PublicSuffixListParser {
             current = current.children.get(label);
         }
         
-        current.isEnd = true;
-        current.isWildcard = isWildcard;
-        current.isException = isException;
+        // current.isEnd = true;
+        // current.isWildcard = isWildcard;
+        // current.isException = isException;
     }
   
     /**

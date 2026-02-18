@@ -14,9 +14,13 @@ public class SumMetric implements Metric {
 	protected double value;
 	protected int samples;
 	protected Map<String, String> tags;
+	protected String server;
+	protected String anycastSite;
 
-	public SumMetric(int value, Map<String, String> tags) {
+	public SumMetric(int value, Map<String, String> tags, String server, String anycastSite) {
 		this.tags = tags;
+		this.server = server;
+		this.anycastSite = anycastSite;
 		update(value);
 	}
 
@@ -30,10 +34,12 @@ public class SumMetric implements Metric {
 		return samples;
 	}
 
-	public SumMetric(String label, double value, int samples,  Map<String, String> tags) {
+	public SumMetric(String label, double value, int samples, Map<String, String> tags, String server, String anycastSite) {
 		this.value = value;
 		this.samples = samples;
 		this.tags = tags;
+		this.server = server;
+		this.anycastSite = anycastSite;
 	}
 
 }

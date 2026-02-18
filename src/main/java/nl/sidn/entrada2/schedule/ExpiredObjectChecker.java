@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.config.EntradaS3Properties;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.S3ObjectTagName;
@@ -33,14 +34,17 @@ public class ExpiredObjectChecker {
 	@Value("${entrada.object.max-proc-time-secs:3600}")
 	private int maxProcTime;
 	
-	@Value("${entrada.s3.bucket}")
-	private String bucketName;
+	// @Value("${entrada.s3.bucket}")
+	// private String bucketName;
 	
-	@Value("${entrada.s3.pcap-in-dir}")
-	private String pcapInDir;
+	// @Value("#{'${entrada.s3.pcap-in-prefixes}'.split(',')}")
+	// private List<String> pcapInPrefixes;
 	
 	@Value("${entrada.object.max-tries:2}")
 	private int maxTries;
+
+	@Autowired
+	private EntradaS3Properties s3Properties;
 
 	@Autowired
 	private S3Service s3Service;
@@ -53,13 +57,16 @@ public class ExpiredObjectChecker {
 		}
 		
 		try {
-			checkForExperiredObjects();
+			for(String prefix: s3Properties.getPcapInPrefixes()) {
+				log.info("Start checking for expired objects with prefix: {}", prefix);
+				checkForExpiredObjects(prefix);
+			}
 		} catch (Exception e) {
 			log.error("Unexpected exception while checking for expired objects");
 		}
 	}
 	
-	public void checkForExperiredObjects() {
+	public void checkForExpiredObjects(String prefix) {
 		Map<String, String> tags = new HashMap<String, String>();
 		
 		LocalDateTime now = LocalDateTime.now();
@@ -69,7 +76,7 @@ public class ExpiredObjectChecker {
 		int counterNotPickedUp = 0;
 		
 		// find objects that have ts_start < (now - max_proc_time) and have no ts_end
-		for(S3Object obj : s3Service.ls(bucketName, StringUtils.appendIfMissing(pcapInDir,"/"))) {
+		for(S3Object obj : s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix,"/"))) {
 			
 			if(log.isDebugEnabled()) {
 				log.debug("Checking: {}", obj.key());
@@ -81,7 +88,7 @@ public class ExpiredObjectChecker {
 			}
 			
 			
-			if(s3Service.tags(bucketName, obj.key(), tags)) {
+			if(s3Service.tags(s3Properties.getBucket(), obj.key(), tags)) {
 				// check for ts_start without and ts_end
 				if(tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value) ) {
 					if(!tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value)) {					
@@ -104,7 +111,7 @@ public class ExpiredObjectChecker {
 										//remove detected just in case
 										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
 										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
-										s3Service.tag(bucketName, obj.key(), tags);
+										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 										
 										counterIncomplete++;
 									}
@@ -123,7 +130,7 @@ public class ExpiredObjectChecker {
 						tags.put(S3ObjectTagName.ENTRADA_WAIT_EXPIRED.value, "true");
 						//remove detected, the will cause renew checker to also add it to queue again if not using events
 						tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-						s3Service.tag(bucketName,  obj.key(), tags);
+						s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 						
 						counterNotPickedUp++;
 					}

@@ -23,8 +23,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -101,26 +101,34 @@ public class S3Service {
 
 	public List<S3Object> ls(String bucket, String key) {
 
-		String marker = null;
+		String continuationToken = null;
 		List<S3Object> s3objects = new ArrayList<S3Object>();
 		
 		try {
 			do {
-				ListObjectsRequest listObjects = ListObjectsRequest.builder().bucket(bucket).prefix(key)
-						.marker(marker)
-						.build();
-	
-				ListObjectsResponse listing = s3Client.listObjects(listObjects);
+				ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+						.bucket(bucket)
+						.prefix(key);
+				
+				if (continuationToken != null) {
+					requestBuilder.continuationToken(continuationToken);
+				}
+				
+				ListObjectsV2Response listing = s3Client.listObjectsV2(requestBuilder.build());
 					
 				s3objects.addAll(listing.contents());
 	
-			    marker = listing.nextMarker();
-			    
-			    if(log.isDebugEnabled()) {
-			    	log.debug("ls received {} objects sofar", s3objects.size());
+				continuationToken = listing.nextContinuationToken();
+
+				if(log.isDebugEnabled()) {
+					log.info("Received {} objects", s3objects.size());
+					log.info("continuationToken is: {}", continuationToken);
+			       	log.debug("ls received {} objects, total sofar: {}, truncated: {}", 
+			    			listing.contents().size(), s3objects.size(), listing.isTruncated());
 			    }
-			} while (marker != null);
+			} while (continuationToken != null);
 		
+			log.info("ls completed, total objects: {}", s3objects.size());
 			return s3objects;
 		} catch (Exception e) {
 			log.error("Read error", e);

@@ -26,9 +26,11 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 @Getter
 public class PacketJoiner {
 
-	private static List<RowData> EMPTY_LIST = Collections.emptyList();
+	private static final List<RowData> EMPTY_LIST = Collections.emptyList();
+	private static final Integer ZERO = 0;
+	private static final Integer ONE = 1;
 	
-	private LinkedHashMap<RequestCacheKey, RequestCacheValue> requestCache = new LinkedHashMap<>();
+	private LinkedHashMap<RequestCacheKey, RequestCacheValue> requestCache;
 	// keep list of active zone transfers
 	private Cache<RequestCacheKey, Integer> activeZoneTransferCache;
 
@@ -39,11 +41,12 @@ public class PacketJoiner {
 	private int responsePacketCounter = 0;
 	private int cacheEvictionCounter = 0;
 	
-	private int maxRequestCacheSize;
+	private final int maxRequestCacheSize;
 
 	public PacketJoiner(@Value("${entrada.process.max-request-cache-size:10000}") int maxRequestCacheSize) {
 		this.maxRequestCacheSize = maxRequestCacheSize;
-		requestCache = LinkedHashMap.newLinkedHashMap(maxRequestCacheSize);
+		// Use access-order for LRU behavior when manually evicting
+		requestCache = new LinkedHashMap<>(maxRequestCacheSize, 0.75f, true);
 		activeZoneTransferCache = new Cache2kBuilder<RequestCacheKey, Integer>() {
 		}.entryCapacity(300).build();
 	}
@@ -54,43 +57,41 @@ public class PacketJoiner {
 			return EMPTY_LIST;
 		}
 
-		List<RowData> results = new ArrayList<>();
-
 		counter++;
 
-		if (counter % 100000 == 0 && log.isDebugEnabled()) {
-			log.debug("Received {} packets to join", Integer.valueOf(counter));
-		}
-
 		// must be dnspacket
-		if (isDNS(p)) {
-			DNSPacket dnsPacket = (DNSPacket) p;
-
-			if (dnsPacket.getMessages().isEmpty()) {
-				// skip malformed packets
-				log.debug("Packet contains no dns message, skipping...");
-				return EMPTY_LIST;
-			}
-
-			for (Message msg : dnsPacket.getMessages()) {
-				// put request into map until we find matching response, with a key based on:
-				// query id,
-				// qname, ip src, tcp/udp port add time for possible timeout eviction
-				RowData d = null;
-				if (msg.getHeader().getQr() == MessageType.QUERY) {
-					d =  handDnsRequest(dnsPacket, msg);
-				} else {
-					d = handDnsResponse(dnsPacket, msg);				
-				}
-				
-				if (d != null) {
-					results.add(d);
-				}
-			}
-			// clear the packet which may contain many dns messages
-			dnsPacket.clear();
-
+		if (!isDNS(p)) {
+			return EMPTY_LIST;
 		}
+		
+		DNSPacket dnsPacket = (DNSPacket) p;
+
+		if (dnsPacket.getMessages().isEmpty()) {
+			// skip malformed packets
+			log.debug("Packet contains no dns message, skipping...");
+			return EMPTY_LIST;
+		}
+		
+		// Pre-allocate with known size to avoid resizing
+		List<RowData> results = new ArrayList<>(dnsPacket.getMessages().size());
+
+		for (Message msg : dnsPacket.getMessages()) {
+			// put request into map until we find matching response, with a key based on:
+			// query id, qname, ip src, tcp/udp port
+			RowData d = null;
+			if (msg.getHeader().getQr() == MessageType.QUERY) {
+				d = handDnsRequest(dnsPacket, msg);
+			} else {
+				d = handDnsResponse(dnsPacket, msg);				
+			}
+			
+			if (d != null) {
+				results.add(d);
+			}
+		}
+		// clear the packet which may contain many dns messages
+		dnsPacket.clear();
+
 		return results;
 	}
 
@@ -106,35 +107,37 @@ public class PacketJoiner {
 	
 	private RowData handDnsRequest(DNSPacket dnsPacket, Message msg) {
 		requestPacketCounter++;
+		
+		String qname = qname(msg);
+		int msgId = msg.getHeader().getId();
+		String src = dnsPacket.getSrc();
+		int srcPort = dnsPacket.getSrcPort();
+		
 		// check for ixfr/axfr request
 		if (isXfr(msg)) {
-
 			if (log.isDebugEnabled()) {
-				log.debug("Detected zone transfer for: " + dnsPacket.getFlow());
+				log.debug("Detected zone transfer for: {}", dnsPacket.getFlow());
 			}
 			// keep track of ongoing zone transfer, we do not want to store all the response
 			// packets for an ixfr/axfr.
 			activeZoneTransferCache.put(
-					new RequestCacheKey(msg.getHeader().getId(), null, dnsPacket.getSrc(), dnsPacket.getSrcPort()),
-					Integer.valueOf(0));
+					new RequestCacheKey(msgId, null, src, srcPort), ZERO);
+		
+			return null;
 		}
 
-		RequestCacheKey key = new RequestCacheKey(msg.getHeader().getId(), qname(msg), dnsPacket.getSrc(),
-				dnsPacket.getSrcPort());
-
-//		if (log.isDebugEnabled()) {
-//			log.debug("Insert into cache key: {}", key);
-//		}
+		RequestCacheKey key = new RequestCacheKey(msgId, qname, src, srcPort);
 
 		// put the query in the cache until we get a matching response
 		requestCache.put(key, new RequestCacheValue(msg, dnsPacket));
 		
 		if(requestCache.size() > maxRequestCacheSize) {
-			// cache is too big, remove last item and return to write to parquet
+			// cache is too big, remove last (least recently used) item and return to write to parquet
 			cacheEvictionCounter++;
 			
-			if (cacheEvictionCounter % 100000 == 0) {
-				log.info("Evicted " + cacheEvictionCounter + " DNS messages from cache");
+			// Use bit masking for performance
+			if ((cacheEvictionCounter & 0xFFFF) == 0) {
+				log.info("Evicted {} DNS messages from cache", cacheEvictionCounter);
 			}
 	
 			Entry<RequestCacheKey, RequestCacheValue> lastEntry = requestCache.pollLastEntry();
@@ -150,31 +153,36 @@ public class PacketJoiner {
 	private RowData handDnsResponse(DNSPacket dnsPacket, Message msg) {
 		responsePacketCounter++;
 		
-		RequestCacheKey key = new RequestCacheKey(msg.getHeader().getId(), null, dnsPacket.getDst(),
-				dnsPacket.getDstPort());
+		int msgId = msg.getHeader().getId();
+		String dst = dnsPacket.getDst();
+		int dstPort = dnsPacket.getDstPort();
+		
+		// Create key once for zone transfer check (without qname)
+		RequestCacheKey ztKey = new RequestCacheKey(msgId, null, dst, dstPort);
 		
 		// check for ixfr/axfr response, the query might be missing from the response
 		// so we cannot use the qname for matching.
-		if (activeZoneTransferCache.containsKey(key)) {
+		if (activeZoneTransferCache.containsKey(ztKey)) {
 			if (log.isDebugEnabled()) {
-				log.debug("Ignore {} zone transfer response(s)", Integer.valueOf(msg.getAnswer().size()));
+				log.debug("Ignore {} zone transfer response(s)", msg.getAnswer().size());
 			}
 			// this response is part of an active zonetransfer.
 			// only let the first response continue, reuse the "time" field of the
 			// RequestKey to keep track of this.
-			Integer ztResponseCounter = activeZoneTransferCache.get(key);
+			Integer ztResponseCounter = activeZoneTransferCache.get(ztKey);
 			if (ztResponseCounter.intValue() > 0) {
 				// do not save this msg, drop it here, continue with next msg.
 				return null;
 			} else {
 				// 1st response msg let it continue, add 1 to the map the indicate 1st resp msg
 				// has been processed
-				activeZoneTransferCache.put(key, Integer.valueOf(1));
+				activeZoneTransferCache.put(ztKey, ONE);
 			}
 		}
+		
 		String qname = qname(msg);
-
-		key = new RequestCacheKey(msg.getHeader().getId(), qname, dnsPacket.getDst(), dnsPacket.getDstPort());
+		// Reuse extracted values to create lookup key with qname
+		RequestCacheKey key = new RequestCacheKey(msgId, qname, dst, dstPort);
 
 //		if (log.isDebugEnabled()) {
 //			log.debug("Get from cache key: " + key);
@@ -188,8 +196,9 @@ public class PacketJoiner {
 		if (request != null && request.getPacket() != null && request.getMessage() != null) {
 
 			matchedCounter++;
-			if (matchedCounter % 100000 == 0) {
-				log.info("Matched " + matchedCounter + " DNS messages");
+			// Use bit masking for performance
+			if (log.isDebugEnabled() && (matchedCounter & 0xFFFF) == 0) {
+				log.debug("Matched {} DNS messages", matchedCounter);
 			}
 
 			return new RowData(request.getPacket(), request.getMessage(), dnsPacket, msg);
@@ -199,7 +208,7 @@ public class PacketJoiner {
 			// could send a response.
 
 			if (log.isDebugEnabled()) {
-				log.debug("Found no request for response, dst: " + dnsPacket.getDst() + " qname: " + qname);
+				log.debug("Found no request for response, dst: {} qname: {}", dnsPacket.getDst(), qname);
 			}
 
 			if (qname != null) {

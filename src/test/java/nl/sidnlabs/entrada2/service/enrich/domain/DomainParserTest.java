@@ -9,15 +9,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
-import nl.sidnlabs.dnslib.util.NameUtil;
 
-public class PublicSuffixListParserTest {
+public class DomainParserTest {
 
     private static PublicSuffixListParser validator;
     private static PublicSuffixListParser.DomainResult result;
 
     @BeforeAll
-    @SuppressWarnings("deprecation")
     public static void setup() throws IOException {
         validator = new PublicSuffixListParser();
         result = new PublicSuffixListParser.DomainResult();
@@ -86,8 +84,6 @@ public class PublicSuffixListParserTest {
         assertEquals("backmitra.nl", domainname("*.backmitra.nl."));
     	assertEquals("nl", tld("*.backmitra.nl."));
     	assertEquals(3, labels("*.backmitra.nl."));
-        
-    	assertEquals(true, NameUtil.isValid("*.backmitra.nl."));
 
         assertEquals("sidn.nl", domainname("sidn.nl."));
         assertEquals(2, labels("sidn.nl."));

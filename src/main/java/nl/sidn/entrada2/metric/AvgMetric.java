@@ -12,8 +12,8 @@ public class AvgMetric extends SumMetric {
 	private long min;
 	private long max;
 
-	public AvgMetric(int value, Map<String, String> labels) {
-		super(value, labels);
+	public AvgMetric(int value, Map<String, String> labels, String server, String anycastSite) {
+		super(value, labels, server, anycastSite);
 	}
 	
 	@Override

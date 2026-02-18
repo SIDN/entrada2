@@ -16,5 +16,9 @@ public interface Metric {
   double getValue();
 
   Map<String, String> getTags();
+  
+  String getServer();
+  
+  String getAnycastSite();
 
 }

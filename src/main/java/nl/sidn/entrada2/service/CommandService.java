@@ -38,6 +38,10 @@ public class CommandService {
 			workService.stop();
 			stateService.setState(APP_STATE.STOPPED);
 		}
+		case CommandType.FLUSH -> {
+			log.info("Flushing Iceberg writer");
+			workService.flush();
+		}
 		default -> log.error("Unknown command, ignoring");
 		}
 
