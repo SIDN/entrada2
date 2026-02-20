@@ -286,10 +286,15 @@ management:
       enabled: true    
   endpoint:
     health:
-      enabled: true
-    probes:
-      enabled: true
+      access: read-only
+      probes:
+        enabled: true
        
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      instance: ${HOSTNAME}
+
 
 #logging:
 #  level:

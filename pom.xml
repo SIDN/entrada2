@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.10</version>
+        <version>3.5.11</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
     <groupId>nl.sidn</groupId>
@@ -109,7 +109,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>pcap-lib</artifactId>
-            <version>0.2.26-SNAPSHOT</version>
+            <version>0.2.26</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -121,7 +121,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>dnslib</artifactId>
-            <version>0.2.19-SNAPSHOT</version>
+            <version>0.2.19</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>

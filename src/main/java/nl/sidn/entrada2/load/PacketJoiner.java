@@ -184,11 +184,6 @@ public class PacketJoiner {
 		// Reuse extracted values to create lookup key with qname
 		RequestCacheKey key = new RequestCacheKey(msgId, qname, dst, dstPort);
 
-//		if (log.isDebugEnabled()) {
-//			log.debug("Get from cache key: " + key);
-//			//log.debug("request cache size before: " + requestCache.size());
-//		}
-
 		RequestCacheValue request = requestCache.remove(key);
 		// check to see if the request msg exists, at the start of the pcap there may be
 		// missing queries
@@ -196,8 +191,7 @@ public class PacketJoiner {
 		if (request != null && request.getPacket() != null && request.getMessage() != null) {
 
 			matchedCounter++;
-			// Use bit masking for performance
-			if (log.isDebugEnabled() && (matchedCounter & 0xFFFF) == 0) {
+			if (log.isDebugEnabled() && (matchedCounter % 10000) == 0) {
 				log.debug("Matched {} DNS messages", matchedCounter);
 			}
 

@@ -35,8 +35,8 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 @Component
 public class DNSRowBuilder extends AbstractRowBuilder {
 
-	private static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
-	private static final int RCODE_RESPONSE_WITHOUT_QUERY = -2;
+	public static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
+	public static final int RCODE_RESPONSE_WITHOUT_QUERY = -2;
 	private static final int ID_UNKNOWN = -1;
 	private static final int OPCODE_UNKNOWN = -1;
 
@@ -107,11 +107,12 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		Packet rspTransport = combo.getResponse();
 		Message rspMessage = combo.getResponseMessage();
 		// safe request/response
-		Packet transport = combo.getRequest() != null ? combo.getRequest() : combo.getResponse();
+		Packet safeReqOrRespTransport = combo.getRequest() != null ? combo.getRequest() : combo.getResponse();
 		Question question = null;
 
 		// Cache timestamp to avoid multiple calls
-		long tsMilli = transport.getTsMilli();
+		long tsMilli = safeReqOrRespTransport.getTsMilli();
+		int prot = safeReqOrRespTransport.getProtocol();
 		
 		// Lazy initialization - only create metrics builder if enabled
 		DnsMetricValues.DnsMetricValuesBuilder metricsBuilder = null;
@@ -166,7 +167,56 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		int id = ID_UNKNOWN;
 		int opcode = OPCODE_UNKNOWN;
 
-		// fields from request
+		// IP-level transport fields from request packet.
+		// Guarded separately from reqMessage because a packet can exist even when
+		// its DNS message is null (malformed, decoded as empty, etc.).
+		if (reqTransport != null) {
+			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
+
+			if (reqTransport.getProtocol() ==  PacketFactory.PROTOCOL_TCP && reqTransport.getTcpHandshakeRTT() != -1) {
+				// found tcp handshake info
+				record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(reqTransport.getTcpHandshakeRTT()));
+
+				if (metricsEnabled && metricsBuilder != null) {
+					metricsBuilder.tcpHandshake(reqTransport.getTcpHandshakeRTT());
+				}
+			}
+
+			enrich(reqTransport.getSrc(), reqTransport.getSrcAddr(), "", record, false);
+
+			record.set(FieldEnum.ip_dst.ordinal(), reqTransport.getDst());
+			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(reqTransport.getDstPort()));
+			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(reqTransport.getSrcPort()));
+
+			if (!privacy) {
+				record.set(FieldEnum.ip_src.ordinal(), reqTransport.getSrc());
+			}
+		}else{
+			// only response packet is found, use dst address for enrichment, as src address is usually
+			// dns server and not the client, and enrichment is focused on client info (geo, asn)
+			enrich(rspTransport.getDst(), rspTransport.getDstAddr(), "", record, false);
+
+			record.set(FieldEnum.ip_dst.ordinal(), rspTransport.getSrc());
+			// reverse src/dst port for response-only case to keep them consistent with request/response case, where dst port is usually 53 and src port is ephemeral port
+			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
+			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
+
+			if (!privacy) {
+				record.set(FieldEnum.ip_src.ordinal(), rspTransport.getDst());
+			}
+		}
+
+		// calculate the processing time
+		if (reqTransport != null && rspTransport != null) {
+			int procTime = (int)(rspTransport.getTsMilli() - reqTransport.getTsMilli());
+			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
+			
+			if (metricsEnabled && metricsBuilder != null) {
+				metricsBuilder.procTime(procTime);
+			}
+		}
+
+		// fields from request DNS message
 		if (reqMessage != null) {
 			Header requestHeader = reqMessage.getHeader();
 
@@ -174,18 +224,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			opcode = requestHeader.getRawOpcode();
 
 			record.set(FieldEnum.dns_req_len.ordinal(),  Integer.valueOf(reqMessage.getBytes()));
-
-			int tcpRtt = reqTransport.getTcpHandshakeRTT();
-			if (tcpRtt != -1) {
-				// found tcp handshake info
-				record.set(FieldEnum.tcp_rtt.ordinal(), Integer.valueOf(tcpRtt));
-
-				if (metricsEnabled && metricsBuilder != null) {
-					metricsBuilder.tcpHandshake(tcpRtt);
-				}
-			}
-
-			record.set(FieldEnum.ip_ttl.ordinal(), Integer.valueOf(reqTransport.getTtl()));
 			record.set(FieldEnum.dns_rd.ordinal(), Boolean.valueOf(requestHeader.isRd()));
 			record.set(FieldEnum.dns_cd.ordinal(), Boolean.valueOf(requestHeader.isCd()));
 			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(requestHeader.getQdCount()));
@@ -197,19 +235,22 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			// EDNS0 for request
 			writeRequestOptions(reqMessage, record);
 		}else {
-			// no request message found
+			// no request message found, may be overriden below if response message is found, but for now set rcode to indicate no request found
 			rcode = RCODE_RESPONSE_WITHOUT_QUERY;
 		}
 		
 		// fields from response
 		if (rspMessage != null) {
+
 			Header responseHeader = rspMessage.getHeader();
 
-			id = responseHeader.getId();
-			opcode = responseHeader.getRawOpcode();
+			if (reqMessage == null) {
+				// no request message found, but response message found, we can get some values from the response, but not all, e.g. we cannot get opcode for sure, but we can get rcode
+				id = responseHeader.getId();
+				opcode = responseHeader.getRawOpcode();
+			}
 
 			record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
-
 			// these are the values that are retrieved from the response
 			rcode = responseHeader.getRawRcode();
 
@@ -229,7 +270,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				metricsBuilder.dnsResponse(true);
 			}
 
-			
 			if(rdataEnabled) {
 				// parsing and creating rdata output consumes lot of cpu/memory, it is disabled by default
 				// Use reasonable initial capacity to reduce resizing
@@ -268,7 +308,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		}
 	
 		record.set(FieldEnum.server_location.ordinal(), location);
-
 		// values from request OR response now
 		// if no request found in the request then use values from the response.
 		record.set(FieldEnum.dns_id.ordinal(), Integer.valueOf(id));
@@ -276,53 +315,15 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		record.set(FieldEnum.dns_opcode.ordinal(), Integer.valueOf(opcode));
 		record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
 		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(tsMilli));
-		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(transport.getIpVersion()));
-
-		int prot = transport.getProtocol();
+		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(safeReqOrRespTransport.getIpVersion()));
 		record.set(FieldEnum.prot.ordinal(), Integer.valueOf(prot));
-
-		// get ip src/dst from either request of response
-		if (reqTransport != null) {
-			enrich(reqTransport.getSrc(), reqTransport.getSrcAddr(), "", record, false);
-
-			record.set(FieldEnum.ip_dst.ordinal(), reqTransport.getDst());
-			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(reqTransport.getDstPort()));
-			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(reqTransport.getSrcPort()));
-
-			if (!privacy) {
-				record.set(FieldEnum.ip_src.ordinal(), reqTransport.getSrc());
-			}
-			
-		} else {
-
-			// only response packet is found
-			enrich(rspTransport.getDst(), rspTransport.getDstAddr(), "", record, false);
-
-			record.set(FieldEnum.ip_dst.ordinal(), rspTransport.getDst());
-			record.set(FieldEnum.prot_dst_port.ordinal(), Integer.valueOf(rspTransport.getDstPort()));
-			record.set(FieldEnum.prot_src_port.ordinal(), Integer.valueOf(rspTransport.getSrcPort()));
-
-			if (!privacy) {
-				record.set(FieldEnum.ip_src.ordinal(), rspTransport.getSrc());
-			}
-		}
-
-		// calculate the processing time
-		if (reqTransport != null && rspTransport != null) {
-			int procTime = (int)(rspTransport.getTsMilli() - reqTransport.getTsMilli());
-			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
-			
-			if (metricsEnabled && metricsBuilder != null) {
-				metricsBuilder.procTime(procTime);
-			}
-		}
 
 		// create metrics
 		DnsMetricValues metrics = null;
 		if (metricsEnabled && metricsBuilder != null) {
 			metricsBuilder.dnsRcode(rcode);
 			metricsBuilder.dnsOpcode(opcode);
-			metricsBuilder.ipV4(transport.getIpVersion() == 4);
+			metricsBuilder.ipV4(safeReqOrRespTransport.getIpVersion() == 4);
 			metricsBuilder.ProtocolUdp(prot == PacketFactory.PROTOCOL_UDP);
 			metricsBuilder.country((String) record.get(FieldEnum.ip_geo_country.ordinal()));
 			metrics = metricsBuilder.build();
