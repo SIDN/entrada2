@@ -24,12 +24,12 @@ public class SubnetCheckerTest {
 
 		// Precompute masks and masked networks for IPv4 CIDRs
 		for (String cidr : ipv4Cidrs) {
-			checker.precomputeV4Mask(cidr, 4);
+			checker.precomputeNetworkMask(cidr, 4);
 		}
 
 		// Precompute masks and masked networks for IPv6 CIDRs
 		for (String cidr : ipv6Cidrs) {
-			checker.precomputeV4Mask(cidr, 6);
+			checker.precomputeNetworkMask(cidr, 6);
 		}
 
 		assertTrue(checker.match("192.168.1.5", InetAddress.getByName("192.168.1.5"))); // true

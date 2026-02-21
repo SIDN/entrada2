@@ -72,8 +72,8 @@ public abstract class AbstractRowBuilder {
     }
 
     // not cached, do lookups and cache results
-
-    cached = !skipResolvers ? new ArrayList<>() : null;
+    // capacity 4: typical enrichment list has country + ASN + ASN-org + resolver (≤4 entries)
+    cached = !skipResolvers ? new ArrayList<>(4) : null;
     // only perform checks that are required
     for (AddressEnrichment e : enrichments) {
       if (skipResolvers && e instanceof ResolverEnrichment) {

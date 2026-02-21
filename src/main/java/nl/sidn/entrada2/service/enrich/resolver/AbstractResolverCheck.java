@@ -96,7 +96,7 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 			ipv4Filter.put(addr);
 		}
 
-		log.info("Created IPv4 filter table with size: {}", ipv4Set.size());
+		log.info("Created IPv4 Bloom filter with {} entries", ipv4Set.size());
 	}
 
 	@Override
@@ -121,15 +121,17 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	private void loadData() {
 		List<String> lines = loadFromFile();
 
+		log.info("" + lines.size() + " resolver addresses loaded for " + getName());
+
 		createIpV4BloomFilter(lines);
 
 		subnetChecker.clear();
 
 		lines.stream().filter(s -> s.contains(".")).filter(Objects::nonNull)
-				.forEach(s -> subnetChecker.precomputeV4Mask(s, 4));
+				.forEach(s -> subnetChecker.precomputeNetworkMask(s, 4));
 
 		lines.stream().filter(s -> s.contains(":")).filter(Objects::nonNull)
-		.forEach(s -> subnetChecker.precomputeV4Mask(s, 6));
+		.forEach(s -> subnetChecker.precomputeNetworkMask(s, 6));
 
 		log.info("Loaded {} resolver addresses for {}", getMatcherCount(), getName());
 	}

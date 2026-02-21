@@ -490,7 +490,6 @@ public class PublicSuffixListParser {
         if (hotTldCache == null && hotTlds != null && !hotTlds.isEmpty()) {
             hotTldCache = Arrays.stream(hotTlds.split(","))
                 .map(String::trim)
-                .map(String::toLowerCase)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
             log.info("Hot TLD cache initialized with {} TLDs: {}", hotTldCache.size(), hotTldCache);

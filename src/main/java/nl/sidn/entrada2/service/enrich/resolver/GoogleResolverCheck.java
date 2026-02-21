@@ -92,6 +92,8 @@ public final class GoogleResolverCheck extends AbstractResolverCheck {
       log.error("No Google resolver addresses found");
     }
 
+    log.info("Found {} Google resolver addresses", subnets.size());
+
     return subnets;
   }
 

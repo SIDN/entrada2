@@ -20,6 +20,7 @@
 package nl.sidn.entrada2.service.enrich.geoip;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -28,6 +29,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -41,6 +43,7 @@ import com.maxmind.db.Reader.FileMode;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.IspResponse;
 
 import feign.Response;
 import lombok.extern.log4j.Log4j2;
@@ -75,15 +78,42 @@ public class GeoIPService extends AbstractMaxmind {
 
 	public void load() {
 
-		// only load data from s3 when running as worker
+		// Load both databases in parallel — they are independent and S3 reads are I/O bound.
+		CompletableFuture<Optional<DatabaseReader>> countryFuture =
+				CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.COUNTRY));
+		CompletableFuture<Optional<DatabaseReader>> asnFuture =
+				CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.ASN));
+
 		while (geoReader == null) {
-			geoReader = loadDatabase(DB_TYPE.COUNTRY).get();
-			TimeUtil.sleep(5000);
+			try {
+				Optional<DatabaseReader> result = countryFuture.get();
+				if (result.isPresent()) {
+					geoReader = result.get();
+				} else {
+					TimeUtil.sleep(5000);
+					countryFuture = CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.COUNTRY));
+				}
+			} catch (Exception e) {
+				log.error("Error loading country database", e);
+				TimeUtil.sleep(5000);
+				countryFuture = CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.COUNTRY));
+			}
 		}
 
 		while (asnReader == null) {
-			asnReader = loadDatabase(DB_TYPE.ASN).get();
-			TimeUtil.sleep(5000);
+			try {
+				Optional<DatabaseReader> result = asnFuture.get();
+				if (result.isPresent()) {
+					asnReader = result.get();
+				} else {
+					TimeUtil.sleep(5000);
+					asnFuture = CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.ASN));
+				}
+			} catch (Exception e) {
+				log.error("Error loading ASN database", e);
+				TimeUtil.sleep(5000);
+				asnFuture = CompletableFuture.supplyAsync(() -> loadDatabase(DB_TYPE.ASN));
+			}
 		}
 
 		usePaidVersion = isPaidVersion();
@@ -117,14 +147,20 @@ public class GeoIPService extends AbstractMaxmind {
 
 		Optional<InputStream> ois = s3FileService.read(bucket, key);
 		if (ois.isPresent()) {
-
-			try {				
-				return Optional.of(new DatabaseReader.Builder(new BufferedInputStream(ois.get(), DECOMPRESS_STREAM_BUFFER)).withCache(new CHMCache(DEFAULT_CACHE_SIZE))
-						.fileMode(FileMode.MEMORY).build());
+			try (InputStream s3Stream = new BufferedInputStream(ois.get(), DECOMPRESS_STREAM_BUFFER)) {
+				// Drain S3 stream into memory first. S3 introduces per-chunk latency;
+				// downloading the full object (~6-9 MB) in one shot before handing it
+				// to DatabaseReader is significantly faster than streaming it piecemeal.
+				byte[] dbBytes = s3Stream.readAllBytes();
+				log.info("Maxmind database {} downloaded: {} KB", dbType, dbBytes.length / 1024);
+				return Optional.of(
+						new DatabaseReader.Builder(new ByteArrayInputStream(dbBytes))
+								.withCache(new CHMCache(DEFAULT_CACHE_SIZE))
+								.fileMode(FileMode.MEMORY)
+								.build());
 			} catch (IOException e) {
 				throw new RuntimeException("Cannot read Maxmind database", e);
 			}
-
 		}
 		return Optional.empty();
 	}
@@ -144,7 +180,7 @@ public class GeoIPService extends AbstractMaxmind {
 		return Optional.empty();
 	}
 
-	public Optional<? extends AsnResponse> lookupASN(InetAddress ip) {
+	public Optional<String> lookupASN(InetAddress ip) {
 
 		if (needUpdate) {
 			load();
@@ -154,11 +190,34 @@ public class GeoIPService extends AbstractMaxmind {
 		try {
 			if (usePaidVersion) {
 				// paid version returns IspResponse
-				return asnReader.tryIsp(ip);
+				return asnReader.tryIsp(ip).map(IspResponse::autonomousSystemNumber).map(Object::toString);
 			}
 
 			// use free version
-			return asnReader.tryAsn(ip);
+			return asnReader.tryAsn(ip).map(AsnResponse::autonomousSystemNumber).map(Object::toString);
+
+		} catch (Exception e) {
+			log.error("Maxmind error for IP: {}", ip, e);
+		}
+
+		return Optional.empty();
+	}
+
+	public Optional<String> lookupASNOrg(InetAddress ip) {
+
+		if (needUpdate) {
+			load();
+			needUpdate = false;
+		}
+
+		try {
+			if (usePaidVersion) {
+				// paid version returns IspResponse
+				return asnReader.tryIsp(ip).map(IspResponse::autonomousSystemOrganization).map(Object::toString);
+			}
+
+			// use free version
+			return asnReader.tryAsn(ip).map(AsnResponse::autonomousSystemOrganization).map(Object::toString);
 
 		} catch (Exception e) {
 			log.error("Maxmind error for IP: {}", ip, e);

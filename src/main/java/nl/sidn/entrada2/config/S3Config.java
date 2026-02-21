@@ -63,7 +63,7 @@ public class S3Config {
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(30))
 			                .socketTimeout(Duration.ofSeconds(30))
-			                .maxConnections(50))
+			                .maxConnections(20))
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(AwsRetryStrategy.doNotRetry())

@@ -21,8 +21,8 @@ package nl.sidn.entrada2.service.enrich.resolver;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.cache2k.Cache;
@@ -33,8 +33,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SubnetChecker {
 
-	private static final Map<String, MaskedNetwork> IPV4_CIDR_TO_MASK = new HashMap<>();
-	private static final Map<String, MaskedNetwork> IPV6_CIDR_TO_MASK = new HashMap<>();
+	// Lists give O(1) indexed iteration without HashMap bucket overhead or iterator allocation
+	private final List<MaskedNetwork> IPV4_NETWORKS = new ArrayList<>();
+	private final List<MaskedNetwork> IPV6_NETWORKS = new ArrayList<>();
 
 	private Cache<String, Boolean> cache = new Cache2kBuilder<String, Boolean>() {
 	}.entryCapacity(10000).build();
@@ -51,15 +52,15 @@ public class SubnetChecker {
 	}
 
 	public void clear() {
-		IPV4_CIDR_TO_MASK.clear();
-		IPV6_CIDR_TO_MASK.clear();
+		IPV4_NETWORKS.clear();
+		IPV6_NETWORKS.clear();
 	}
 
 	public int size() {
-		return IPV4_CIDR_TO_MASK.size() + IPV6_CIDR_TO_MASK.size();
+		return IPV4_NETWORKS.size() + IPV6_NETWORKS.size();
 	}
 
-	public void precomputeV4Mask(String cidr, int version) {
+	public void precomputeNetworkMask(String cidr, int version) {
 		if (cidr == null) {
 			log.error("Null value not allowed");
 			return;
@@ -72,10 +73,10 @@ public class SubnetChecker {
 			return;
 		}
 
-		precomputeCidr(version == 4 ? IPV4_CIDR_TO_MASK : IPV6_CIDR_TO_MASK, cidr);
+		precomputeCidr(version == 4 ? IPV4_NETWORKS : IPV6_NETWORKS, cidr);
 	}
 
-	private void precomputeCidr(Map<String, MaskedNetwork> map, String cidr) {
+	private void precomputeCidr(List<MaskedNetwork> list, String cidr) {
 		try {
 			String[] parts = cidr.split("/");
 			String networkAddress = parts[0];
@@ -84,14 +85,12 @@ public class SubnetChecker {
 			InetAddress network = InetAddress.getByName(networkAddress);
 			byte[] networkBytes = network.getAddress();
 			byte[] mask = createPrefixMask(prefixLength, networkBytes.length);
-			
-			
-			byte[] masked = new byte[networkBytes.length];
-			byte[] maskedNetwork = applyMask(networkBytes, mask, masked);
+			byte[] maskedNetwork = new byte[networkBytes.length];
+			applyMask(networkBytes, mask, maskedNetwork);
 
-			map.put(cidr, new MaskedNetwork(maskedNetwork, mask));
+			list.add(new MaskedNetwork(maskedNetwork, mask));
 		} catch (UnknownHostException e) {
-			throw new RuntimeException("Failed to process CIDR: " + cidr, e);
+			log.error("Failed to process CIDR: " + cidr, e);
 		}
 	}
 
@@ -133,38 +132,30 @@ public class SubnetChecker {
 		byte[] ipBytes = inetAddress.getAddress();
 
 		// Determine if the IP is IPv4 or IPv6
-		boolean isIpv4 = ipBytes.length == 4;
-		Map<String, MaskedNetwork> cidrToMaskedNetworkMap = isIpv4 ? IPV4_CIDR_TO_MASK : IPV6_CIDR_TO_MASK;
+		List<MaskedNetwork> networks = ipBytes.length == 4 ? IPV4_NETWORKS : IPV6_NETWORKS;
+		int networkCount = networks.size();
 
-		// reuse same array for better performance
-		byte[] masked = new byte[ipBytes.length];
-		
-		// Iterate over all precomputed CIDRs for this IP type
-		for (MaskedNetwork maskedNetwork : cidrToMaskedNetworkMap.values()) {
-		//	byte[] mask = maskedNetwork.mask;
-			byte[] maskedIp = applyMask(ipBytes, maskedNetwork.mask, masked);
-
-			// Compare masked IP to precomputed masked network
-			if (compareBytes(maskedIp, maskedNetwork.maskedNetwork)) {
+		// Fused mask-and-compare: avoids intermediate masked[] write and a second loop.
+		// Index-based iteration avoids iterator allocation on every call.
+		for (int n = 0; n < networkCount; n++) {
+			MaskedNetwork mn = networks.get(n);
+			byte[] mask = mn.mask;
+			byte[] net  = mn.maskedNetwork;
+			boolean matched = true;
+			for (int j = 0; j < ipBytes.length; j++) {
+				if ((ipBytes[j] & mask[j]) != net[j]) {
+					matched = false;
+					break;
+				}
+			}
+			if (matched) {
 				cache.put(ip, Boolean.TRUE);
-				return true; // Stop as soon as a match is found
+				return true;
 			}
 		}
 
 		cache.put(ip, Boolean.FALSE);
 		return false; // No matching CIDR found
-	}
-
-	private boolean compareBytes(byte[] a, byte[] b) {
-		if (a.length != b.length) {
-			return false;
-		}
-		for (int i = 0; i < a.length; i++) {
-			if (a[i] != b[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 }

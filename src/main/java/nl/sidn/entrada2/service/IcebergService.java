@@ -37,6 +37,7 @@ public class IcebergService {
 	@Value("#{${iceberg.parquet.dictionary-max-mb:2}*1024*1024}")
 	private int parquetDictMaxBytes;
 	
+	// 10 millions recors is about 256MB without rdata enabled.
 	@Value("${iceberg.parquet.min-records:1000000}")
 	private int parquetMinRecords;
 

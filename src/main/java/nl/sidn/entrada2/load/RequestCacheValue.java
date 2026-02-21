@@ -19,11 +19,13 @@
  */
 package nl.sidn.entrada2.load;
 
-import lombok.Value;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.pcap.packet.Packet;
 
-@Value
+@Getter
+@AllArgsConstructor
 public class RequestCacheValue {
 
   private Message message;

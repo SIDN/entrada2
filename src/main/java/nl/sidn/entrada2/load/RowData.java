@@ -19,16 +19,18 @@
  */
 package nl.sidn.entrada2.load;
 
-import lombok.Value;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import nl.sidnlabs.dnslib.message.Message;
 import nl.sidnlabs.pcap.packet.Packet;
 
-@Value
+@Getter
+@AllArgsConstructor
 public class RowData {
 
-  private Packet request;
-  private Message requestMessage;
-  private Packet response;
-  private Message responseMessage;
+  private final Packet request;
+  private final Message requestMessage;
+  private final Packet response;
+  private final Message responseMessage;
 
 }

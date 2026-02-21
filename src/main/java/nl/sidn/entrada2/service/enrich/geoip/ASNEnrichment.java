@@ -1,11 +1,7 @@
 package nl.sidn.entrada2.service.enrich.geoip;
 
 import java.net.InetAddress;
-import java.util.Optional;
-
 import org.springframework.stereotype.Component;
-
-import com.maxmind.geoip2.model.AsnResponse;
 
 import nl.sidn.entrada2.load.FieldEnum;
 import nl.sidn.entrada2.service.enrich.AddressEnrichment;
@@ -28,15 +24,7 @@ public class ASNEnrichment implements AddressEnrichment {
    */
   @Override
   public String match(String address, InetAddress inetAddress) {
-
-    Optional<? extends AsnResponse> r = geoLookup.lookupASN(inetAddress);
-    if (r.isPresent()) {
-      if (r.get().getAutonomousSystemNumber() != null) {
-        return r.get().getAutonomousSystemNumber().toString();
-      }
-    }
-
-    return null;
+    return geoLookup.lookupASN(inetAddress).orElse(null);
   }
 
   @Override

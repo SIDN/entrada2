@@ -32,7 +32,7 @@ public class StartupListener {
 	@EventListener
 	public void onApplicationEvent(ContextRefreshedEvent event) {
 		if (leaderService.isleader()) {
-			log.info("This is the leader, start listening to leader queue");
+			log.info("This is the leader, now start listening to leader queue");
 			leaderQueue.start();
 		}else {
 			log.info("This is NOT the leader, make sure not to be listening to leader queue");

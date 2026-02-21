@@ -1,8 +1,6 @@
 package nl.sidn.entrada2.service.enrich.geoip;
 
 import java.net.InetAddress;
-import java.util.Optional;
-
 import org.springframework.stereotype.Component;
 
 import com.maxmind.geoip2.model.CountryResponse;
@@ -29,12 +27,9 @@ public class CountryEnrichment implements AddressEnrichment {
   @Override
   public String match(String address, InetAddress inetAddress) {
 
-    Optional<CountryResponse> r = geoLookup.lookupCountry(inetAddress);
-    if (r.isPresent()) {
-      return r.get().getCountry().getIsoCode();
-    }
-
-    return null;
+    return geoLookup.lookupCountry(inetAddress).map(CountryResponse::country)
+        .map(country -> country.isoCode())
+        .orElse(null);
   }
 
 
