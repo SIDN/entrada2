@@ -384,7 +384,13 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			
 			// Lazy initialization - only create list if errors found
 			List<Integer> errors = null;
+			List<Integer> options = null;
 			for (EDNS0Option option : opt.getOptions()) {
+				if (options == null) {
+					options = new ArrayList<>(4);
+				}
+				
+				options.add(option.getCode());
 				if (option instanceof EDEOption) {
 					if (errors == null) {
 						errors = new ArrayList<>(2);
@@ -396,6 +402,10 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			
 			if(errors != null) {
 				record.set(FieldEnum.edns_ext_error.ordinal(), errors);
+			}
+
+			if(options != null) {
+				record.set(FieldEnum.edns_server_options.ordinal(), options);
 			}
 		}
 

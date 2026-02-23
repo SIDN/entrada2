@@ -102,8 +102,13 @@ public class IcebergTableConfig {
 										Types.NestedField.required(51, "type", Types.IntegerType.get()),
 										Types.NestedField.optional(52, "data", Types.StringType.get())
 								)
-						)
-				));
+						)),
+				Types.NestedField.optional(53, "dns_cname", Types.ListType.ofOptional(54, Types.StringType.get())),
+				Types.NestedField.optional(55, "dns_tld", Types.StringType.get()),
+				Types.NestedField.optional(56, "dns_qname_full", Types.StringType.get()),
+				Types.NestedField.optional(57, "edns_server_options", Types.ListType.ofOptional(58, Types.IntegerType.get()))
+
+			);
 				
 
 		return schema;
@@ -151,20 +156,30 @@ public class IcebergTableConfig {
 		schema = table.schema();
 		// table exists, check if need to add new columns
 		if(schema.findField("dns_cname") == null) {
+			log.info("Updating schema to add dns_cname column");
 			table.updateSchema()
 				.addColumn("dns_cname",   Types.ListType.ofOptional(53, Types.StringType.get()))
 				.commit();
 		}
 		
 		if(schema.findField("dns_tld") == null) {
+			log.info("Updating schema to add dns_tld column");
 			table.updateSchema()
-				.addColumn("dns_tld", Types.StringType.get())
+				.addColumn("dns_tld", Types.StringType.get()) 
 				.commit();
 		}
 		
 		if(schema.findField("dns_qname_full") == null) {
+			log.info("Updating schema to add dns_qname_full column");
 			table.updateSchema()
-				.addColumn("dns_qname_full", Types.StringType.get())
+				.addColumn("dns_qname_full", Types.StringType.get()) 
+				.commit();
+		}
+		
+		if(schema.findField("edns_server_options") == null) {
+			log.info("Updating schema to add edns_server_options column");
+			table.updateSchema()
+				.addColumn("edns_server_options", Types.ListType.ofOptional(58, Types.IntegerType.get()))
 				.commit();
 		}
 		

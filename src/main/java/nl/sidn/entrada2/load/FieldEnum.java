@@ -51,6 +51,7 @@ public enum FieldEnum {
   dns_rdata,
   dns_cname,
   dns_tld,
-  dns_qname_full;
+  dns_qname_full,
+  edns_server_options;
 	
 }

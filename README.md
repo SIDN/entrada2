@@ -9,12 +9,12 @@ A DNS query and response are combined into a single record and enriched by addin
 - Geolocation (Country)
 - Autonomous system (ASN)
 - Domain name public suffix
-- Detection of public resolvers (Google, OpenDNS, Quad9 and Cloudflare)
+- Detection of public resolvers (Google, OpenDNS and Cloudflare)
 - TCP round-trip time (RTT)
 
 ## Features
 
-ENTRADA2 supports the following features: 
+ENTRADA2 supports the following features:
 
 - S3 storage (Rustfs, AWS)
 - Open table format (Apache Iceberg)
@@ -410,8 +410,10 @@ The column names use a prefix to indicate where the information was extracted fr
 | --- | --- | --- |
 | dns_id | int | ID field from DNS header |
 | time | long | Time of packet |
-| dns_qname | string | qname from DNS question |
+| dns_qname | string | qname from DNS question (labels left of domain) |
 | dns_domainname | string | domainname from DNS question |
+| dns_tld | string | Top-Level Domain from the query name (Public Suffix) |
+| dns_qname_full | string | Full query when no TLD is present |
 | ip_ttl | int | TTL of IP packet |
 | ip_version | int | IP version used |
 | prot | int | Protocol used (UDP or TCP) |
@@ -440,6 +442,7 @@ The column names use a prefix to indicate where the information was extracted fr
 | edns_version | int | EDNS version |
 | edns_do | boolean | DNSSEC OK flag |
 | edns_options | array(int) | EDNS options from request |
+| edns_server_options | array(int) | EDNS options from response |
 | edns_ecs | string | EDNS Client Subnet |
 | edns_ecs_ip_asn | string | ASN for IP address in ECS |
 | edns_ecs_ip_asn_org | string | ASN organisation for IP address in ECS |
@@ -458,8 +461,6 @@ The column names use a prefix to indicate where the information was extracted fr
 | dns_rdata.type | int | Resource Record (RR) type, according to [IANA registration](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4) |
 | dns_rdata.data | string | String representation of rdata part of RR |
 | dns_cname | array(string) | CNAME records in the response chain |
-| dns_tld | string | Top-Level Domain from the query name |
-| dns_qname_full | string | Full query name without normalization |
 
 Not all DNS resource records in ENTRADA have support for the `dns_rdata.data` column. For unsupported RRs, the value of this column will be null.
 
