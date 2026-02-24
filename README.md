@@ -101,6 +101,10 @@ Use the following S3 tags when uploading files to S3:
 
 Timestamps used in PCAP files are assumed to be using timezone UTC. The timestamp in the `entrada-object-ts` tag is used for sorting new S3 objects when multiple new objects are detected. This allows for bulk uploading older data and maintaining the correct order when processing. The tag `entrada-object-ts` is only used when rustfs/AWS S3 events are not configured and ENTRADA2 must periodically scan for newly uploaded objects itself.
 
+### Start processing
+
+The processing of new PCAP files must be started and stopped using the API endpoints. After starting new PCAP files will be detected but NOT processed yet. Processing will only start when the "start" command is sent to the API. This allows for uploading new PCAP files before starting the processing, which is especially useful when using the S3 object scanning feature.
+
 ### Upload Example
 
 ```bash
