@@ -133,6 +133,8 @@ spring:
     backoff-interval: 1000
     backoff-max-interval: 5000
     backoff-multiplier: 2
+    # Shutdown timeout in seconds - time to wait for consumers to finish during shutdown
+    shutdown-timeout: 60
  cloud:
     bootstrap:
       enabled: false

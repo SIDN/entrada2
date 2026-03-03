@@ -55,6 +55,10 @@ public class RabbitMqConfig {
 	@Value("${spring.rabbitmq.backoff-max-interval}")
 	private int backoffMaxInterval;
 
+    // allow time for consumers to finish processing messages during shutdown before forcefully closing connections (in milliseconds)
+	@Value("#{${spring.rabbitmq.shutdown-timeout:60}*1000}")
+	private long shutdownTimeout;
+
     @Bean
     public Queue requestQueue(){
         return QueueBuilder
@@ -164,6 +168,8 @@ public class RabbitMqConfig {
         factory.setMaxConcurrentConsumers(1);
         factory.setAdviceChain(retryInterceptor);
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        // Set shutdown timeout using container customizer
+        factory.setContainerCustomizer(container -> container.setShutdownTimeout(shutdownTimeout));
         return factory;
     }
 
