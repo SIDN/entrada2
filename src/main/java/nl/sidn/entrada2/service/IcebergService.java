@@ -46,9 +46,6 @@ public class IcebergService {
 	
 	@Value("#{${iceberg.parquet.bloomfilter-max-size-mb:1} * 1024 * 1024}")
 	private int parquetBloomFilterMaxBytes;
-	
-	@Value("${iceberg.metadata.version.max:100}")
-	private int metadataVersionMax;
 
 	// number of recs written to current file
 	private long currentRecCount;
@@ -83,10 +80,6 @@ public class IcebergService {
 		GenericAppenderFactory fileAppenderFactory = new GenericAppenderFactory(table.schema(), table.spec());
 
 		fileAppenderFactory.set(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
-		fileAppenderFactory.set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
-		fileAppenderFactory.set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
-
-		//fileAppenderFactory.set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
 		
 		if (enableBloomFilter) {
 			fileAppenderFactory.set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(), "true");

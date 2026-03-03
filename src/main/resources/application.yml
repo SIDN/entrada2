@@ -197,11 +197,6 @@ iceberg:
     password: 
   # see iceberg docs for: write.parquet.compression-codec
   compression: zstd
-  metadata:
-    delete-after-commit: true
-    version:
-      # see iceberg docs for: write.metadata.previous-versions-max
-      max: 1
   table:
     name: 'dns'
     namespace: 'entrada'

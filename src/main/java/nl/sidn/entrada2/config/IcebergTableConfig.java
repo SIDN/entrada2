@@ -28,10 +28,6 @@ public class IcebergTableConfig {
 
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
-	@Value("${iceberg.metadata.version.max:1}")
-	private int metadataVersionMax;
-	@Value("${iceberg.metadata.delete-after-commit:true}")
-	private boolean metadataDeleteAfterCommit;
 	@Value("${iceberg.table.location}")
 	private String tableLocation;
 	@Value("${iceberg.table.namespace}")
@@ -138,10 +134,6 @@ public class IcebergTableConfig {
 
 			Map<String, String> props = new HashMap<>();
 			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
-			// auto cleanup old meta data files
-			// see: https://iceberg.apache.org/docs/nightly/maintenance/#remove-old-metadata-files
-			props.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, String.valueOf(metadataDeleteAfterCommit));
-			props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, String.valueOf(metadataVersionMax));
 			props.put(TableProperties.FORMAT_VERSION, "2");
 			props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(),
 					"true");
