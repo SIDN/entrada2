@@ -135,6 +135,8 @@ public class IcebergTableConfig {
 			Map<String, String> props = new HashMap<>();
 			props.put(TableProperties.PARQUET_COMPRESSION, compressionAlgo);
 			props.put(TableProperties.FORMAT_VERSION, "2");
+			props.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true");
+			props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "10");
 			props.put(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + FieldEnum.dns_domainname.name(),
 					"true");
 
