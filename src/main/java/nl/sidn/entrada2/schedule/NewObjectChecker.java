@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.core.AmqpTemplate;
@@ -55,16 +56,21 @@ public class NewObjectChecker {
 	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;
 	
+	private final AtomicBoolean isRunning = new AtomicBoolean(false);
 	
 	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:30}*1000}")
 	public void execute() {
+		if (!isRunning.compareAndSet(false, true)) {
+			log.debug("Skipping execution, previous run still in progress");
+			return;
+		}
 		if (!leaderService.isleader()) {
 			// only leader is allowed to continue
 			return;
 		}
 		// find new objects
 		log.info("Start checking for new objects");
-		
+
 		try {
 			for(String prefix: s3Properties.getPcapInPrefixes()) {
 				log.info("Start checking for new objects with prefix: {}", prefix);
@@ -73,6 +79,8 @@ public class NewObjectChecker {
 			}
 		} catch (Exception e) {
 			log.error("Unexpected exception while scanning for new objects");
+		} finally {
+			isRunning.set(false);
 		}
 	}
 

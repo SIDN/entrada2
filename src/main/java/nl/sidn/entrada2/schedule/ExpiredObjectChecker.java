@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -49,8 +50,14 @@ public class ExpiredObjectChecker {
 	@Autowired
 	private S3Service s3Service;
 	
+	private final AtomicBoolean isRunning = new AtomicBoolean(false);
+	
 	@Scheduled(initialDelay = 60*1000, fixedDelayString = "#{${entrada.schedule.expired-object-min:10}*60*1000}")
 	public void execute() {
+		if (!isRunning.compareAndSet(false, true)) {
+			log.debug("Skipping execution, previous run still in progress");
+			return;
+		}
 		if (!leaderService.isleader()) {
 			// only leader is allowed to continue
 			return;
@@ -63,6 +70,8 @@ public class ExpiredObjectChecker {
 			}
 		} catch (Exception e) {
 			log.error("Unexpected exception while checking for expired objects");
+		} finally {
+			isRunning.set(false);
 		}
 	}
 	
