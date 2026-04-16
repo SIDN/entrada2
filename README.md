@@ -97,9 +97,11 @@ Use the following S3 tags when uploading files to S3:
 
 - `entrada-ns-server`: Logical name of the name server (e.g., ns1.dns.nl)
 - `entrada-ns-anycast-site`: Anycast site of the name server (e.g., ams)
-- `entrada-object-ts`: (optional) ISO 8601 timestamp when PCAP was created (e.g., 2022-10-12T01:01:00.000Z)
 
-Timestamps used in PCAP files are assumed to be using timezone UTC. The timestamp in the `entrada-object-ts` tag is used for sorting new S3 objects when multiple new objects are detected. This allows for bulk uploading older data and maintaining the correct order when processing. The tag `entrada-object-ts` is only used when rustfs/AWS S3 events are not configured and ENTRADA2 must periodically scan for newly uploaded objects itself.
+When these tags are not present, ENTRADA2 will attempt to parse the server and site from the filename. If this also fails, then the default values from the configuration will be used.
+The filename format must be: `{server}_{anycastSite}-.+.pcap.gz` (e.g., `ns1.dns.nl_ams-2023-08-14_09_20_26.pcap.gz`).
+
+Timestamps used in PCAP files are assumed to be using timezone UTC.
 
 ### Start processing
 

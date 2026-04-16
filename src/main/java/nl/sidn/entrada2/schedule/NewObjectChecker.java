@@ -58,16 +58,22 @@ public class NewObjectChecker {
 	
 	private final AtomicBoolean isRunning = new AtomicBoolean(false);
 	
-	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:30}*1000}")
+	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:120}*1000}")
 	public void execute() {
-		if (!isRunning.compareAndSet(false, true)) {
-			log.debug("Skipping execution, previous run still in progress");
-			return;
-		}
 		if (!leaderService.isleader()) {
 			// only leader is allowed to continue
 			return;
 		}
+
+		boolean acquired = isRunning.compareAndSet(false, true);
+		log.debug("Execute called, thread: {}, isRunning before: {}, acquired: {}", 
+				Thread.currentThread().getName(), !acquired, acquired);
+		
+		if (!acquired) {
+			log.warn("Skipping execution, previous run still in progress");
+			return;
+		}
+		
 		// find new objects
 		log.info("Start checking for new objects");
 

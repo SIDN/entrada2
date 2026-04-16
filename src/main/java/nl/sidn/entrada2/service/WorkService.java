@@ -84,7 +84,7 @@ public class WorkService {
 	private boolean working;
 
 	private AtomicInteger processed;
-	
+
 	public WorkService(MeterRegistry meterRegistry) {
 		this.meterRegistry = meterRegistry;
 	}
@@ -157,14 +157,28 @@ public class WorkService {
 			return true;
 		}
 
-		String server = defaultNsName;
+		String server = null;
+		String anycastSite = null;
 		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_SERVER.value)) {
 			server = tags.get(S3ObjectTagName.ENTRADA_NS_SERVER.value);
-		}
-		
-		String anycastSite = defaultNsSite;
-		if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
-			anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
+
+			// if no server tag found, then site tag will probably also not be found
+			if (tags.containsKey(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value)) {
+				anycastSite = tags.get(S3ObjectTagName.ENTRADA_NS_ANYCAST_SITE.value);
+			}
+		}	
+
+		if(StringUtils.isBlank(server) || StringUtils.isBlank(anycastSite)) {
+			// missing required tags, use fallback, parse from filename or use default
+			Pair<String, String> parsed = extractServerAndSite(key);
+			if (parsed != null) {
+				server = parsed.getLeft();
+				anycastSite = parsed.getRight();
+			} else {
+				// Still blank after parsing, use defaults
+				server = defaultNsName;
+				anycastSite = defaultNsSite;
+			}
 		}
 		
 		okCounter = Counter.builder("entrada_pcap-file").tags("server", server, "site", anycastSite, "status", "ok").register(meterRegistry);	
@@ -236,6 +250,34 @@ public class WorkService {
 		sample.stop(meterRegistry.timer("entrada_pcap-timer", "server", server, "site", anycastSite));
 	    
 		return true;
+	}
+
+	/**
+	 * Load the server and optional anycast server location information from filename.
+	 * Expected filename format: {@code<server>_<site>-*.pcap.*}
+	 * Example: ns3.dns.nl_ams-20260412-1040101_194.0.25.24_ams.pcap.gz
+	 * 
+	 * @param filename the full filename or S3 key
+	 * @return Pair of server (left) and site (right), or null if parsing fails
+	 */
+	public Pair<String, String> extractServerAndSite(String key) {
+		// Extract just the filename if it's a full path
+		String name = StringUtils.substringAfterLast(key, "/");
+		if (StringUtils.isBlank(name)) {
+			return null;
+		}
+		
+		// Split on first hyphen to get server/site part
+		int firstHyphen = name.indexOf('-');
+		if (firstHyphen == -1) {
+			return null;
+		}
+		
+		String[] parts = name.substring(0, firstHyphen).split("_");
+		if(parts == null || parts.length != 2) {
+			return null;
+		}
+		return Pair.of(parts[0], parts[1]);
 	}
 
 	private void cleanup(String bucket, String key, Map<String, String> tags, long duration) {

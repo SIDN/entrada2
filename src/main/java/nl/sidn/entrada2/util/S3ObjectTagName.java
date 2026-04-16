@@ -17,9 +17,7 @@ public enum S3ObjectTagName {
 	ENTRADA_OBJECT_TRIES("entrada-object-tries"),
 	ENTRADA_OBJECT_OFFSET("entrada-object-offset"),
 	// (ISO_8601)
-	ENTRADA_OBJECT_DETECTED("entrada-object-detected"),
-	// example: 2022-10-12T01:01:00.000Z
-	ENTRADA_OBJECT_TS("entrada-object-ts");
+	ENTRADA_OBJECT_DETECTED("entrada-object-detected");
 
 	public final String value;
 	
