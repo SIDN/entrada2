@@ -68,7 +68,8 @@ public class IcebergService {
 	@PostConstruct
 	public void initialize() {
 		this.recordSchema = table.schema().asStruct();
-		this.rdataSchema = table.schema().findType(49).asStructType();
+		this.rdataSchema = ((org.apache.iceberg.types.Types.ListType) table.schema().findField("dns_rdata").type())
+				.elementType().asStructType();
 	}
 
 	private PartitionedFanoutWriter<GenericRecord> createWriter() throws IOException {

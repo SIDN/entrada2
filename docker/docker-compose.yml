@@ -45,7 +45,7 @@ services:
       - "5672:5672"
       - "15672:15672"
   rustfs:
-    image: rustfs/rustfs:1.0.0-alpha.83
+    image: rustfs/rustfs:1.0.0-alpha.94
     restart: always
     env_file:
        - path: ./docker.env
@@ -90,7 +90,7 @@ services:
       postgresql:
         condition: service_healthy
   entrada-master:
-    image: sidnlabs/entrada2:0.0.16
+    image: sidnlabs/entrada2:1.0.2
     profiles: ["test"]
     restart: always
     env_file:
@@ -121,7 +121,7 @@ services:
       createbucket:
         condition: service_completed_successfully
   entrada-worker:
-    image: sidnlabs/entrada2:0.0.16
+    image: sidnlabs/entrada2:1.0.2
     profiles: ["test"]
     restart: always
     env_file:
