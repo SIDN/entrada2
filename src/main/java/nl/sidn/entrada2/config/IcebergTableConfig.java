@@ -39,74 +39,143 @@ public class IcebergTableConfig {
 	@Autowired
 	private Catalog catalog;
 
+	/**
+	 * Helper class to safely build schemas with auto-incrementing field IDs.
+	 * No need to manually track IDs - they're assigned sequentially starting from 1.
+	 */
+	private static class SchemaBuilder {
+		private int nextId = 1;
+		private final java.util.List<Types.NestedField> fields = new java.util.ArrayList<>();
+		
+		public SchemaBuilder addRequired(String name, org.apache.iceberg.types.Type type) {
+			fields.add(Types.NestedField.required(nextId++, name, assignIds(type)));
+			return this;
+		}
+		
+		public SchemaBuilder addOptional(String name, org.apache.iceberg.types.Type type) {
+			fields.add(Types.NestedField.optional(nextId++, name, assignIds(type)));
+			return this;
+		}
+		
+		private org.apache.iceberg.types.Type assignIds(org.apache.iceberg.types.Type type) {
+			if (type instanceof Types.ListType) {
+				Types.ListType listType = (Types.ListType) type;
+				// Recursively assign IDs to element type (important for List<Struct>)
+				return Types.ListType.ofOptional(nextId++, assignIds(listType.elementType()));
+			} else if (type instanceof Types.StructType) {
+				Types.StructType structType = (Types.StructType) type;
+				java.util.List<Types.NestedField> newFields = new java.util.ArrayList<>();
+				for (Types.NestedField field : structType.fields()) {
+					if (field.isRequired()) {
+						newFields.add(Types.NestedField.required(nextId++, field.name(), assignIds(field.type())));
+					} else {
+						newFields.add(Types.NestedField.optional(nextId++, field.name(), assignIds(field.type())));
+					}
+				}
+				return Types.StructType.of(newFields);
+			}
+			return type;
+		}
+		
+		public Schema build() {
+			return new Schema(fields);
+		}
+		
+		/**
+		 * Prints all field IDs in the schema for debugging
+		 */
+		private static void printSchemaIds(Schema schema, String prefix) {
+			for (Types.NestedField field : schema.columns()) {
+				log.info("{}Field '{}' -> ID: {}", prefix, field.name(), field.fieldId());
+				printFieldIds(field.type(), prefix + "  ");
+			}
+		}
+		
+		private static void printFieldIds(org.apache.iceberg.types.Type type, String prefix) {
+			if (type instanceof Types.ListType) {
+				Types.ListType listType = (Types.ListType) type;
+				log.info("{}List element -> ID: {}", prefix, listType.elementId());
+				printFieldIds(listType.elementType(), prefix + "  ");
+			} else if (type instanceof Types.StructType) {
+				Types.StructType structType = (Types.StructType) type;
+				for (Types.NestedField field : structType.fields()) {
+					log.info("{}Struct field '{}' -> ID: {}", prefix, field.name(), field.fieldId());
+					printFieldIds(field.type(), prefix + "  ");
+				}
+			}
+		}
+	}
+
 	@Bean
 	Schema schema() {
 		if (schema != null) {
 			return schema;
 		}
 
-		schema = new Schema(Types.NestedField.required(1, "dns_id", Types.IntegerType.get()),
-				Types.NestedField.required(2, "time", Types.TimestampType.withoutZone()),
-				Types.NestedField.optional(3, "dns_qname", Types.StringType.get()),
-				Types.NestedField.optional(4, "dns_domainname", Types.StringType.get()),
-				Types.NestedField.optional(5, "ip_ttl", Types.IntegerType.get()),
-				Types.NestedField.optional(6, "ip_version", Types.IntegerType.get()),
-				Types.NestedField.optional(7, "prot", Types.IntegerType.get()),
-				Types.NestedField.optional(8, "ip_src", Types.StringType.get()),
-				Types.NestedField.optional(9, "prot_src_port", Types.IntegerType.get()),
-				Types.NestedField.optional(10, "ip_dst", Types.StringType.get()),
-				Types.NestedField.optional(11, "prot_dst_port", Types.IntegerType.get()),
-				Types.NestedField.optional(12, "dns_aa", Types.BooleanType.get()),
-				Types.NestedField.optional(13, "dns_tc", Types.BooleanType.get()),
-				Types.NestedField.optional(14, "dns_rd", Types.BooleanType.get()),
-				Types.NestedField.optional(15, "dns_ra", Types.BooleanType.get()),
-				Types.NestedField.optional(16, "dns_ad", Types.BooleanType.get()),
-				Types.NestedField.optional(17, "dns_cd", Types.BooleanType.get()),
-				Types.NestedField.optional(18, "dns_ancount", Types.IntegerType.get()),
-				Types.NestedField.optional(19, "dns_arcount", Types.IntegerType.get()),
-				Types.NestedField.optional(20, "dns_nscount", Types.IntegerType.get()),
-				Types.NestedField.optional(21, "dns_qdcount", Types.IntegerType.get()),
-				Types.NestedField.optional(22, "dns_opcode", Types.IntegerType.get()),
-				Types.NestedField.optional(23, "dns_rcode", Types.IntegerType.get()),
-				Types.NestedField.optional(24, "dns_qtype", Types.IntegerType.get()),
-				Types.NestedField.optional(25, "dns_qclass", Types.IntegerType.get()),
-				Types.NestedField.optional(26, "ip_geo_country", Types.StringType.get()),
-				Types.NestedField.optional(27, "ip_asn", Types.StringType.get()),
-				Types.NestedField.optional(28, "ip_asn_org", Types.StringType.get()),
-				Types.NestedField.optional(29, "edns_udp", Types.IntegerType.get()),
-				Types.NestedField.optional(30, "edns_version", Types.IntegerType.get()),
-				Types.NestedField.optional(31, "edns_do", Types.BooleanType.get()),
-				Types.NestedField.optional(32, "edns_options", Types.ListType.ofOptional(33, Types.IntegerType.get())),
-				Types.NestedField.optional(34, "edns_ecs", Types.StringType.get()),
-				Types.NestedField.optional(35, "edns_ecs_ip_asn", Types.StringType.get()),
-				Types.NestedField.optional(36, "edns_ecs_ip_asn_org", Types.StringType.get()),
-				Types.NestedField.optional(37, "edns_ecs_ip_geo_country", Types.StringType.get()),
-				Types.NestedField.optional(38, "edns_ext_error",
-						Types.ListType.ofOptional(39, Types.IntegerType.get())),
-				Types.NestedField.optional(40, "dns_labels", Types.IntegerType.get()),
-				Types.NestedField.optional(41, "dns_proc_time", Types.IntegerType.get()),
-				Types.NestedField.optional(42, "dns_pub_resolver", Types.StringType.get()),
-				Types.NestedField.optional(43, "dns_req_len", Types.IntegerType.get()),
-				Types.NestedField.optional(44, "dns_res_len", Types.IntegerType.get()),
-				Types.NestedField.optional(45, "tcp_rtt", Types.IntegerType.get()),
-				Types.NestedField.required(46, "server", Types.StringType.get()),
-				Types.NestedField.required(47, "server_location", Types.StringType.get()),
-				Types.NestedField.optional(48, "dns_rdata",
-						Types.ListType.ofOptional(49,
+		// Use SchemaBuilder for safe auto-incrementing field IDs
+		// any placeholder ids used below will be replaced by actual ids
+		schema = new SchemaBuilder()
+				.addRequired("dns_id", Types.IntegerType.get())
+				.addRequired("time", Types.TimestampType.withoutZone())
+				.addOptional("dns_qname", Types.StringType.get())
+				.addOptional("dns_domainname", Types.StringType.get())
+				.addOptional("ip_ttl", Types.IntegerType.get())
+				.addOptional("ip_version", Types.IntegerType.get())
+				.addOptional("prot", Types.IntegerType.get())
+				.addOptional("ip_src", Types.StringType.get())
+				.addOptional("prot_src_port", Types.IntegerType.get())
+				.addOptional("ip_dst", Types.StringType.get())
+				.addOptional("prot_dst_port", Types.IntegerType.get())
+				.addOptional("dns_aa", Types.BooleanType.get())
+				.addOptional("dns_tc", Types.BooleanType.get())
+				.addOptional("dns_rd", Types.BooleanType.get())
+				.addOptional("dns_ra", Types.BooleanType.get())
+				.addOptional("dns_ad", Types.BooleanType.get())
+				.addOptional("dns_cd", Types.BooleanType.get())
+				.addOptional("dns_ancount", Types.IntegerType.get())
+				.addOptional("dns_arcount", Types.IntegerType.get())
+				.addOptional("dns_nscount", Types.IntegerType.get())
+				.addOptional("dns_qdcount", Types.IntegerType.get())
+				.addOptional("dns_opcode", Types.IntegerType.get())
+				.addOptional("dns_rcode", Types.IntegerType.get())
+				.addOptional("dns_qtype", Types.IntegerType.get())
+				.addOptional("dns_qclass", Types.IntegerType.get())
+				.addOptional("ip_geo_country", Types.StringType.get())
+				.addOptional("ip_asn", Types.StringType.get())
+				.addOptional("ip_asn_org", Types.StringType.get())
+				.addOptional("edns_udp", Types.IntegerType.get())
+				.addOptional("edns_version", Types.IntegerType.get())
+				.addOptional("edns_do", Types.BooleanType.get())
+				.addOptional("edns_options", Types.ListType.ofOptional(0, Types.IntegerType.get()))
+				.addOptional("edns_ecs", Types.StringType.get())
+				.addOptional("edns_ecs_ip_asn", Types.StringType.get())
+				.addOptional("edns_ecs_ip_asn_org", Types.StringType.get())
+				.addOptional("edns_ecs_ip_geo_country", Types.StringType.get())
+				.addOptional("edns_ext_error", Types.ListType.ofOptional(0, Types.IntegerType.get()))
+				.addOptional("dns_labels", Types.IntegerType.get())
+				.addOptional("dns_proc_time", Types.IntegerType.get())
+				.addOptional("dns_pub_resolver", Types.StringType.get())
+				.addOptional("dns_req_len", Types.IntegerType.get())
+				.addOptional("dns_res_len", Types.IntegerType.get())
+				.addOptional("tcp_rtt", Types.IntegerType.get())
+				.addRequired("server", Types.StringType.get())
+				.addRequired("server_location", Types.StringType.get())
+				.addOptional("dns_rdata",
+						Types.ListType.ofOptional(0,
 								Types.StructType.of(
-										Types.NestedField.required(50, "section", Types.IntegerType.get()),
-										Types.NestedField.required(51, "type", Types.IntegerType.get()),
-										Types.NestedField.optional(52, "data", Types.StringType.get())
+										Types.NestedField.required(0, "section", Types.IntegerType.get()),
+										Types.NestedField.required(0, "type", Types.IntegerType.get()),
+										Types.NestedField.optional(0, "data", Types.StringType.get())
 								)
-						)),
-				Types.NestedField.optional(53, "dns_cname", Types.ListType.ofOptional(54, Types.StringType.get())),
-				Types.NestedField.optional(55, "dns_tld", Types.StringType.get()),
-				Types.NestedField.optional(56, "dns_qname_full", Types.StringType.get()),
-				Types.NestedField.optional(57, "edns_server_options", Types.ListType.ofOptional(58, Types.IntegerType.get()))
-
-			);
-				
-
+						))
+				.addOptional("dns_cname", Types.ListType.ofOptional(0, Types.StringType.get()))
+				.addOptional("dns_tld", Types.StringType.get())
+				.addOptional("dns_qname_full", Types.StringType.get())
+				.addOptional("edns_server_options", Types.ListType.ofOptional(0, Types.IntegerType.get()))
+				.build();
+		
+		log.info("Created schema with {} fields, highest ID: {}", schema.columns().size(), schema.highestFieldId());
+		
 		return schema;
 	}
 
@@ -148,36 +217,45 @@ public class IcebergTableConfig {
 		Table table = catalog.loadTable(tableId);
 		// get latest schema, may already include new columns
 		schema = table.schema();
+
 		// table exists, check if need to add new columns
+		// Always reload schema before adding columns to get latest field IDs
 		if(schema.findField("dns_cname") == null) {
-			log.info("Updating schema to add dns_cname column");
+			int maxId = schema.highestFieldId();
+			log.info("Updating schema to add dns_cname column (using IDs {} and {})", maxId + 1, maxId + 2);
 			table.updateSchema()
-				.addColumn("dns_cname",   Types.ListType.ofOptional(53, Types.StringType.get()))
+				.addColumn("dns_cname", Types.ListType.ofOptional(maxId + 2, Types.StringType.get()))
 				.commit();
 		}
 		
 		if(schema.findField("dns_tld") == null) {
-			log.info("Updating schema to add dns_tld column");
+			schema = table.schema();
+			log.info("Updating schema to add dns_tld column (ID auto-assigned)");
 			table.updateSchema()
 				.addColumn("dns_tld", Types.StringType.get()) 
 				.commit();
 		}
 		
 		if(schema.findField("dns_qname_full") == null) {
-			log.info("Updating schema to add dns_qname_full column");
+			schema = table.schema();
+			log.info("Updating schema to add dns_qname_full column (ID auto-assigned)");
 			table.updateSchema()
 				.addColumn("dns_qname_full", Types.StringType.get()) 
 				.commit();
 		}
 		
 		if(schema.findField("edns_server_options") == null) {
-			log.info("Updating schema to add edns_server_options column");
+			schema = table.schema();
+			int maxId = schema.highestFieldId();
+			log.info("Updating schema to add edns_server_options column (using IDs {} and {})", maxId + 1, maxId + 2);
 			table.updateSchema()
-				.addColumn("edns_server_options", Types.ListType.ofOptional(58, Types.IntegerType.get()))
+				.addColumn("edns_server_options", Types.ListType.ofOptional(maxId + 2, Types.IntegerType.get()))
 				.commit();
 		}
 		
-		log.info("Schema for table: {}", table.schema());
+		// Reload final schema to ensure it's current
+		schema = table.schema();
+		SchemaBuilder.printSchemaIds(schema, "");
 
 		return table;
 	}
