@@ -1,9 +1,9 @@
 package nl.sidn.entrada2.schedule;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -110,7 +110,7 @@ public class NewObjectChecker {
 
 		for (S3Object s3Object : s3Objects) {
 			futures.add(executor.submit(() -> {
-				Map<String, String> tags = new ConcurrentHashMap<>();
+				Map<String, String> tags = new HashMap<>();
 				if (s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)) {
 					if (StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
 						log.info("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
