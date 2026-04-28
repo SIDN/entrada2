@@ -3,10 +3,16 @@ package nl.sidn.entrada2.schedule;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -29,7 +35,7 @@ public class ExpiredObjectChecker {
 	@Autowired
 	private LeaderService leaderService;
 	
-	@Value("${entrada.object.max-wait-time-secs:3600}")
+	@Value("${entrada.object.max-wait-time-secs:7200}")
 	private int maxWaitTime;
 		
 	@Value("${entrada.object.max-proc-time-secs:3600}")
@@ -43,6 +49,10 @@ public class ExpiredObjectChecker {
 	
 	@Value("${entrada.object.max-tries:2}")
 	private int maxTries;
+
+	// should match fastClient maxConnections for maximum throughput
+	@Value("${entrada.schedule.expired-object-threads:50}")
+	private int tagThreads;
 
 	@Autowired
 	private EntradaS3Properties s3Properties;
@@ -76,79 +86,87 @@ public class ExpiredObjectChecker {
 	}
 	
 	public void checkForExpiredObjects(String prefix) {
-		Map<String, String> tags = new HashMap<String, String>();
-		
 		LocalDateTime now = LocalDateTime.now();
 		ZoneId localZone = ZoneId.systemDefault();
-		
-		int counterIncomplete = 0;
-		int counterNotPickedUp = 0;
-		
-		// find objects that have ts_start < (now - max_proc_time) and have no ts_end
-		for(S3Object obj : s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix,"/"))) {
-			
-			if(log.isDebugEnabled()) {
-				log.debug("Checking: {}", obj.key());
-			}
-			
-			if(obj.size() == 0) {
-				// ignore directories
-				return;
-			}
-			
-			
-			if(s3Service.tags(s3Properties.getBucket(), obj.key(), tags)) {
-				// check for ts_start without and ts_end
-				if(tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value) ) {
-					if(!tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value)) {					
-					// check if object claim is expired
-					Optional<LocalDateTime> startDate = stringToDate(tags.get(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value));
-						LocalDateTime max = startDate.get().plusSeconds(maxProcTime);
-						log.info("Check if {} with start date {} is before end date {}", obj.key(), startDate, now );
-						
-						if(max.isBefore(now)) {
-							if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
-								String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
-								if(NumberUtils.isCreatable(value)) {
-									int tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
-									if(tries < maxTries){
-										// expired object and max tries not yet reached, remove  start tag
-										// this will cause the object to be processed again
-										log.info("Object not processed correctly, doing retry for: {}", obj.key());
-										
-										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
-										//remove detected just in case
-										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
-										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
-										
-										counterIncomplete++;
+
+		AtomicInteger counterIncomplete = new AtomicInteger(0);
+		AtomicInteger counterNotPickedUp = new AtomicInteger(0);
+
+		List<S3Object> objects = s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix, "/"));
+		ExecutorService executor = Executors.newFixedThreadPool(tagThreads);
+		List<Future<?>> futures = new ArrayList<>(objects.size());
+
+		for (S3Object obj : objects) {
+			futures.add(executor.submit(() -> {
+				if (log.isDebugEnabled()) {
+					log.debug("Checking: {}", obj.key());
+				}
+
+				if (obj.size() == 0) {
+					// ignore directories
+					return;
+				}
+
+				Map<String, String> tags = new HashMap<>();
+				if (s3Service.tags(s3Properties.getBucket(), obj.key(), tags)) {
+					// check for ts_start without ts_end
+					if (tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
+						if (!tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value)) {
+							// check if object claim is expired
+							Optional<LocalDateTime> startDate = stringToDate(tags.get(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value));
+							LocalDateTime max = startDate.get().plusSeconds(maxProcTime);
+							log.info("Check if {} with start date {} is before end date {}", obj.key(), startDate, now);
+
+							if (max.isBefore(now)) {
+								if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
+									String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
+									if (NumberUtils.isCreatable(value)) {
+										int tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
+										if (tries < maxTries) {
+											// expired object and max tries not yet reached, remove start tag
+											// this will cause the object to be processed again
+											log.info("Object not processed correctly, doing retry for: {}", obj.key());
+
+											tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
+											// remove detected just in case
+											tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
+											tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, tries++ + "");
+											s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
+
+											counterIncomplete.incrementAndGet();
+										}
 									}
 								}
 							}
 						}
+					} else if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value)) {
+						LocalDateTime objDate = LocalDateTime.ofInstant(obj.lastModified(), localZone);
+						if (objDate.plusSeconds(maxWaitTime).isBefore(now)) {
+							// object has not yet been picked up by a worker, maybe queue was unavailable
+							// resend it to the queue to make sure it will be processed
+
+							// setting the tags to the object again, will cause an s3:ObjectCreated:PutTagging event to be sent to the queue
+							log.info("Object {} was not picked up, resending it to queue for processing", obj.key());
+							tags.put(S3ObjectTagName.ENTRADA_WAIT_EXPIRED.value, "true");
+							// remove detected, this will cause renew checker to also add it to queue again if not using events
+							tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
+							s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
+
+							counterNotPickedUp.incrementAndGet();
+						}
 					}
-				}else if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value) ){
-					LocalDateTime objDate = LocalDateTime.ofInstant(obj.lastModified(), localZone );
-					if(objDate.plusSeconds(maxWaitTime).isBefore(now)) {
-						// object has not yet been picked up by a worker, maybe queue was unavailable
-						// resend it to the queue to make sure it will be processed
-						
-						// setting the tags to the object again, will cause an s3:ObjectCreated:PutTagging event to be sent to the queue
-						log.info("Object {} was not picked up, resending it to queue for processing",obj.key());
-						tags.put(S3ObjectTagName.ENTRADA_WAIT_EXPIRED.value, "true");
-						//remove detected, the will cause renew checker to also add it to queue again if not using events
-						tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-						s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
-						
-						counterNotPickedUp++;
-					}
-				}				
-			}	
-			tags.clear();
+				}
+			}));
 		}
-		
-		log.info("Found {} incomplete object(s) and {} not picked up objects", counterIncomplete, counterNotPickedUp);
+
+		executor.shutdown();
+		for (Future<?> f : futures) {
+			try { f.get(); } catch (Exception e) {
+				log.error("Error processing expired object check", e);
+			}
+		}
+
+		log.info("Found {} incomplete object(s) and {} not picked up objects", counterIncomplete.get(), counterNotPickedUp.get());
 	}
 
 	
