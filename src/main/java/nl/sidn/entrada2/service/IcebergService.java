@@ -107,6 +107,20 @@ public class IcebergService {
 	private Comparator<GenericRecord> sortComparator;
 	// reusable read buffer for string deserialization (expanded on demand)
 	private byte[] stringReadBuffer = new byte[256];
+	// String intern cache: avoids creating new String objects for repeated values
+	// (domain names, IPs, country codes, ASN orgs repeat millions of times in DNS data).
+	// Open-addressing with FNV-1a hash; slot includes field index so high-cardinality
+	// fields (dns_domainname, ip_src) cannot evict entries from low-cardinality fields
+	// (server, server_location, ip_geo_country) that would otherwise be near-perfect hits.
+	// False-positive collisions (~1/4B) are harmless: just one extra String allocation.
+	private static final int STRING_CACHE_MASK = (1 << 16) - 1; // 64K slots
+	private final String[] stringCache = new String[STRING_CACHE_MASK + 1];
+	private final int[] stringCacheHash = new int[STRING_CACHE_MASK + 1];
+	// set by readRow() before each field so internString() can isolate slots per field
+	private int currentReadFieldIndex = 0;
+	// intern cache stats, reset per merge run
+	private long cacheHits;
+	private long cacheMisses;
 
 	@PostConstruct
 	public void initialize() {
@@ -286,6 +300,8 @@ public class IcebergService {
 			return Collections.emptyList();
 		}
 		log.info("Merging {} sorted chunks", spillFiles.size());
+		cacheHits = 0;
+		cacheMisses = 0;
 		List<SpillChunkReader> readers = new ArrayList<>();
 		try {
 			PriorityQueue<SpillChunkReader> pq = new PriorityQueue<>();
@@ -313,7 +329,10 @@ public class IcebergService {
 				}
 			}
 			List<DataFile> files = Arrays.stream(writer.dataFiles()).toList();
-			log.info("Merge complete");
+			long total = cacheHits + cacheMisses;
+			log.info("Merge complete: string cache hits={} misses={} hit-rate={}%",
+					cacheHits, cacheMisses,
+					total > 0 ? String.format("%.1f", 100.0 * cacheHits / total) : "n/a");
 			return files;
 		} catch (Exception e) {
 			log.error("Merge failed", e);
@@ -384,6 +403,7 @@ public class IcebergService {
 
 	private void readRow(DataInputStream dis, GenericRecord record) throws IOException {
 		for (int i = 0; i < recordFields.size(); i++) {
+			currentReadFieldIndex = i;
 			record.set(i, readValue(dis, recordFields.get(i).type()));
 		}
 	}
@@ -395,7 +415,7 @@ public class IcebergService {
 				int len = dis.readInt();
 				if (len > stringReadBuffer.length) stringReadBuffer = new byte[len];
 				dis.readFully(stringReadBuffer, 0, len);
-				yield new String(stringReadBuffer, 0, len, StandardCharsets.UTF_8);
+				yield internString(len);
 			}
 			case INTEGER -> dis.readInt();
 			case LONG -> dis.readLong();
@@ -431,6 +451,32 @@ public class IcebergService {
 			}
 			default -> throw new IOException("Unsupported Iceberg type for spill: " + type.typeId());
 		};
+	}
+
+	/**
+	 * FNV-1a string intern cache: returns a cached String instance for byte sequences
+	 * that were seen before, avoiding new String allocation for repeated values.
+	 * Uses stringReadBuffer[0..len-1] as input (no extra allocation on cache hit).
+	 */
+	private String internString(int len) {
+		int hash = 0x811c9dc5;
+		for (int i = 0; i < len; i++) {
+			hash ^= stringReadBuffer[i] & 0xFF;
+			hash *= 0x01000193;
+		}
+		// Mix field index into slot: each field maps to a separate cache region,
+		// so high-cardinality fields (domainname, ip_src) cannot evict entries
+		// for low-cardinality fields (server, country) that repeat constantly.
+		int slot = (hash ^ (currentReadFieldIndex * 0x9e3779b9)) & STRING_CACHE_MASK;
+		if (stringCacheHash[slot] == hash && stringCache[slot] != null) {
+			cacheHits++;
+			return stringCache[slot];
+		}
+		cacheMisses++;
+		String s = new String(stringReadBuffer, 0, len, StandardCharsets.UTF_8);
+		stringCache[slot] = s;
+		stringCacheHash[slot] = hash;
+		return s;
 	}
 
 	private void deleteSpillFiles() {
