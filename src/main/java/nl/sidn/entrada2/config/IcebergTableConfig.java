@@ -3,6 +3,7 @@ package nl.sidn.entrada2.config;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -28,6 +29,8 @@ public class IcebergTableConfig {
 
 	@Value("${iceberg.compression}")
 	private String compressionAlgo;
+	@Value("${iceberg.parquet.sort-column:}")
+	private String sortColumn;
 	@Value("${iceberg.table.location}")
 	private String tableLocation;
 	@Value("${iceberg.table.namespace}")
@@ -210,7 +213,14 @@ public class IcebergTableConfig {
 					"true");
 
 			// use default warehouse s3 location
-			catalog.createTable(tableId, schema, spec, props);
+			Table newTable = catalog.createTable(tableId, schema, spec, props);
+
+			if (!sortColumn.isBlank() && newTable.schema().findField(sortColumn) != null) {
+				log.info("Applying sort order on column '{}' to new table", sortColumn);
+				newTable.replaceSortOrder()
+						.asc(sortColumn, NullOrder.NULLS_LAST)
+						.commit();
+			}
 
 		}
 		
@@ -256,6 +266,14 @@ public class IcebergTableConfig {
 		// Reload final schema to ensure it's current
 		schema = table.schema();
 		SchemaBuilder.printSchemaIds(schema, "");
+
+		// Apply sort order to existing table if not already set
+		if (!sortColumn.isBlank() && table.sortOrder().isUnsorted()) {
+			log.info("Applying sort order on column '{}' to existing table", sortColumn);
+			table.replaceSortOrder()
+					.asc(sortColumn, NullOrder.NULLS_LAST)
+					.commit();
+		}
 
 		return table;
 	}

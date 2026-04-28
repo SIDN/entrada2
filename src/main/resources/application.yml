@@ -218,6 +218,9 @@ iceberg:
     # minimum number of records required before output Parquest file is closed
     min-records: 10000000
     bloomfilter-max-size-mb: 1
+    sort-column: dns_domainname
+    sort-chunk-size: 2000000
+    sort-spill-buffer-mb: 2
     
 
   

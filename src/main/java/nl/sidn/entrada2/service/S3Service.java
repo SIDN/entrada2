@@ -176,8 +176,8 @@ public class S3Service {
 			GetObjectTaggingResponse resp = s3FastClient.getObjectTagging(otr);
 			
 			if(resp.tagSet().isEmpty()) {
-				log.error("No tags found for: {}", key);
-				log.error("HTTP response status for tag req: {}", resp.sdkHttpResponse().statusCode());
+				log.debug("No tags found for: {}", key);
+				log.debug("HTTP response status for tag req: {}", resp.sdkHttpResponse().statusCode());
 			}
 			
 			Map<String, String> tmpTags = resp.tagSet().stream().collect(Collectors.toMap(Tag::key, Tag::value));

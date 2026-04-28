@@ -123,6 +123,33 @@ To prevent many small Parquet output files when the input stream contains many s
 
 `PUT https://hostname:8080/api/v1/state/flush` will cause all current open files to be closed and added to the table.
 
+## Sorted Parquet Output
+
+ENTRADA2 can sort records within each Parquet output file by a configurable column (default: `dns_domainname`). Sorting improves query performance significantly when filtering on the sort column, because Parquet row group statistics and bloom filters can skip entire row groups.
+
+Sorting is enabled by setting `iceberg.parquet.sort-column`. When left empty, records are written in arrival order (no sorting).
+
+### Sort Strategy
+
+The sort strategy is chosen automatically based on the number of records buffered:
+
+- **In-memory sort** (fast path): When no spill files have been written yet — all buffered records fit in a single chunk — they are sorted in memory and written directly to the Parquet writer. No disk I/O beyond the final Parquet file.
+- **External merge sort** (memory-safe path): When the buffer fills a full chunk (`iceberg.parquet.sort-chunk-size` records), the sorted chunk is spilled to a temporary file on disk and the buffer is cleared. This repeats for each chunk. At the end, all sorted chunks are k-way merged using a `PriorityQueue` and streamed directly into the Parquet writer. Peak memory is bounded to one chunk at a time.
+
+The temporary spill files use a compact binary encoding (not Java serialization) and are deleted immediately after the merge completes or on abort.
+
+### Choosing `sort-chunk-size`
+
+The chunk size controls how many records are held in memory before spilling. Choose based on available heap:
+
+| Heap budget | Recommended chunk size | Spill files for 20M rows |
+|---|---|---|
+| 2 GB | 500,000 | 40 |
+| 4 GB | 1,000,000 | 20 |
+| 6 GB | 2,000,000 | 10 |
+
+A larger chunk size means fewer spill files and a faster merge, but higher peak memory. The spill phase peak is approximately `chunk-size × 1,600 bytes`.
+
 ## Analyzing Results
 
 The results may be analyzed using different tools, such as AWS Athena, Trino or Apache Spark. The Docker Compose script automatically starts Trino for quickly analyzing a limited dataset.
@@ -308,6 +335,9 @@ The following table lists all configuration options starting with `iceberg.`:
 | `iceberg.parquet.bloomfilter` | Enable Bloom filter for dns_domainname column | `true` |
 | `iceberg.parquet.min-records` | Minimum number of records required before closing Parquet output file | `10000000` |
 | `iceberg.parquet.bloomfilter-max-size-mb` | Maximum Bloom filter size in MB | `1` |
+| `iceberg.parquet.sort-column` | Column to sort records by within each Parquet file. Leave empty to disable sorting. Sorting improves query performance when filtering on this column | `dns_domainname` |
+| `iceberg.parquet.sort-chunk-size` | Number of records per sorted chunk before spilling to disk. Controls peak memory during sort. Only used when `sort-column` is set | `1000000` |
+| `iceberg.parquet.sort-spill-buffer-mb` | I/O buffer size in MB for reading and writing spill files. Larger values improve throughput on fast storage (NVMe). Only used when `sort-column` is set | `2` |
 
 ### MaxMind GeoIP Configuration Options
 
