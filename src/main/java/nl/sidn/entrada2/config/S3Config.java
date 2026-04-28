@@ -36,6 +36,9 @@ public class S3Config {
 	@Value("${entrada.provisioning.enabled:true}")
 	private boolean provisioningEnabled;
 
+	@Value("${entrada.s3.fast-client.max-connections:100}")
+	private int fastClientMaxConnections;
+
 	@Autowired
 	private EntradaS3Properties s3Properties;
 
@@ -88,7 +91,7 @@ public class S3Config {
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))
 			                .socketTimeout(Duration.ofSeconds(10))
-			                .maxConnections(10))
+		                .maxConnections(fastClientMaxConnections))
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()

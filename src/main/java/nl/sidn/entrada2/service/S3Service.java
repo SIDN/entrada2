@@ -128,7 +128,9 @@ public class S3Service {
 			    }
 			} while (continuationToken != null);
 		
-			log.info("ls completed, total objects: {}", s3objects.size());
+			if(log.isDebugEnabled()) {
+				log.debug("ls completed, total objects: {}", s3objects.size());
+			}
 			return s3objects;
 		} catch (Exception e) {
 			log.error("Read error", e);

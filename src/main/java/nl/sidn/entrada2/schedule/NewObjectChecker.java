@@ -1,10 +1,15 @@
 package nl.sidn.entrada2.schedule;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.core.AmqpTemplate;
@@ -51,7 +56,11 @@ public class NewObjectChecker {
 	
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
-	
+
+	// should match fastClient maxConnections for maximum throughput
+	@Value("${entrada.schedule.new-object-threads:50}")
+	private int tagThreads;
+
 	@Autowired(required = false)
 	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;
@@ -91,35 +100,42 @@ public class NewObjectChecker {
 	}
 
 	public int scanForNewObjects(String prefix) {
-		
-		int counterAdded = 0;
-		List<S3Object> s3Objects = s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix,"/"));
 
+		List<S3Object> s3Objects = s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix, "/"));
 		s3Objects.sort(Comparator.comparing(S3Object::key));
-		Map<String, String> tags = new HashMap<String, String>();
-		
-		for( S3Object s3Object: s3Objects) {
 
-			 if(s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)){
-				 if(StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
-					 
-					if(log.isDebugEnabled()) {
-						log.debug("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
+		AtomicInteger counterAdded = new AtomicInteger(0);
+		ExecutorService executor = Executors.newFixedThreadPool(tagThreads);
+		List<Future<?>> futures = new ArrayList<>(s3Objects.size());
+
+		for (S3Object s3Object : s3Objects) {
+			futures.add(executor.submit(() -> {
+				Map<String, String> tags = new ConcurrentHashMap<>();
+				if (s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)) {
+					if (StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
+						log.info("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
+	
+						tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
+						if (s3Service.tag(s3Properties.getBucket(), s3Object.key(), tags)) {
+							rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue,
+									createEvent(s3Properties.getBucket(), s3Object.key()));
+							counterAdded.incrementAndGet();
+						} else {
+							log.error("Failed to set tags on newly detected object: {}", s3Object.key());
+						}
 					}
-					
-					tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
-					if(s3Service.tag(s3Properties.getBucket(), s3Object.key(), tags)) {
-						rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue, createEvent(s3Properties.getBucket(), s3Object.key()));
-						counterAdded++;
-					}else {
-						// problem setting tags
-						log.error("Failed to set tags on newly detected object: ", s3Object.key());
-					}
-				 }
-			 }
-			 tags.clear();
+				}
+			}));
 		}
-		return counterAdded;
+
+		executor.shutdown();
+		for (Future<?> f : futures) {
+			try { f.get(); } catch (Exception e) {
+				log.error("Error processing object tag check", e);
+			}
+		}
+
+		return counterAdded.get();
 	}
 	
 	private S3EventNotification createEvent(String bucket, String key) {
