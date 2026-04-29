@@ -115,7 +115,7 @@ public class ExpiredObjectChecker {
 							// check if object claim is expired
 							Optional<LocalDateTime> startDate = stringToDate(tags.get(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value));
 							LocalDateTime max = startDate.get().plusSeconds(maxProcTime);
-							log.info("Check if {} with start date {} is before end date {}", obj.key(), startDate, now);
+							log.info("Check if {} with start date {} is before end date {}", obj.key(), max, now);
 
 							if (max.isBefore(now)) {
 								if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {

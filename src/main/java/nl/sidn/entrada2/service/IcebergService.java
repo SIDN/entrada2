@@ -190,6 +190,8 @@ public class IcebergService {
 		writeErrors = 0;
 		recordBuffer = new ArrayList<>(sortChunkSize > 0 ? sortChunkSize : 16);
 		partitionedFanoutWriter = null;
+		cacheHits = 0;
+		cacheMisses = 0;
 		deleteSpillFiles();
 	}
 
@@ -300,8 +302,6 @@ public class IcebergService {
 			return Collections.emptyList();
 		}
 		log.info("Merging {} sorted chunks", spillFiles.size());
-		cacheHits = 0;
-		cacheMisses = 0;
 		List<SpillChunkReader> readers = new ArrayList<>();
 		try {
 			PriorityQueue<SpillChunkReader> pq = new PriorityQueue<>();
