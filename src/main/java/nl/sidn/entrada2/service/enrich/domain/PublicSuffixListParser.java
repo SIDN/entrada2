@@ -54,6 +54,8 @@ public class PublicSuffixListParser {
        
     // Hot TLD cache for ultra-fast lookups (parsed from configuration)
     private Set<String> hotTldCache = null;
+
+    private static final Set<String> EMPTY_TLD_CACHE = Collections.emptySet();
     
     /**
      * Trie node for efficient prefix matching
@@ -141,44 +143,101 @@ public class PublicSuffixListParser {
      * Builds Trie data structure from PSL rules for O(n) lookups
      */
     private void buildTrie(List<String> rules) {
+        // Clear previously loaded data before rebuilding.
+        root.children.clear();
+        exactMatches.clear();
+        wildcardRules.clear();
+        exceptionRules.clear();
+        singleLabelTLDs.clear();
+        multiLabelTLDs.clear();
+
+        int filteredRuleCount = 0;
         for (String rule : rules) {
-            rule = rule.trim().toLowerCase();
-            if (rule.isEmpty()) continue;
+            String normalizedRule = rule.trim().toLowerCase();
+            if (normalizedRule.isEmpty()) {
+                continue;
+            }
             
-            boolean isException = rule.startsWith("!");
-            boolean isWildcard = rule.startsWith("*.");
+            boolean isException = normalizedRule.startsWith("!");
+            boolean isWildcard = normalizedRule.startsWith("*.");
+            String parsedRule = normalizedRule;
+
+            if (isException) {
+                parsedRule = parsedRule.substring(1); // Remove '!'
+            } else if (isWildcard) {
+                parsedRule = parsedRule.substring(2); // Remove '*.'
+            }
+
+            if (shouldExcludeRule(parsedRule)) {
+                filteredRuleCount++;
+                continue;
+            }
             
             if (isException) {
-                rule = rule.substring(1); // Remove '!'
-                String[] parts = rule.split("\\.");
+                String[] parts = parsedRule.split("\\.");
                 String key = String.join(".", Arrays.copyOfRange(parts, 1, parts.length));
                 exceptionRules.computeIfAbsent(key, k -> new HashSet<>()).add(parts[0]);
             } else if (isWildcard) {
-                rule = rule.substring(2); // Remove '*.'
-                wildcardRules.computeIfAbsent(rule, k -> new HashSet<>()).add("*");
+                wildcardRules.computeIfAbsent(parsedRule, k -> new HashSet<>()).add("*");
             }
             
             // Add to exact matches for quick lookup
-            exactMatches.add(rule);
+            exactMatches.add(parsedRule);
             
             // Categorize TLDs for fast-path optimization
             if (!isException && !isWildcard) {
-                String[] parts = rule.split("\\.");
+                String[] parts = parsedRule.split("\\.");
                 if (parts.length == 1) {
                     // Single label TLD (e.g., "nl", "com", "de")
-                    singleLabelTLDs.add(rule);
+                    singleLabelTLDs.add(parsedRule);
                 } else {
                     // Multi-label TLD (e.g., "co.uk", "pvt.k12.ma.us")
-                    multiLabelTLDs.add(rule);
+                    multiLabelTLDs.add(parsedRule);
                 }
             }
             
             // Add to Trie
-            insertIntoTrie(rule, isWildcard, isException);
+            insertIntoTrie(parsedRule, isWildcard, isException);
+        }
+
+        if (filteredRuleCount > 0) {
+            log.info("Filtered {} PSL rules using entrada.tlds", filteredRuleCount);
         }
         
         System.out.println("TLD Cache: " + singleLabelTLDs.size() + " single-label TLDs, " + 
                          multiLabelTLDs.size() + " multi-label TLDs");
+    }
+
+    private boolean shouldExcludeRule(String rule) {
+        Set<String> configuredTlds = getConfiguredTlds();
+        if (configuredTlds.isEmpty()) {
+            return false;
+        }
+
+        for (String tld : configuredTlds) {
+            if (rule.equals(tld) || rule.endsWith("." + tld)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Set<String> getConfiguredTlds() {
+        if (hotTldCache == null) {
+            if (hotTlds == null || hotTlds.isBlank()) {
+                hotTldCache = EMPTY_TLD_CACHE;
+            } else {
+                hotTldCache = Arrays.stream(hotTlds.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(String::toLowerCase)
+                    .collect(Collectors.toSet());
+                log.info("Hot TLD cache initialized with {} TLDs: {}", hotTldCache.size(), hotTldCache);
+            }
+        }
+
+        return hotTldCache;
     }
     
     /**
@@ -486,17 +545,10 @@ public class PublicSuffixListParser {
      * OPTIMIZED: Fast-path for configured hot TLDs
      */
     private boolean isInPSL(String suffix) {
-        // Initialize hot TLD cache on first use (lazy initialization)
-        if (hotTldCache == null && hotTlds != null && !hotTlds.isEmpty()) {
-            hotTldCache = Arrays.stream(hotTlds.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toSet());
-            log.info("Hot TLD cache initialized with {} TLDs: {}", hotTldCache.size(), hotTldCache);
-        }
+        Set<String> configuredTlds = getConfiguredTlds();
         
         // FAST PATH: Check hot TLD cache first (direct Set lookup, faster than HashSet on hot values)
-        if (hotTldCache != null && !hotTldCache.isEmpty() && hotTldCache.contains(suffix)) {
+        if (!configuredTlds.isEmpty() && configuredTlds.contains(suffix)) {
             return true;
         }
         
