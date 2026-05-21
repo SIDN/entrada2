@@ -20,6 +20,7 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.DefaultRetryStrategy;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
@@ -59,10 +60,9 @@ public class S3Config {
 			return S3Client.builder().forcePathStyle(Boolean.TRUE).build();
 		}
 		// when not running on aws, make sure the s2 endpoint is configured
-		 return S3Client.builder()
+		 S3ClientBuilder builder = S3Client.builder()
 				 .forcePathStyle(Boolean.TRUE)
 				 .region(Region.of(s3Properties.getRegion()))
-				 .endpointOverride(URI.create(s3Properties.getEndpoint()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(30))
 			                .socketTimeout(Duration.ofSeconds(30))
@@ -72,8 +72,10 @@ public class S3Config {
 						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
 						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
 					        .apiCallTimeout(Duration.ofMinutes(5))  // total time for all attempts. ls may take a long time to download, so set it high
-					        .build())
-				.build();
+				        .build());
+
+		 applyEndpointOverride(builder);
+		 return builder.build();
 	}
 	
 	/**
@@ -84,10 +86,9 @@ public class S3Config {
 	@Bean
 	public S3Client fastClient() {
 			
-		 return S3Client.builder()
+		 S3ClientBuilder builder = S3Client.builder()
 				 .forcePathStyle(Boolean.TRUE)
 				 .region(Region.of(s3Properties.getRegion()))
-				 .endpointOverride(URI.create(s3Properties.getEndpoint()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))
 			                .socketTimeout(Duration.ofSeconds(10))
@@ -96,8 +97,16 @@ public class S3Config {
 				 
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(DefaultRetryStrategy.doNotRetry())
-					        .build())
-				.build();
+			        .build());
+
+		 applyEndpointOverride(builder);
+		 return builder.build();
+	}
+
+	private void applyEndpointOverride(S3ClientBuilder builder) {
+		if (StringUtils.isNotBlank(s3Properties.getEndpoint())) {
+			builder.endpointOverride(URI.create(s3Properties.getEndpoint()));
+		}
 	}
 
 	@PostConstruct
