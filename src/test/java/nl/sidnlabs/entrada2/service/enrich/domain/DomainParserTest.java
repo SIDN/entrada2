@@ -140,7 +140,7 @@ public class DomainParserTest {
         assertEquals("_anzrad.co.nz", domainname("_anzrad.co.nz."));
         assertEquals(4, labels("_.anzrad.co.nz."));
 
-        assertEquals("0x10 0x190x1xp0x190x1ds.ac.nz",domainname("r._dns-sd._udp.0x10 0x190x1xp0x190x1ds.ac.nz."));
+        assertEquals("0x100x190x1xp0x190x1ds.ac.nz",domainname("r._dns-sd._udp.0x10 0x190x1xp0x190x1ds.ac.nz."));
         assertEquals(6, labels("r._dns-sd._udp.0x10 0x190x1xp0x190x1ds.ac.nz."));
 
         assertEquals("aklc-guest.govt.nz", domainname("https.aklc-guest.govt.nz."));
