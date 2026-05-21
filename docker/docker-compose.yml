@@ -45,7 +45,7 @@ services:
       - "5672:5672"
       - "15672:15672"
   rustfs:
-    image: rustfs/rustfs:1.0.0-alpha.94
+    image: rustfs/rustfs:1.0.0-beta.4
     restart: always
     env_file:
        - path: ./docker.env

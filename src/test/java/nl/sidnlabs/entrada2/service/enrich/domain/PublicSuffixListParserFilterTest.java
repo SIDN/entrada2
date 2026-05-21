@@ -48,6 +48,24 @@ class PublicSuffixListParserFilterTest {
         assertEquals("www", result.subdomain);
         assertTrue(result.tldExists);
 
+        assertTrue(parser.parseDomainInto("  www.sidn.nl  ", result));
+        assertEquals("sidn.nl", result.registeredDomain);
+        assertEquals("nl", result.publicSuffix);
+        assertEquals("www", result.subdomain);
+        assertTrue(result.tldExists);
+
+        assertTrue(parser.parseDomainInto("www.sidn .nl", result));
+        assertEquals("sidn.nl", result.registeredDomain);
+        assertEquals("nl", result.publicSuffix);
+        assertEquals("www", result.subdomain);
+        assertTrue(result.tldExists);
+
+        assertTrue(parser.parseDomainInto(" www. sidn .nl ", result));
+        assertEquals("sidn.nl", result.registeredDomain);
+        assertEquals("nl", result.publicSuffix);
+        assertEquals("www", result.subdomain);
+        assertTrue(result.tldExists);
+
         assertTrue(parser.parseDomainInto("sidn.nl", result));
         assertEquals("sidn.nl", result.registeredDomain);
         assertEquals("nl", result.publicSuffix);

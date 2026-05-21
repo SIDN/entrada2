@@ -384,6 +384,11 @@ public class PublicSuffixListParser {
         if (domain == null || domain.isEmpty()) {
             return false;
         }
+
+        domain = trimWhitespaceEdges(domain);
+        if (domain.isEmpty()) {
+            return false;
+        }
         
         // Remove trailing dot first (always, unconditionally)
         int len = domain.length();
@@ -398,6 +403,7 @@ public class PublicSuffixListParser {
         // Single-pass check: scan for non-ASCII, uppercase, whitespace, or leading dots
         int firstNonDot = 0;
         boolean hasNonAscii = false;
+        boolean hasWhitespace = false;
         boolean needsLowerCase = false;
         
         // Find first non-dot character
@@ -413,36 +419,38 @@ public class PublicSuffixListParser {
         // Scan the effective domain (from first non-dot to end)
         for (int i = firstNonDot; i < len; i++) {
             char c = domain.charAt(i);
-            if (c < 32 || c > 126) {
+            if (c <= ' ') {
+                hasWhitespace = true;
+                break;
+            } else if (c > 126) {
                 hasNonAscii = true;
+                break;
             } else if (c >= 'A' && c <= 'Z') {
                 needsLowerCase = true;
+                break;
             }
         }
         
         // Process domain if needed
-        if (firstNonDot > 0 || hasNonAscii || needsLowerCase) {
+        if (firstNonDot > 0 || hasWhitespace || hasNonAscii || needsLowerCase) {
             int effectiveLen = len - firstNonDot;
             char[] chars = new char[effectiveLen];
+            int out = 0;
             
             // Copy and process in one pass
             for (int i = 0; i < effectiveLen; i++) {
                 char c = domain.charAt(firstNonDot + i);
-                if (c < 32 || c > 126) {
-                    chars[i] = '?';
+                if (c <= ' ') {
+                    continue;
+                } else if (c > 126) {
+                    chars[out++] = '?';
                 } else if (c >= 'A' && c <= 'Z') {
-                    chars[i] = (char)(c + 32); // Fast toLowerCase for ASCII
+                    chars[out++] = (char)(c + 32); // Fast toLowerCase for ASCII
                 } else {
-                    chars[i] = c;
+                    chars[out++] = c;
                 }
             }
-            domain = new String(chars);
-        } else if (firstNonDot == 0 && !hasNonAscii && !needsLowerCase) {
-            // Fast path: domain is already clean, just check for trailing whitespace
-            domain = domain.trim();
-            if (domain.length() != len) {
-                len = domain.length();
-            }
+            domain = new String(chars, 0, out);
         }
         
         // Final check for empty after processing
@@ -580,6 +588,21 @@ public class PublicSuffixListParser {
             }
         }
         return count;
+    }
+
+    private String trimWhitespaceEdges(String value) {
+        int start = 0;
+        int end = value.length();
+
+        while (start < end && value.charAt(start) <= ' ') {
+            start++;
+        }
+
+        while (end > start && value.charAt(end - 1) <= ' ') {
+            end--;
+        }
+
+        return (start == 0 && end == value.length()) ? value : value.substring(start, end);
     }
     
     public static final class DomainResult {

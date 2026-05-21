@@ -141,8 +141,8 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 			boolean parserStatus = domainParser.parseDomainInto(question.getQName(), result);
 			if(!parserStatus || result.publicSuffix == null) {
-				// cannot get tld, save full fqdn
-				record.set(FieldEnum.dns_qname_full.ordinal(), result.fullDomain);
+				// cannot get tld, save full raw fqdn
+				record.set(FieldEnum.dns_qname_full.ordinal(),question.getQName());
 			}else {
 				// Fast TLD filtering check - O(1) Set lookup
 				if (!filteredTlds.isEmpty() && result.publicSuffix != null) {
