@@ -105,7 +105,12 @@ Timestamps used in PCAP files are assumed to be using timezone UTC.
 
 ### Start processing
 
-The processing of new PCAP files must be started and stopped using the API endpoints. After starting new PCAP files will be detected but NOT processed yet. Processing will only start when the "start" command is sent to the API. This allows for uploading new PCAP files before starting the processing, which is especially useful when using the S3 object scanning feature.
+Listener startup is controlled by `entrada.autostart` (default: `true`).
+
+- When `entrada.autostart=true`, queue listeners are started automatically at application startup and processing begins as soon as new events are received.
+- When `entrada.autostart=false`, queue listeners are not started automatically and processing must be controlled with the API start/stop endpoints.
+
+The processing of new PCAP files can be started and stopped using the API endpoints. When using manual startup (`entrada.autostart=false`), processing will only start when the "start" command is sent to the API. This allows for uploading new PCAP files before starting processing, which is especially useful when using the S3 object scanning feature.
 
 ### Upload Example
 
@@ -165,7 +170,7 @@ docker exec -it docker-trino-1 trino
 Switch to the correct catalog and namespace:
 
 ```sql
-use iceberg.entrada2;
+use iceberg.entrada;
 ```
 
 ### Query Examples
@@ -261,6 +266,7 @@ The following table lists all configuration options starting with `entrada.`:
 | Option | Description | Default |
 | ------ | ----------- | ------- |
 | `entrada.tlds` | Comma-separated list of most frequently used TLDs for fast-path optimization | `nl` |
+| `entrada.autostart` | Automatically start queue listeners at application startup | `true` |
 | `entrada.nameserver.default-name` | Default name server name when S3 objects have no tags | `default-ns` |
 | `entrada.nameserver.default-site` | Default anycast site when S3 objects have no tags | `default-site` |
 | `entrada.rdata.enabled` | Enable rdata from DNS response records in Parquet output (dns_rdata column) | `false` |

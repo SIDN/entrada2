@@ -1,4 +1,6 @@
 entrada:
+  # automatically start RabbitMQ listeners on application startup
+  autostart: true
   # comma-separated list of most frequently used TLDs for fast-path optimization
   # configure based on your traffic patterns for best performance
   # leave empty to disable hot TLD optimization

@@ -51,6 +51,9 @@ public class AwsQueueConfig {
 	@Value("${entrada.provisioning.enabled:true}")
 	private boolean provisioningEnabled;
 
+	@Value("${entrada.autostart:false}")
+	private boolean autoStart;
+
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 	@Value("${entrada.messaging.request.aws.retention}")
@@ -240,6 +243,7 @@ public class AwsQueueConfig {
 	SqsMessageListenerContainerFactory<Object> commandSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
 				.configure(options -> options
+						.autoStartup(true)
 						.listenerMode(ListenerMode.SINGLE_MESSAGE)
 						.maxConcurrentMessages(1)
 						.maxMessagesPerPoll(1)
@@ -253,6 +257,7 @@ public class AwsQueueConfig {
 	SqsMessageListenerContainerFactory<Object> leaderSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
 				.configure(options -> options
+						.autoStartup(false)
 						.listenerMode(ListenerMode.SINGLE_MESSAGE)
 						.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
 						.maxConcurrentMessages(1)
@@ -272,6 +277,7 @@ public class AwsQueueConfig {
 	SqsMessageListenerContainerFactory<Object> defaultSqsListenerContainerFactory(SqsAsyncClient sqsAsyncClient) {
 		return SqsMessageListenerContainerFactory.builder().sqsAsyncClient(sqsAsyncClient)
 				.configure(options -> options
+						.autoStartup(autoStart)
 						.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
 						.maxConcurrentMessages(1)
 						.maxMessagesPerPoll(1)
