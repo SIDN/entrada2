@@ -22,13 +22,15 @@ class PublicSuffixListParserFilterTest {
         parser = new PublicSuffixListParser();
 
         // Configure filtering for all PSL entries ending in .nl.
-        setPrivateField(parser, "hotTlds", "nl");
+        setPrivateField(parser, "hotTlds", "nl,aw");
 
         // Load an in-memory PSL fixture.
         invokeBuildTrie(parser, List.of(
             "nl",
             "co.nl",
-            "com"
+            "com",
+            "aw",
+            "co.aw"
         ));
     }
 
@@ -82,6 +84,12 @@ class PublicSuffixListParserFilterTest {
         assertNull(result.registeredDomain);
         assertEquals("nl", result.publicSuffix);
         assertNull(result.subdomain);
+        assertTrue(result.tldExists);
+
+        assertTrue(parser.parseDomainInto("domain.co.aw", result));
+        assertEquals("co.aw", result.registeredDomain);
+        assertEquals("aw", result.publicSuffix);
+        assertEquals("domain", result.subdomain);
         assertTrue(result.tldExists);
     }
 

@@ -169,6 +169,7 @@ public class PublicSuffixListParser {
             }
 
             if (shouldExcludeRule(parsedRule)) {
+                log.info("Excluding PSL rule '{}' based on configured hot TLDs", parsedRule);
                 filteredRuleCount++;
                 continue;
             }
