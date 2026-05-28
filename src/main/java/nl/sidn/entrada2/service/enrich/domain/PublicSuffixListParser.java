@@ -159,6 +159,7 @@ public class PublicSuffixListParser {
                     .collect(Collectors.toList());
 
             buildTrie(rules);
+            isDataFileLoaded = true;
         }   
     }
     

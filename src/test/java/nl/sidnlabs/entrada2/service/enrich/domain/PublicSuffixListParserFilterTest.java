@@ -32,6 +32,8 @@ class PublicSuffixListParserFilterTest {
             "aw",
             "co.aw"
         ));
+
+        parser.downloadPSLDirectAndLoad();
     }
 
     @Test
