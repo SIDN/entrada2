@@ -218,10 +218,15 @@ public class WorkService {
 						tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
 						errorCounter.increment();
 					}
+				} else {
+					log.error("Error getting inputstream for file: {}/{}", bucket, key);
+					long objectSize = s3Service.size(bucket, key);
+					if (objectSize == 0) {
+						log.warn("S3 object {}/{} is zero bytes, deleting", bucket, key);
+						s3Service.delete(bucket, key);
+					}
+					errorCounter.increment();
 				}
-			}else {
-				log.error("Error getting inputstream for file: {}/{}", bucket, key);
-				errorCounter.increment();
 			}
 			
 			duration = System.currentTimeMillis() - startOfWork;

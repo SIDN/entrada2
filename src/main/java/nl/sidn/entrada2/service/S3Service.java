@@ -238,6 +238,23 @@ public class S3Service {
 		return true;
 	}
 
+	/**
+	 * Get the size in bytes of an S3 object, or -1 if the object does not exist or an error occurs.
+	 */
+	public long size(String bucket, String key) {
+	    try {
+	        software.amazon.awssdk.services.s3.model.HeadObjectResponse response =
+	            s3FastClient.headObject(HeadObjectRequest.builder()
+	                .bucket(bucket)
+	                .key(key)
+	                .build());
+	        return response.contentLength();
+	    } catch (Exception e) {
+	        log.error("Error getting object size for {}/{}: {}", bucket, key, e.getMessage());
+	        return -1;
+	    }
+	}
+
 	public boolean exists(String bucket, String key) {
 	    try {
 	        s3FastClient.headObject(HeadObjectRequest.builder()
