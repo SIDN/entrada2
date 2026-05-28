@@ -2,6 +2,8 @@ package nl.sidn.entrada2.service.enrich.domain;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -27,6 +29,7 @@ public class PublicSuffixListParser {
     
     private static final String PSL_URL = "https://publicsuffix.org/list/public_suffix_list.dat";
     private static final String PSL_FILENAME = "public_suffix_list.dat";
+    private static final Duration PSL_MAX_AGE = Duration.ofDays(1);
     
     @Value("${entrada.s3.bucket}")
     private String bucket;
@@ -56,6 +59,8 @@ public class PublicSuffixListParser {
     private Set<String> hotTldCache = null;
 
     private static final Set<String> EMPTY_TLD_CACHE = Collections.emptySet();
+
+    private boolean isDataFileLoaded = false;
     
     /**
      * Trie node for efficient prefix matching
@@ -87,6 +92,8 @@ public class PublicSuffixListParser {
         } else {
             log.error("Failed to load PSL from S3");
         }
+
+        isDataFileLoaded = true;
     }
     
     /**
@@ -99,10 +106,26 @@ public class PublicSuffixListParser {
         Optional<S3Object> s3Object = s3Service.headObject(bucket, key);
         
         if (s3Object.isEmpty()) {
+            log.info("PSL not found in S3, downloading latest list");
             download();
+        } else if (isPslFileStale(s3Object.get())) {
+            log.info("PSL on S3 is older than {}, downloading latest list", PSL_MAX_AGE);
+            download();
+        } else {
+            log.info("PSL on S3 is recent enough, skipping download");
         }
 
         load();
+    }
+
+    public boolean isPslFileStale(S3Object s3Object) {
+        Instant lastModified = s3Object.lastModified();
+        if (lastModified == null) {
+            return true;
+        }
+
+        Instant staleThreshold = Instant.now().minus(PSL_MAX_AGE);
+        return lastModified.isBefore(staleThreshold);
     }
     
     /**
@@ -216,7 +239,7 @@ public class PublicSuffixListParser {
         }
 
         for (String tld : configuredTlds) {
-            if (rule.equals(tld) || rule.endsWith("." + tld)) {
+            if (rule.endsWith("." + tld)) {
                 return true;
             }
         }
@@ -382,6 +405,11 @@ public class PublicSuffixListParser {
         
         result.reset();
         
+        if(!isDataFileLoaded){
+            log.info("PSL data file not loaded yet, starting load");
+            load();
+        }
+
         if (domain == null || domain.isEmpty()) {
             return false;
         }
