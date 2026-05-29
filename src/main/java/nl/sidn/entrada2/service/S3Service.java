@@ -50,7 +50,7 @@ public class S3Service {
 		try {
 			return Optional.of(s3Client.getObject(objectRequest));
 		} catch (Exception e) {
-			log.error("Error object getting {} from bucket {}, error: {}", key, bucket, e.getMessage());
+			log.error("Error getting object {} from bucket {}, error: {}", key, bucket, e.getMessage());
 			return Optional.empty();
 		}
 	}
@@ -117,15 +117,13 @@ public class S3Service {
 				ListObjectsV2Response listing = s3Client.listObjectsV2(requestBuilder.build());
 					
 				s3objects.addAll(listing.contents());
-	
-				continuationToken = listing.nextContinuationToken();
+
+				continuationToken = listing.isTruncated() ? listing.nextContinuationToken() : null;
 
 				if(log.isDebugEnabled()) {
-					log.info("Received {} objects", s3objects.size());
-					log.info("continuationToken is: {}", continuationToken);
-			       	log.debug("ls received {} objects, total sofar: {}, truncated: {}", 
-			    			listing.contents().size(), s3objects.size(), listing.isTruncated());
-			    }
+					log.debug("ls received {} objects, total so far: {}, truncated: {}", 
+							listing.contents().size(), s3objects.size(), listing.isTruncated());
+				}
 			} while (continuationToken != null);
 		
 			if(log.isDebugEnabled()) {
@@ -133,7 +131,7 @@ public class S3Service {
 			}
 			return s3objects;
 		} catch (Exception e) {
-			log.error("Read error", e);
+			log.error("ListObjectsV2Request error", e);
 		}
 
 		return Collections.emptyList();

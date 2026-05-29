@@ -32,7 +32,7 @@ public class LivenesChecker {
 	 * LivenessState.BROKEN is set then k8s will restart te container
 	 * 
 	 */
-	@Scheduled(initialDelayString = "#{${entrada.schedule.liveness-min:5}*60*1000}", fixedDelayString = "#{${entrada.schedule.liveness-min:5}*60*1000}")
+	@Scheduled(initialDelayString = "${entrada.schedule.liveness-min:5}m", fixedDelayString = "${entrada.schedule.liveness-min:5}m")
 	public void execute() {
 		if (!leaderService.isleader()) {
 			// only leader is allowed to continue

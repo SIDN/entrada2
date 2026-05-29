@@ -4,13 +4,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.ArrayList;
-
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +20,7 @@ import nl.sidn.entrada2.messaging.S3EventNotification.S3Entity;
 import nl.sidn.entrada2.messaging.S3EventNotification.S3EventNotificationRecord;
 import nl.sidn.entrada2.service.LeaderService;
 import nl.sidn.entrada2.service.S3Service;
+import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -40,7 +34,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
  */
 @Slf4j
 @ConditionalOnExpression(
-	    "T(org.apache.commons.lang3.StringUtils).isNotEmpty('${entrada.schedule.new-object-secs}')"
+	    "T(org.apache.commons.lang3.StringUtils).isNotBlank('${entrada.schedule.new-object-secs:}')"
 	)
 @Component
 public class NewObjectChecker {
@@ -64,39 +58,26 @@ public class NewObjectChecker {
 	@Autowired(required = false)
 	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;
-	
-	private final AtomicBoolean isRunning = new AtomicBoolean(false);
-	
-	@Scheduled(initialDelay = 5000, fixedDelayString = "#{${entrada.schedule.new-object-secs:120}*1000}")
+		
+	@Scheduled(initialDelayString = "5s", fixedDelayString = "#{'${entrada.schedule.new-object-secs:120}'.trim() + 's'}")
 	public void execute() {
-		if (!leaderService.isleader()) {
+		log.info("NewObjectChecker execute called");
+
+		if (leaderService.isleader()) {
 			// only leader is allowed to continue
-			return;
+			
+			try {
+				for(String prefix: s3Properties.getPcapInPrefixes()) {
+					log.info("Start checking for new objects with prefix: {}", prefix);
+					int counterAdded = scanForNewObjects(prefix);
+					log.info("Detected {} new object(s) for prefix: {}", counterAdded, prefix);
+				}
+			} catch (Exception e) {
+				log.error("Unexpected exception while scanning for new objects");
+			} 
 		}
 
-		boolean acquired = isRunning.compareAndSet(false, true);
-		log.debug("Execute called, thread: {}, isRunning before: {}, acquired: {}", 
-				Thread.currentThread().getName(), !acquired, acquired);
-		
-		if (!acquired) {
-			log.warn("Skipping execution, previous run still in progress");
-			return;
-		}
-		
-		// find new objects
-		log.info("Start checking for new objects");
-
-		try {
-			for(String prefix: s3Properties.getPcapInPrefixes()) {
-				log.info("Start checking for new objects with prefix: {}", prefix);
-				int counterAdded = scanForNewObjects(prefix);
-				log.info("Detected {} new object(s) for prefix: {}", counterAdded, prefix);
-			}
-		} catch (Exception e) {
-			log.error("Unexpected exception while scanning for new objects");
-		} finally {
-			isRunning.set(false);
-		}
+		log.info("NewObjectChecker execute done");
 	}
 
 	public int scanForNewObjects(String prefix) {
@@ -104,38 +85,32 @@ public class NewObjectChecker {
 		List<S3Object> s3Objects = s3Service.ls(s3Properties.getBucket(), StringUtils.appendIfMissing(prefix, "/"));
 		s3Objects.sort(Comparator.comparing(S3Object::key));
 
-		AtomicInteger counterAdded = new AtomicInteger(0);
-		ExecutorService executor = Executors.newFixedThreadPool(tagThreads);
-		List<Future<?>> futures = new ArrayList<>(s3Objects.size());
+		int counterAdded = 0;
 
 		for (S3Object s3Object : s3Objects) {
-			futures.add(executor.submit(() -> {
-				Map<String, String> tags = new HashMap<>();
-				if (s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)) {
-					if (StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
-						log.info("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
-	
-						tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
-						if (s3Service.tag(s3Properties.getBucket(), s3Object.key(), tags)) {
-							rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue,
-									createEvent(s3Properties.getBucket(), s3Object.key()));
-							counterAdded.incrementAndGet();
-						} else {
-							log.error("Failed to set tags on newly detected object: {}", s3Object.key());
-						}
+
+			if (!CompressionUtil.isSupportedFormat(s3Object.key())) {
+				// ignore unknown types
+				continue;
+			}
+			Map<String, String> tags = new HashMap<>();
+			if (s3Service.tags(s3Properties.getBucket(), s3Object.key(), tags)) {
+				if (StringUtils.isEmpty(tags.get(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value))) {
+					log.info("New object found: {}/{}", s3Properties.getBucket(), s3Object.key());
+					tags.put(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value, "true");
+					if (s3Service.tag(s3Properties.getBucket(), s3Object.key(), tags)) {
+						rabbitTemplate.convertAndSend(requestQueue + "-exchange", requestQueue,
+								createEvent(s3Properties.getBucket(), s3Object.key()));
+						counterAdded++;
+					} else {
+						log.error("Failed to set tags on newly detected object: {}", s3Object.key());
 					}
 				}
-			}));
-		}
-
-		executor.shutdown();
-		for (Future<?> f : futures) {
-			try { f.get(); } catch (Exception e) {
-				log.error("Error processing object tag check", e);
 			}
+
 		}
 
-		return counterAdded.get();
+		return counterAdded;
 	}
 	
 	private S3EventNotification createEvent(String bucket, String key) {
