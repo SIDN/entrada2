@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-Application<entrada2>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "nl.sidn.entrada2.Application",
+            "projectName": "entrada2",
+            "args": "",
+            "envFile": "/path/to/entrada2/.vscode/.env",
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=56418 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.profiles.active=test -Dspring.boot.project.name=entrada2"
+        }
+    ]
+}

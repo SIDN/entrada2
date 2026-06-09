@@ -27,6 +27,8 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Component
 public class ExpiredObjectChecker {
 
+	private boolean running = false;
+
 	@Autowired
 	private LeaderService leaderService;
 
@@ -52,6 +54,11 @@ public class ExpiredObjectChecker {
 	@Scheduled(initialDelayString = "60s", fixedDelayString = "#{'${entrada.schedule.expired-object-min:10}'.trim() + 'm'}")
 	public void execute() {
 		log.info("ExpiredObjectChecker execute called");
+
+		if(!running) {
+			log.info("ExpiredObjectChecker is not running, skipping execution");
+			return;
+		}
 
 		if (leaderService.isleader()) {
 			// only leader is allowed to continue
@@ -153,6 +160,14 @@ public class ExpiredObjectChecker {
 			// ignore error
 		}
 		return Optional.empty();
+	}
+
+	public void stop() {
+		this.running = false;
+	}
+
+	public void start() {
+		this.running = true;
 	}
 
 }

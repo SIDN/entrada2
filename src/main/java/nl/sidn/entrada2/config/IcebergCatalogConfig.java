@@ -29,11 +29,10 @@ import lombok.extern.slf4j.Slf4j;
 public class IcebergCatalogConfig {
 
 	private String type;
-
+	private String name;
 	// REST catalog
 	private String uri;
-	private String warehouse;
-	
+;
 	@Value("${iceberg.catalog.oauth2.uri}")
 	private String oauth2ServerUri;
 	@Value("${iceberg.catalog.oauth2.credential}")
@@ -42,12 +41,17 @@ public class IcebergCatalogConfig {
 	private String oauth2Scope;
 
 	// jdbc config
+	@Value("${iceberg.catalog.db.host}")
 	private String host;
+	@Value("${iceberg.catalog.db.port:5432}")
 	private int port;
-	private String user;
-	private String name;
+	@Value("${iceberg.catalog.db.name}")
+	private String dbName;
+	@Value("${iceberg.catalog.db.user}")
+	private String userName;
+	@Value("${iceberg.catalog.db.password}")
 	private String password;
-	private String warehouseLocation;
+	
 	// s3 config for pcap source bucket
 	@Value("${iceberg.s3.endpoint}")
 	private String endpoint;
@@ -55,6 +59,13 @@ public class IcebergCatalogConfig {
 	private String accessKey;
 	@Value("${iceberg.s3.secret-key}")
 	private String secretKey;
+	@Value("${iceberg.s3.path-style-access:true}")
+	private boolean pathStyleAccess;
+	@Value("${iceberg.catalog.warehouse-location}")
+	private String warehouseLocation;
+
+	@Value("${iceberg.catalog.warehouse}")
+	private String warehouse;
 
 	@Bean
 	public Catalog catalog() {
@@ -96,12 +107,15 @@ public class IcebergCatalogConfig {
 
 		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, secretKey);
 		properties.put(S3FileIOProperties.ACCESS_KEY_ID, accessKey);
-		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, String.valueOf(pathStyleAccess));
 
 		RESTCatalog catalog;
 		try {
 			catalog = new RESTCatalog();
-			catalog.initialize("iceberg", properties);
+
+			log.info("Initializing REST Catalog with name: {}", name);
+
+			catalog.initialize(name, properties);
 		} catch (Exception e) {
 			log.error("Error creating RESTCatalog", e);
 			throw new RuntimeException("Error creating RESTCatalog", e);
@@ -117,8 +131,8 @@ public class IcebergCatalogConfig {
 		properties.put(JdbcCatalog.PROPERTY_PREFIX + "schema-version", "V1");
 
 		properties.put(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
-		properties.put(CatalogProperties.URI, "jdbc:postgresql://" + host + ":" + port + "/" + name);
-		properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", user);
+		properties.put(CatalogProperties.URI, "jdbc:postgresql://" + host + ":" + port + "/" + dbName);
+		properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", userName);
 		properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", password);
 
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
@@ -131,10 +145,13 @@ public class IcebergCatalogConfig {
 
 		properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, secretKey);
 		properties.put(S3FileIOProperties.ACCESS_KEY_ID, accessKey);
-		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, String.valueOf(pathStyleAccess));
 
 		JdbcCatalog catalog = new JdbcCatalog();
-		catalog.initialize("iceberg", properties);
+
+		log.info("Initializing JDBC Catalog with name: {}", name);
+
+		catalog.initialize(name, properties);
 		return catalog;
 	}
 
@@ -144,15 +161,18 @@ public class IcebergCatalogConfig {
 		Map<String, String> properties = new HashMap<>();
 		properties.put(CatalogProperties.CATALOG_IMPL, "org.apache.iceberg.aws.glue.GlueCatalog");
 
-		properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+		properties.put(CatalogProperties.WAREHOUSE_LOCATION, name);
 		properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO");
-		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+		properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, String.valueOf(pathStyleAccess));
 
 		properties.put("http-client.apache.connection-timeout-ms", "10000");
 		properties.put("http-client.apache.socket-timeout-ms", "10000");
 
 		GlueCatalog catalog = new GlueCatalog();
-		catalog.initialize("iceberg", properties);
+
+		log.info("Initializing Glue Catalog with name: {}", name);
+
+		catalog.initialize(name, properties);
 		return catalog;
 
 	}

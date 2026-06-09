@@ -31,8 +31,6 @@ public class IcebergTableConfig {
 	private String compressionAlgo;
 	@Value("${iceberg.parquet.sort-column:}")
 	private String sortColumn;
-	@Value("${iceberg.table.location}")
-	private String tableLocation;
 	@Value("${iceberg.table.namespace}")
 	private String tableNamespace;
 	@Value("${iceberg.table.name}")

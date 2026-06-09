@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.Command;
 import nl.sidn.entrada2.messaging.Command.CommandType;
+import nl.sidn.entrada2.schedule.ExpiredObjectChecker;
+import nl.sidn.entrada2.schedule.NewObjectChecker;
 import nl.sidn.entrada2.service.StateService.APP_STATE;
 import nl.sidn.entrada2.service.messaging.RequestQueue;
 
@@ -25,6 +27,12 @@ public class CommandService {
 	@Autowired
 	private WorkService workService;
 
+	@Autowired
+	private NewObjectChecker newObjectChecker;
+
+	@Autowired
+	private ExpiredObjectChecker expiredObjectChecker;
+
 	public void execute(Command message) {
 		log.info("Received command message: {}", message);
 
@@ -32,11 +40,15 @@ public class CommandService {
 		case CommandType.START -> {
 			requestQueues.stream().forEach(q -> q.start());
 			stateService.setState(APP_STATE.ACTIVE);
+			newObjectChecker.start();
+			expiredObjectChecker.start();
 		}
 		case CommandType.STOP -> {
 			requestQueues.stream().forEach(q -> q.stop());
 			workService.stop();
 			stateService.setState(APP_STATE.STOPPED);
+			newObjectChecker.stop();
+			expiredObjectChecker.stop();
 		}
 		case CommandType.FLUSH -> {
 			log.info("Flushing Iceberg writer");

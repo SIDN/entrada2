@@ -57,11 +57,11 @@ public class S3Config {
 	public S3Client s3() {
 
 		if (isRunningOnAws()) {
-			return S3Client.builder().forcePathStyle(Boolean.TRUE).build();
+			return S3Client.builder().forcePathStyle(s3Properties.getPathStyleAccess()).build();
 		}
-		// when not running on aws, make sure the s2 endpoint is configured
+		// when not running on aws, make sure the s3 endpoint is configured
 		 S3ClientBuilder builder = S3Client.builder()
-				 .forcePathStyle(Boolean.TRUE)
+				 .forcePathStyle(s3Properties.getPathStyleAccess())
 				 .region(Region.of(s3Properties.getRegion()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(30))
@@ -87,7 +87,7 @@ public class S3Config {
 	public S3Client fastClient() {
 			
 		 S3ClientBuilder builder = S3Client.builder()
-				 .forcePathStyle(Boolean.TRUE)
+				 .forcePathStyle(s3Properties.getPathStyleAccess())
 				 .region(Region.of(s3Properties.getRegion()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))

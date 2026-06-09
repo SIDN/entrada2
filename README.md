@@ -294,7 +294,6 @@ The following table lists all configuration options starting with `entrada.`:
 | `entrada.s3.pcap-done-dir` | Directory for processed PCAP files (deleted if empty) | (empty) |
 | `entrada.s3.pcap-delete` | Delete PCAPs after processing | `true` |
 | `entrada.s3.reference-dir` | Directory for reference data | `reference` |
-| `entrada.s3.warehouse-dir` | Directory for Iceberg data files | `database` |
 | `entrada.messaging.request.name` | Queue name for S3 bucket lifecycle events | `entrada-s3-event` |
 | `entrada.messaging.request.ttl` | Queue TTL in minutes | `60` |
 | `entrada.messaging.request.aws.retention` | AWS SQS message retention period in seconds | `86400` |
@@ -437,6 +436,10 @@ Running multiple worker containers, all listening to the same S3 bucket events i
 When running on Kubernetes, leader election is performed automatically. When the leader container is shutdown, the leader election process will automatically select another container to become the leader.
 
 When using Docker, you must set the `ENTRADA_LEADER` option to true only for the master container. There is no failover mechanism for master containers when using Docker.
+
+## Running Multiple Environments
+
+When running multiple environments (e.g., production and test), make sure to use different S3 buckets or prefixes for the input PCAP files and different Iceberg table namespaces to prevent interference between the environments. Use different names for the messaging queues to prevent interference between the environments. Also make sure that the API endpoints are protected by using different tokens for each environment (see `entrada.security.token` configuration option).
 
 ## Table Schema
 

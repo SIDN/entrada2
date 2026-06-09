@@ -21,5 +21,5 @@ public class EntradaS3Properties {
     private String pcapDoneDir;
     private boolean pcapDelete = true;
     private String referenceDir;
-    private String warehouseDir;
+    private Boolean pathStyleAccess = true;
 }

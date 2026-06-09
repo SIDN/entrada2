@@ -62,14 +62,15 @@ entrada:
     # when enabled the IP addresses are not written to parquet file
     enabled: false
   s3:
-    # s3 cerdentials for bucket where source pcaps are located.
+    # s3 credentials for bucket where source pcaps are located.
     # this may be same bucket as bucket used for the iceberg database but this is not always the case
     # if they are the same, the reuse the credentials for iceberg.s3 settings.
-    access-key: #'${AWS_ACCESS_KEY_ID}'
-    secret-key: #'${AWS_SECRET_ACCESS_KEY}'
-    region: '${AWS_REGION}'
+    access-key:
+    secret-key:
+    region:
     # only use endpoint when not using aws 
     endpoint:
+    path-style-access: true
     bucket: sidnlabs-iceberg-data
     # dir for new pcaps
     pcap-in-prefixes: 
@@ -81,8 +82,6 @@ entrada:
     # location for reference data
     pcap-delete: true
     reference-dir: reference
-    # location of iceberg data files
-    warehouse-dir: database
   messaging:
     # names of messaging queues
     request:
@@ -177,35 +176,42 @@ iceberg:
   s3:
      access-key:
      secret-key:
-     region: '${AWS_REGION}'
+     bucket: sidnlabs-iceberg-data
+     region:
+     path-style-access: true
       # only use endpoint when not using aws 
      endpoint:
+     # location of iceberg data files
+     warehouse-dir: database
   # JDBC/REST catalog, use this when not using aws Glue catalog
   # only Postgresql is supported
   catalog:
+    name: iceberg
     type: rest
     # REST catalog properties
     # tested using: Lakekeeper REST Catalog (https://lakekeeper.io/)
     uri: 
-    warehouse: 
     oauth2:
       uri:
       credential:
       scope:
-    warehouse-location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}'
-    # JDBC properties
-    host:
-    port: 5432
-    name:
-    user:
-    password: 
+    # Use warehouse-location only when using JDBC catalog, for REST catalog the warehouse location is set to the catalog name, see iceberg docs for RESTCatalog
+    warehouse-location: 's3://${iceberg.s3.bucket}/${iceberg.s3.warehouse-dir}'
+    # use warehouse when using REST catalog
+    warehouse: 00000000-0000-0000-0000-000000000000/${iceberg.catalog.name}
+    # JDBC properties, used when catalog.type=jdbc
+    db:
+      host:
+      port: 5432
+      name:
+      user:
+      password: 
   # see iceberg docs for: write.parquet.compression-codec
   compression: zstd
   table:
     name: 'dns'
     namespace: 'entrada'
-    # directory for Iceberg table data
-    location: 's3://${entrada.s3.bucket}/${entrada.s3.warehouse-dir}/${iceberg.table.namespace}/${iceberg.table.name}'
+
   parquet:
     # keep dictionary size low, to force parquet to use bloomfilter when bloomfilter is enabled
     # but also do not use a to low number of bytes or none of the columns will be able to use

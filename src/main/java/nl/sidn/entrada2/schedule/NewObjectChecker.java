@@ -39,6 +39,8 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Component
 public class NewObjectChecker {
 
+	private boolean running = false;
+
 	@Autowired
 	private EntradaS3Properties s3Properties;
 
@@ -62,6 +64,11 @@ public class NewObjectChecker {
 	@Scheduled(initialDelayString = "5s", fixedDelayString = "#{'${entrada.schedule.new-object-secs:120}'.trim() + 's'}")
 	public void execute() {
 		log.info("NewObjectChecker execute called");
+
+		if(!running) {
+			log.info("NewObjectChecker is not running, skipping execution");
+			return;
+		}
 
 		if (leaderService.isleader()) {
 			// only leader is allowed to continue
@@ -122,6 +129,14 @@ public class NewObjectChecker {
 			
 			return new S3EventNotification(records);
 
+	}
+
+	public void stop() {
+		this.running = false;
+	}
+
+	public void start() {
+		this.running = true;
 	}
 
 }
