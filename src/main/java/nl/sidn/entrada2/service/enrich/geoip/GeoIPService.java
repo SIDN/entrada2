@@ -48,6 +48,8 @@ import com.maxmind.geoip2.model.IspResponse;
 import feign.Response;
 import lombok.extern.log4j.Log4j2;
 import nl.sidn.entrada2.util.TimeUtil;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
@@ -145,7 +147,7 @@ public class GeoIPService extends AbstractMaxmind {
 
 		String key = directory + "/" + ((dbType == DB_TYPE.COUNTRY) ? countryFile() : asnFile());
 
-		Optional<InputStream> ois = s3FileService.read(bucket, key);
+		Optional<ResponseInputStream<GetObjectResponse>> ois = s3FileService.read(bucket, key);
 		if (ois.isPresent()) {
 			try (InputStream s3Stream = new BufferedInputStream(ois.get(), DECOMPRESS_STREAM_BUFFER)) {
 				// Drain S3 stream into memory first. S3 introduces per-chunk latency;

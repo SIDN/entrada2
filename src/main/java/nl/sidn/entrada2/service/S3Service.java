@@ -15,11 +15,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -43,7 +45,7 @@ public class S3Service {
 	@Qualifier("fastClient")
 	private S3Client s3FastClient;
 
-	public Optional<InputStream> read(String bucket, String key) {
+	public Optional<ResponseInputStream<GetObjectResponse>> read(String bucket, String key) {
 
 		GetObjectRequest objectRequest = GetObjectRequest.builder().key(key).bucket(bucket).build();
 

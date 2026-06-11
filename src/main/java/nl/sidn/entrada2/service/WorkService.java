@@ -31,6 +31,8 @@ import nl.sidn.entrada2.util.CompressionUtil;
 import nl.sidn.entrada2.util.S3ObjectTagName;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.pcap.PcapReader;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 @Service
 @Slf4j
@@ -192,29 +194,49 @@ public class WorkService {
 		okCounter = Counter.builder("entrada_pcap-file").tags("server", server, "site", anycastSite, "status", "ok").register(meterRegistry);	
 		errorCounter = Counter.builder("entrada_pcap-file").tags("server", server).tags("site", anycastSite).tag("status", "error").register(meterRegistry);
 		maxTriesReachedCounter = Counter.builder("entrada_pcap-file").tags("server", server).tags("site", anycastSite).tag("status", "max_tries_reached").register(meterRegistry);
-		
-		Timer.Sample sample = Timer.start(meterRegistry);
-		
+
 		log.info("Start processing file: {}/{}, server: {}, site: {}", bucket, key, server, anycastSite);
+
+		if(tries > maxTries) {
+			log.warn("Object {} exceeded max tries ({}), marking as failed", key, maxTries);
+			tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
+			maxTriesReachedCounter.increment();
+			
+			s3Service.tag(bucket, key, tags);
+			return true;
+		}
+
+		Timer.Sample sample = Timer.start(meterRegistry);
 		
 		// startOfWork is also used for checking if pcap processing has stalled
 		startOfWork = System.currentTimeMillis();
 		long duration = 0;
-		Optional<InputStream> ois = null;
+		Optional<ResponseInputStream<GetObjectResponse>> ois = null;
 		
 		int fileOffset = S3ObjectTagName.ENTRADA_OBJECT_OFFSET.readFromTags(tags, 0);
 		
-		boolean fileProcessed = false;
+		boolean fileProcessedOk = false;
 		working = true;
 		try {
 			ois = s3Service.read(bucket, key);
 			if (ois.isPresent()) {
+				// S3 may use chunked transfer encoding, so contentLength() can be null/0;
+				// fall back to a HeadObject call via s3Service.size() in that case
+				Long contentLength = ois.get().response().contentLength();
+				if (contentLength == null || contentLength == 0) {
+					contentLength = s3Service.size(bucket, key);
+				}
+				Counter.builder("entrada_pcap-file-bytes").tags("server", server).tags("site", anycastSite)
+					.baseUnit("bytes")
+					.register(meterRegistry)
+					.increment(contentLength);
+
 				Optional<PcapReader> oreader = createReader(key, ois.get());
 				if (oreader.isPresent()) {
 					if(process_(oreader.get(), bucket, key, server, anycastSite, fileOffset)) {
 						//ok
 						okCounter.increment();	
-						fileProcessed = true;
+						fileProcessedOk = true;
 					}else {
 						int offset = processed.get();
 						log.error("Error processing file: {}/{} offset {}", bucket, key, offset);
@@ -223,7 +245,7 @@ public class WorkService {
 						// save offset of last row processed of, when retrying skip forward to this row
 						tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
 
-						if(tries >= maxTries) {
+						if(tries > maxTries) {
 							log.warn("Object {} exceeded max tries ({}), marking as failed", key, maxTries);
 							tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
 							maxTriesReachedCounter.increment();
@@ -233,8 +255,8 @@ public class WorkService {
 					}
 				} else {
 					log.error("Error getting inputstream for file: {}/{}", bucket, key);
-					long objectSize = s3Service.size(bucket, key);
-					if (objectSize == 0) {
+					//long objectSize = s3Service.size(bucket, key);
+					if (contentLength == null || contentLength == 0) {
 						log.warn("S3 object {}/{} is zero bytes, deleting", bucket, key);
 						s3Service.delete(bucket, key);
 					}
@@ -258,7 +280,7 @@ public class WorkService {
 			working = false;
 		}
 		
-		if(fileProcessed) {
+		if(fileProcessedOk) {
 			cleanup(bucket, key, tags, duration);
 		}else {
 			// only set tags, do not delete or move file

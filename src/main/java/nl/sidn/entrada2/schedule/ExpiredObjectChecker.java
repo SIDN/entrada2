@@ -38,9 +38,6 @@ public class ExpiredObjectChecker {
 	@Value("${entrada.object.max-proc-time-secs:3600}")
 	private int maxProcTime;
 
-	@Value("${entrada.object.max-tries:2}")
-	private int maxTries;
-
 	// should match fastClient maxConnections for maximum throughput
 	@Value("${entrada.schedule.expired-object-threads:50}")
 	private int tagThreads;
@@ -110,30 +107,19 @@ public class ExpiredObjectChecker {
 							if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
 								String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
 								if (NumberUtils.isCreatable(value)) {
-									int tries = NumberUtils
-											.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
-									if (tries < maxTries) {
-										// expired object and max tries not yet reached, remove start tag
-										// this will cause the object to be processed again
-										log.info("Object not processed correctly, doing retry for: {}", obj.key());
+									int tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
+								
+									// expired object and max tries not yet reached, remove start tag
+									// this will cause the object to be processed again
+									log.info("Object not processed correctly, doing retry for: {}", obj.key());
 
-										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
-										// remove detected just in case
-										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-										tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, ++tries + "");
-										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
+									tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
+									// remove detected just in case
+									tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
+									tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, ++tries + "");
+									s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 
-										counterIncomplete++;
-									} else {
-										// max tries exceeded, mark as failed and clean up
-										log.warn("Object {} exceeded max tries ({}), marking as failed", obj.key(), maxTries);
-
-										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
-										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-										tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
-										tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
-										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
-									}
+									counterIncomplete++;							
 								}
 							}
 						}
