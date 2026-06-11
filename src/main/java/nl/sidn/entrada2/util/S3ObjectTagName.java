@@ -15,6 +15,7 @@ public enum S3ObjectTagName {
 	ENTRADA_PROCESS_FAILED("entrada-process-failed"),
 	ENTRADA_WAIT_EXPIRED("entrada-wait-expired"),
 	ENTRADA_OBJECT_TRIES("entrada-object-tries"),
+	ENTRADA_OBJECT_MAX_TRIES_REACHED("entrada-object-max-tries-reached"),
 	ENTRADA_OBJECT_OFFSET("entrada-object-offset"),
 	// (ISO_8601)
 	ENTRADA_OBJECT_DETECTED("entrada-object-detected");
@@ -26,7 +27,6 @@ public enum S3ObjectTagName {
 	}
 	
 	public int readFromTags(Map<String, String> tags, int defaultValue) {
-		//String value = tags.get(value);
 		if(StringUtils.isNotBlank(value) && NumberUtils.isCreatable(value)) {
 			return NumberUtils.createInteger(value);
 		}

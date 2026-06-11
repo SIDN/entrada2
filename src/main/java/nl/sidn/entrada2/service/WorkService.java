@@ -58,8 +58,10 @@ public class WorkService {
 	
 	@Value("${entrada.s3.pcap-delete:true}")
 	private boolean pcapDelete;
-	
 
+	@Value("${entrada.object.max-tries:2}")
+	private int maxTries;
+	
 	@Autowired
 	private S3Service s3Service;
 	@Autowired
@@ -81,6 +83,7 @@ public class WorkService {
 
 	private Counter okCounter;
 	private Counter errorCounter;
+	private Counter maxTriesReachedCounter;
 	private boolean working;
 
 	private AtomicInteger processed;
@@ -134,13 +137,18 @@ public class WorkService {
 		// check if file has been processed before, messages are delivered to single consumer
 		// object will also get to here when code below updates the tags and causes new event to be sent
 		// this does not cause a race condition if we check for the presence of the start_ts tag
-		if(tags.keySet().contains(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
+		if(tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
 			log.info("s3 object has already been processed (tag {} is present), do not continue processing: {}", S3ObjectTagName.ENTRADA_PROCESS_TS_START.value, key);
+			return true;
+		}
+
+		if(tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value)) {
+			log.warn("s3 object max tries reached (tag {} is present), do not continue processing: {}", S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, key);
 			return true;
 		}
 		
 		Integer tries = 1;
-		if(tags.keySet().contains(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
+		if(tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
 			String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
 			if(NumberUtils.isCreatable(value)) {
 				tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) + 1;
@@ -183,6 +191,7 @@ public class WorkService {
 		
 		okCounter = Counter.builder("entrada_pcap-file").tags("server", server, "site", anycastSite, "status", "ok").register(meterRegistry);	
 		errorCounter = Counter.builder("entrada_pcap-file").tags("server", server).tags("site", anycastSite).tag("status", "error").register(meterRegistry);
+		maxTriesReachedCounter = Counter.builder("entrada_pcap-file").tags("server", server).tags("site", anycastSite).tag("status", "max_tries_reached").register(meterRegistry);
 		
 		Timer.Sample sample = Timer.start(meterRegistry);
 		
@@ -207,15 +216,19 @@ public class WorkService {
 						okCounter.increment();	
 						fileProcessed = true;
 					}else {
-						// file could not be processed, data from the file will not be added to 
-						// the table, but some files may have been uploaded and need to be removed
-						// by iceberg maintenance processes
 						int offset = processed.get();
 						log.error("Error processing file: {}/{} offset {}", bucket, key, offset);
 						
 						tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
 						// save offset of last row processed of, when retrying skip forward to this row
 						tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
+
+						if(tries >= maxTries) {
+							log.warn("Object {} exceeded max tries ({}), marking as failed", key, maxTries);
+							tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
+							maxTriesReachedCounter.increment();
+						}
+
 						errorCounter.increment();
 					}
 				} else {

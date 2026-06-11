@@ -93,8 +93,11 @@ public class ExpiredObjectChecker {
 			Map<String, String> tags = new HashMap<>();
 
 			if (s3Service.tags(s3Properties.getBucket(), obj.key(), tags)) {
-				// check for ts_start without ts_end
-				if (tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) {
+				if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value)) {
+					// ingore objects that have already reached max tries, they will not be processed anymore
+					log.debug("Object {} has already reached max tries, ignoring it for expired object check", obj.key());
+					continue;
+				} else if (tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value)) { // check for ts_start without ts_end
 					if (!tags.containsKey(S3ObjectTagName.ENTRADA_PROCESS_TS_END.value)) {
 						// check if object claim is expired
 						Optional<LocalDateTime> startDate = stringToDate(
@@ -121,6 +124,15 @@ public class ExpiredObjectChecker {
 										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 
 										counterIncomplete++;
+									} else {
+										// max tries exceeded, mark as failed and clean up
+										log.warn("Object {} exceeded max tries ({}), marking as failed", obj.key(), maxTries);
+
+										tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
+										tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
+										tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
+										tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
+										s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 									}
 								}
 							}
