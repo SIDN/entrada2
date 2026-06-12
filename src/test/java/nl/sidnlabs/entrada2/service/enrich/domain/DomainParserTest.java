@@ -2,12 +2,15 @@ package nl.sidnlabs.entrada2.service.enrich.domain;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import nl.sidn.entrada2.service.S3Service;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListClient;
 import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 
 public class DomainParserTest {
@@ -17,7 +20,7 @@ public class DomainParserTest {
 
     @BeforeAll
     public static void setup() throws IOException {
-        validator = new PublicSuffixListParser();
+        validator = new PublicSuffixListParser(mock(S3Service.class), mock(PublicSuffixListClient.class));
         result = new PublicSuffixListParser.DomainResult();
         // Load PSL data - using deprecated method for backward compatibility in tests
         validator.downloadPSLDirectAndLoad();

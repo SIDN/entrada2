@@ -1,6 +1,5 @@
 package nl.sidn.entrada2;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.LivenessState;
@@ -8,6 +7,8 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+
+import org.springframework.lang.Nullable;
 
 import com.influxdb.v3.client.InfluxDBClient;
 
@@ -22,12 +23,15 @@ public class StartupListener {
 	@Value("${entrada.s3.bucket}")
 	private String bucketName;
 
-	@Autowired
-	private LeaderService leaderService;
-	@Autowired
-	private LeaderQueue leaderQueue;
-	@Autowired(required = false)
-	private InfluxDBClient influxClient;
+	private final LeaderService leaderService;
+	private final LeaderQueue leaderQueue;
+	private final InfluxDBClient influxClient;
+
+	public StartupListener(LeaderService leaderService, LeaderQueue leaderQueue, @Nullable InfluxDBClient influxClient) {
+		this.leaderService = leaderService;
+		this.leaderQueue = leaderQueue;
+		this.influxClient = influxClient;
+	}
 
 	@EventListener
 	public void onApplicationEvent(ContextRefreshedEvent event) {

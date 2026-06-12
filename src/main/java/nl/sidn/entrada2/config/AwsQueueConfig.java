@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -81,15 +80,17 @@ public class AwsQueueConfig {
 	@Value("${entrada.s3.pcap-in-prefixes}")
 	private List<String> pcapPrefixes;
 
-	@Autowired
-	private SqsClient sqsClient;
-
-	@Autowired
-	private S3Client s3Client;
+	private final SqsClient sqsClient;
+	private final S3Client s3Client;
 
 	@Bean
 	public SqsClient sqsClient() {
 		return SqsClient.builder().build();
+	}
+
+	public AwsQueueConfig(SqsClient sqsClient, S3Client s3Client) {
+		this.sqsClient = sqsClient;
+		this.s3Client = s3Client;
 	}
 
 	@PostConstruct

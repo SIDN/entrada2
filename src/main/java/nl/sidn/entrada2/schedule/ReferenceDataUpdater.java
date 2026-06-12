@@ -2,7 +2,6 @@ package nl.sidn.entrada2.schedule;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,13 +14,15 @@ import nl.sidn.entrada2.service.enrich.resolver.DnsResolverCheck;
 @Component
 public class ReferenceDataUpdater {
 
-	@Autowired
-	private LeaderService leaderService;
-	@Autowired
-	private GeoIPService geoIPService;
+	private final LeaderService leaderService;
+	private final GeoIPService geoIPService;
+	private final List<DnsResolverCheck> resolverChecks;
 
-	@Autowired
-	private List<DnsResolverCheck> resolverChecks;
+	public ReferenceDataUpdater(LeaderService leaderService, GeoIPService geoIPService, List<DnsResolverCheck> resolverChecks) {
+		this.leaderService = leaderService;
+		this.geoIPService = geoIPService;
+		this.resolverChecks = resolverChecks;
+	}
 
 	/**
 	 * Check if reference data needs to be updated. No need to do this during

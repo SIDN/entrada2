@@ -1,11 +1,11 @@
 package nl.sidn.entrada2.service.messaging;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import io.awspring.cloud.sqs.listener.acknowledgement.Acknowledgement;
+import io.awspring.cloud.sqs.listener.MessageListenerContainerRegistry;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.Command;
@@ -21,11 +21,14 @@ public class AwsCommandQueueService extends AbstractAwsQueue implements CommandQ
 	@Value("${entrada.messaging.command.name}-queue")
 	private String queueName;
 	
-	@Autowired
-	private SqsTemplate sqsTemplate;
-	
-	@Autowired
-	private CommandService commandService;
+	private final SqsTemplate sqsTemplate;
+	private final CommandService commandService;
+
+	public AwsCommandQueueService(MessageListenerContainerRegistry listenerRegistry, SqsTemplate sqsTemplate, CommandService commandService) {
+		super(listenerRegistry);
+		this.sqsTemplate = sqsTemplate;
+		this.commandService = commandService;
+	}
 	
 	/**
 	 * This listener uses the command-queue as a topic by not acking the message and blocking for 1 minute.

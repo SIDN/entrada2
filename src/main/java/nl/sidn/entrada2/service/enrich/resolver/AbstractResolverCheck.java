@@ -31,7 +31,6 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.net.util.SubnetUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.google.common.base.Joiner;
@@ -52,8 +51,11 @@ public abstract class AbstractResolverCheck implements DnsResolverCheck {
 	@Value("${resolver.match.cache.size:10000}")
 	private int maxMatchCacheSize;
 
-	@Autowired
-	protected S3Service s3;
+protected final S3Service s3;
+
+  protected AbstractResolverCheck(S3Service s3) {
+    this.s3 = s3;
+  }
 
 	@Value("${entrada.s3.bucket}")
 	protected String bucket;

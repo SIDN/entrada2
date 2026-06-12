@@ -2,7 +2,6 @@ package nl.sidn.entrada2.security;
 
 import java.io.IOException;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,8 +20,11 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class AuthenticationFilter extends GenericFilterBean {
 
-	@Autowired
-	private AuthenticationService authenticationService;
+	private final AuthenticationService authenticationService;
+
+	public AuthenticationFilter(AuthenticationService authenticationService) {
+		this.authenticationService = authenticationService;
+	}
 
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)

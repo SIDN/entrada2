@@ -10,11 +10,11 @@ import javax.annotation.PostConstruct;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.sidn.entrada2.service.enrich.AddressEnrichment;
 import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import nl.sidn.entrada2.util.TimeUtil;
 import nl.sidnlabs.dnslib.message.Header;
@@ -56,9 +56,13 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	
 	private Set<String> filteredTlds;
 
-	@Autowired
-	private PublicSuffixListParser domainParser;
+	private final PublicSuffixListParser domainParser;
 	private PublicSuffixListParser.DomainResult result = new PublicSuffixListParser.DomainResult();
+
+	public DNSRowBuilder(List<AddressEnrichment> enrichments, PublicSuffixListParser domainParser) {
+		super(enrichments);
+		this.domainParser = domainParser;
+	}
 	
 	@PostConstruct
 	public void init() {

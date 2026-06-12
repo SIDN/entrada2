@@ -1,6 +1,5 @@
 package nl.sidn.entrada2.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -16,8 +15,11 @@ import nl.sidn.entrada2.security.AuthenticationFilter;
 @Configuration
 public class SecurityConfig {
   
-  @Autowired
-  private AuthenticationFilter authenticationFilter;
+  private final AuthenticationFilter authenticationFilter;
+
+  public SecurityConfig(AuthenticationFilter authenticationFilter) {
+    this.authenticationFilter = authenticationFilter;
+  }
 
   @Bean
   SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

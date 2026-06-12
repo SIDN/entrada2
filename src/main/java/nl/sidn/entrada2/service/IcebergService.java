@@ -34,8 +34,8 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.types.Types.StructType;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -80,10 +80,9 @@ public class IcebergService {
 	// number of recs written to current file
 	private long currentRecCount;
 
-	@Autowired
-	private Table table;
-	
-	// Store schemas instead of template records to avoid copy overhead
+	private final Table table;
+
+	private final LeaderQueue leaderQueue;
 	private StructType recordSchema;
 	private StructType rdataSchema;
 	private List<GenericRecord> recordBuffer = new ArrayList<>();
@@ -95,10 +94,7 @@ public class IcebergService {
 
 	private boolean flush = false;
 
-	@Autowired
-	private LeaderQueue leaderQueue;
-
-	// cached field lists to avoid repeated list creation in hot write/read paths
+	// Store schemas instead of template records to avoid copy overhead
 	private List<org.apache.iceberg.types.Types.NestedField> recordFields;
 	// cached string representations of config values used in createWriter()
 	private String bloomFilterMaxBytesStr;
@@ -122,6 +118,12 @@ public class IcebergService {
 	private long cacheHits;
 	private long cacheMisses;
 
+	public IcebergService(Table table, @Lazy LeaderQueue leaderQueue) {
+		this.table = table;
+		this.leaderQueue = leaderQueue;
+	}
+
+	@SuppressWarnings("unchecked")
 	@PostConstruct
 	public void initialize() {
 		this.recordSchema = table.schema().asStruct();

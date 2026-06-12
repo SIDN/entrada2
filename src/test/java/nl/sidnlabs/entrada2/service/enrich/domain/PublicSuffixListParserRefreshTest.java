@@ -2,12 +2,15 @@ package nl.sidnlabs.entrada2.service.enrich.domain;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import nl.sidn.entrada2.service.S3Service;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListClient;
 import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -17,7 +20,7 @@ class PublicSuffixListParserRefreshTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        parser = new PublicSuffixListParser();
+        parser = new PublicSuffixListParser(mock(S3Service.class), mock(PublicSuffixListClient.class));
     }
 
     @Test

@@ -34,6 +34,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
+import nl.sidn.entrada2.service.S3Service;
+
 import lombok.extern.log4j.Log4j2;
 
 /**
@@ -46,6 +48,10 @@ public final class CloudFlareResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_STATE_FILENAME = "cloudflare-resolvers";
   private static final String RESOLVER_NAME = "CloudFlare";
+
+  public CloudFlareResolverCheck(S3Service s3) {
+    super(s3);
+  }
 
   @Value("${resolver.cloudflare.url.v4}")
   private String urlV4;

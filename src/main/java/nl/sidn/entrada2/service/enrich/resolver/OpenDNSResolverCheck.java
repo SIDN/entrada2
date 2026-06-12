@@ -37,6 +37,8 @@ import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import nl.sidn.entrada2.service.S3Service;
+
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 
@@ -60,6 +62,10 @@ public final class OpenDNSResolverCheck extends AbstractResolverCheck {
 	private String url;
 	@Value("${resolver.opendns.timeout:15}")
 	private int timeout;
+
+	public OpenDNSResolverCheck(S3Service s3) {
+		super(s3);
+	}
 
 	@Override
 	public List<String> fetch() {

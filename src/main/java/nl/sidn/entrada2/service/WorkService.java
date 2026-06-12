@@ -15,9 +15,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import org.springframework.lang.Nullable;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -64,17 +65,11 @@ public class WorkService {
 	@Value("${entrada.object.max-tries:2}")
 	private int maxTries;
 	
-	@Autowired
-	private S3Service s3Service;
-	@Autowired
-	private PacketJoiner joiner;
-	@Autowired
-	private IcebergService icebergService;
-	@Autowired
-	private DNSRowBuilder rowBuilder;
-
-	@Autowired(required = false)
-	private HistoricalMetricManager metrics;
+	private final S3Service s3Service;
+	private final PacketJoiner joiner;
+	private final IcebergService icebergService;
+	private final DNSRowBuilder rowBuilder;
+	private final HistoricalMetricManager metrics;
 
 	@Value("#{${entrada.process.max-proc-time-secs:600}*1000}")
 	private int stalledMillis;
@@ -90,8 +85,13 @@ public class WorkService {
 
 	private AtomicInteger processed;
 
-	public WorkService(MeterRegistry meterRegistry) {
+	public WorkService(MeterRegistry meterRegistry, S3Service s3Service, PacketJoiner joiner, IcebergService icebergService, DNSRowBuilder rowBuilder, @Nullable HistoricalMetricManager metrics) {
 		this.meterRegistry = meterRegistry;
+		this.s3Service = s3Service;
+		this.joiner = joiner;
+		this.icebergService = icebergService;
+		this.rowBuilder = rowBuilder;
+		this.metrics = metrics;
 	}
 
 	public void stop() {

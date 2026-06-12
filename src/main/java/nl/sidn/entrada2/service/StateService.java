@@ -1,6 +1,6 @@
 package nl.sidn.entrada2.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import lombok.AccessLevel;
@@ -25,8 +25,11 @@ public class StateService {
 
 	@Getter(AccessLevel.NONE)
 	@Setter(AccessLevel.NONE)
-	@Autowired
-	private CommandQueue commandQueue;
+	private final CommandQueue commandQueue;
+
+	public StateService(@Lazy CommandQueue commandQueue) {
+		this.commandQueue = commandQueue;
+	}
 
 	/**
 	 * Start processing new pcap objects from s3 location

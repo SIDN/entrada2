@@ -13,7 +13,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,8 +36,11 @@ public class IcebergTableConfig {
 	private String tableName;
 	
 	private Schema schema;
-	@Autowired
-	private Catalog catalog;
+	private final Catalog catalog;
+
+	public IcebergTableConfig(Catalog catalog) {
+		this.catalog = catalog;
+	}
 
 	/**
 	 * Helper class to safely build schemas with auto-incrementing field IDs.

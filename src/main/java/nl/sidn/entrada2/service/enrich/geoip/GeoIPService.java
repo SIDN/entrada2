@@ -47,6 +47,7 @@ import com.maxmind.geoip2.model.IspResponse;
 
 import feign.Response;
 import lombok.extern.log4j.Log4j2;
+import nl.sidn.entrada2.service.S3Service;
 import nl.sidn.entrada2.util.TimeUtil;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -62,6 +63,9 @@ public class GeoIPService extends AbstractMaxmind {
 	
 	private static final int DECOMPRESS_STREAM_BUFFER = 256 * 1024;
 
+        public GeoIPService(S3Service s3FileService, MaxmindClient mmClient) {
+                super(s3FileService, mmClient);
+        }
 	private DatabaseReader geoReader;
 	private DatabaseReader asnReader;
 

@@ -1,15 +1,16 @@
 package nl.sidn.entrada2.service.messaging;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
 import io.awspring.cloud.sqs.listener.MessageListenerContainerRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public abstract class AbstractAwsQueue implements Queue{
 
-	@Autowired
-	private MessageListenerContainerRegistry listenerRegistry;
+	private final MessageListenerContainerRegistry listenerRegistry;
+
+	protected AbstractAwsQueue(MessageListenerContainerRegistry listenerRegistry) {
+		this.listenerRegistry = listenerRegistry;
+	}
 
 	@Override
 	public void start() {

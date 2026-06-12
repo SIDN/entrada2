@@ -2,8 +2,8 @@ package nl.sidn.entrada2.service;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.integration.leader.Context;
 import org.springframework.integration.leader.event.OnGrantedEvent;
@@ -26,12 +26,17 @@ import nl.sidn.entrada2.service.messaging.LeaderQueue;
 @Slf4j
 public class LeaderService {
 	
-	@Autowired
-	private GeoIPService geoIPService;
-	@Autowired
-	private List<DnsResolverCheck> resolverChecks;
-	@Autowired
-	private PublicSuffixListParser publicSuffixListParser;
+	private final GeoIPService geoIPService;
+	private final List<DnsResolverCheck> resolverChecks;
+	private final PublicSuffixListParser publicSuffixListParser;
+	private final LeaderQueue leaderQueue;
+
+	public LeaderService(GeoIPService geoIPService, List<DnsResolverCheck> resolverChecks, PublicSuffixListParser publicSuffixListParser, @Lazy LeaderQueue leaderQueue) {
+		this.geoIPService = geoIPService;
+		this.resolverChecks = resolverChecks;
+		this.publicSuffixListParser = publicSuffixListParser;
+		this.leaderQueue = leaderQueue;
+	}
 
 	/* leader property is used for non k8s deployments */
 	@Value("${entrada.leader:false}")
@@ -41,9 +46,6 @@ public class LeaderService {
 	private String role;
 
 	private Context context;
-	
-	@Autowired
-	private LeaderQueue leaderQueue;
 
 	public boolean isleader() {
 		return leader || (this.context != null);

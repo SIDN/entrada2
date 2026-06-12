@@ -3,13 +3,15 @@ package nl.sidn.entrada2.service.messaging;
 import java.io.IOException;
 
 import org.springframework.amqp.core.AmqpTemplate;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.AmqpHeaders;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.lang.Nullable;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.stereotype.Service;
+
+import org.springframework.messaging.handler.annotation.Header;
 
 import com.rabbitmq.client.Channel;
 
@@ -25,12 +27,14 @@ public class RabbitCommandQueueService extends AbstractRabbitQueue implements Co
 
 	@Value("${entrada.messaging.command.name}")
 	private String queueName;
-	@Autowired
-	private CommandService commandService;
+	private final CommandService commandService;
+	private final AmqpTemplate rabbitTemplate;
 
-	@Autowired(required = false)
-	@Qualifier("rabbitJsonTemplate")
-	private AmqpTemplate rabbitTemplate;
+	public RabbitCommandQueueService(RabbitListenerEndpointRegistry listenerRegistry, CommandService commandService, @Nullable @Qualifier("rabbitJsonTemplate") AmqpTemplate rabbitTemplate) {
+		super(listenerRegistry);
+		this.commandService = commandService;
+		this.rabbitTemplate = rabbitTemplate;
+	}
 
 	@RabbitListener(id = "${entrada.messaging.command.name}", queues = "#{commandQueue.name}")
 	public void receiveMessageManual(Command message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {

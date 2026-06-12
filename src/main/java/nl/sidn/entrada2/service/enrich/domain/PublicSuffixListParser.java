@@ -8,7 +8,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -40,11 +39,13 @@ public class PublicSuffixListParser {
     @Value("${entrada.tlds:}")
     private String hotTlds;
     
-    @Autowired
-    private S3Service s3Service;
-    
-    @Autowired
-    private PublicSuffixListClient pslClient;
+    private final S3Service s3Service;
+    private final PublicSuffixListClient pslClient;
+
+    public PublicSuffixListParser(S3Service s3Service, PublicSuffixListClient pslClient) {
+        this.s3Service = s3Service;
+        this.pslClient = pslClient;
+    }
         
     private final TrieNode root = new TrieNode();
     private final Set<String> exactMatches = new HashSet<>(50000);

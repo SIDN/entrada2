@@ -1,7 +1,6 @@
 package nl.sidn.entrada2.service.enrich.geoip;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import nl.sidn.entrada2.service.S3Service;
 
@@ -24,11 +23,13 @@ public abstract class AbstractMaxmind {
   @Value("${maxmind.license.paid}")
   protected String licenseKeyPaid;
 
-  @Autowired
-  protected S3Service s3FileService;
+  protected final S3Service s3FileService;
+  protected final MaxmindClient mmClient;
 
-  @Autowired
-  protected MaxmindClient mmClient;
+  protected AbstractMaxmind(S3Service s3FileService, MaxmindClient mmClient) {
+    this.s3FileService = s3FileService;
+    this.mmClient = mmClient;
+  }
 
   @Value("${entrada.s3.bucket}")
   protected String bucket;

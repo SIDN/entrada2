@@ -10,7 +10,6 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -29,8 +28,9 @@ public class ExpiredObjectChecker {
 
 	private boolean running = false;
 
-	@Autowired
-	private LeaderService leaderService;
+	private final LeaderService leaderService;
+	private final EntradaS3Properties s3Properties;
+	private final S3Service s3Service;
 
 	@Value("${entrada.object.max-wait-time-secs:7200}")
 	private int maxWaitTime;
@@ -38,11 +38,11 @@ public class ExpiredObjectChecker {
 	@Value("${entrada.object.max-proc-time-secs:3600}")
 	private int maxProcTime;
 
-	@Autowired
-	private EntradaS3Properties s3Properties;
-
-	@Autowired
-	private S3Service s3Service;
+	public ExpiredObjectChecker(LeaderService leaderService, EntradaS3Properties s3Properties, S3Service s3Service) {
+		this.leaderService = leaderService;
+		this.s3Properties = s3Properties;
+		this.s3Service = s3Service;
+	}
 
 	@Scheduled(initialDelayString = "60s", fixedDelayString = "#{'${entrada.schedule.expired-object-min:10}'.trim() + 'm'}")
 	public void execute() {

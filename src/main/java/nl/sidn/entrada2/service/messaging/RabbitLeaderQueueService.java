@@ -5,9 +5,10 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
@@ -23,15 +24,16 @@ public class RabbitLeaderQueueService extends AbstractRabbitQueue implements Lea
 	@Value("${entrada.messaging.leader.name}")
 	private String queueName;
 
-	@Autowired(required = false)
-	@Qualifier("rabbitByteTemplate")
-	private AmqpTemplate rabbitTemplate;
+	private final AmqpTemplate rabbitTemplate;
+	private final IcebergService icebergService;
+	private final LeaderService leaderService;
 
-	@Autowired
-	private IcebergService icebergService;
-
-	@Autowired
-	private LeaderService leaderService;
+	public RabbitLeaderQueueService(RabbitListenerEndpointRegistry listenerRegistry, @Nullable @Qualifier("rabbitByteTemplate") AmqpTemplate rabbitTemplate, IcebergService icebergService, LeaderService leaderService) {
+		super(listenerRegistry);
+		this.rabbitTemplate = rabbitTemplate;
+		this.icebergService = icebergService;
+		this.leaderService = leaderService;
+	}
 
 	@RabbitListener(id = "${entrada.messaging.leader.name}", queues = "#{leaderQueue.name}", containerFactory = "#{rabbitListenerByteContainerFactory}", autoStartup = "false")
 	public void onMessage(List<DataFile> messages) {

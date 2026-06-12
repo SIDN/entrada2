@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.core.AmqpTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import org.springframework.lang.Nullable;
 
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.config.EntradaS3Properties;
@@ -41,22 +42,21 @@ public class NewObjectChecker {
 
 	private boolean running = false;
 
-	@Autowired
-	private EntradaS3Properties s3Properties;
+	private final EntradaS3Properties s3Properties;
+	private final S3Service s3Service;
+	private final LeaderService leaderService;
+	private final AmqpTemplate rabbitTemplate;
 
-	@Autowired
-	private S3Service s3Service;
-	
-	@Autowired
-	private LeaderService leaderService;
-	
+	public NewObjectChecker(EntradaS3Properties s3Properties, S3Service s3Service, LeaderService leaderService, @Nullable @Qualifier("rabbitJsonTemplate") AmqpTemplate rabbitTemplate) {
+		this.s3Properties = s3Properties;
+		this.s3Service = s3Service;
+		this.leaderService = leaderService;
+		this.rabbitTemplate = rabbitTemplate;
+	}
+		
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 
-	@Autowired(required = false)
-	@Qualifier("rabbitJsonTemplate")
-	private AmqpTemplate rabbitTemplate;
-		
 	@Scheduled(initialDelayString = "5s", fixedDelayString = "#{'${entrada.schedule.new-object-secs:120}'.trim() + 's'}")
 	public void execute() {
 		log.info("NewObjectChecker execute called");

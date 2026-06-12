@@ -1,6 +1,5 @@
 package nl.sidn.entrada2.schedule;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.LivenessState;
@@ -16,16 +15,17 @@ import nl.sidn.entrada2.service.WorkService;
 @Slf4j
 public class LivenesChecker {
 
-	@Autowired
-	private ApplicationContext ctx;
-	@Autowired
-	private ApplicationAvailability applicationAvailability;
+	private final ApplicationContext ctx;
+	private final ApplicationAvailability applicationAvailability;
+	private final WorkService workService;
+	private final LeaderService leaderService;
 
-	@Autowired
-	private WorkService workService;
-
-	@Autowired
-	private LeaderService leaderService;
+	public LivenesChecker(ApplicationContext ctx, ApplicationAvailability applicationAvailability, WorkService workService, LeaderService leaderService) {
+		this.ctx = ctx;
+		this.applicationAvailability = applicationAvailability;
+		this.workService = workService;
+		this.leaderService = leaderService;
+	}
 
 	/**
 	 * Check if worker is still in good state and able to process pcaps. When

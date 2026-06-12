@@ -7,7 +7,6 @@ import java.util.List;
 import org.apache.iceberg.data.GenericRecord;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
 import nl.sidn.entrada2.service.enrich.AddressEnrichment;
@@ -17,8 +16,7 @@ public abstract class AbstractRowBuilder {
 
   private final static int ENRICHMENT_CACHE_MAX_SIZE = 50000;
   
-  @Autowired
-  private List<AddressEnrichment> enrichments;
+  private final List<AddressEnrichment> enrichments;
 
   @Value("${entrada.privacy.enabled:false}")
   protected boolean privacy;
@@ -40,7 +38,8 @@ public abstract class AbstractRowBuilder {
     public boolean resolver;
   }
 
-  public AbstractRowBuilder() {
+  public AbstractRowBuilder(List<AddressEnrichment> enrichments) {
+    this.enrichments = enrichments;
     enrichmentCache = new Cache2kBuilder<String, List<EnrichmentValue>>() {}
         .entryCapacity(ENRICHMENT_CACHE_MAX_SIZE)
         .build();

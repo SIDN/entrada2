@@ -21,7 +21,6 @@ package nl.sidn.entrada2.service.enrich.resolver;
 
 import java.net.InetAddress;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import nl.sidn.entrada2.load.FieldEnum;
@@ -30,12 +29,12 @@ import nl.sidn.entrada2.service.enrich.AddressEnrichment;
 @Component
 public class ResolverEnrichment implements AddressEnrichment {
 
-  @Autowired
-  private List<DnsResolverCheck> resolverChecks;
+  private final List<DnsResolverCheck> resolverChecks;
 
-  public ResolverEnrichment() {
+  public ResolverEnrichment(List<DnsResolverCheck> resolverChecks) {
+    this.resolverChecks = resolverChecks;
   }
-
+  
   /**
    * Check if the IP address is linked to a known open resolver operator
    * 

@@ -4,7 +4,6 @@ import java.net.URI;
 import java.time.Duration;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,8 +36,11 @@ public class S3Config {
 	@Value("${entrada.provisioning.enabled:true}")
 	private boolean provisioningEnabled;
 
-	@Autowired
-	private EntradaS3Properties s3Properties;
+	private final EntradaS3Properties s3Properties;
+
+	public S3Config(EntradaS3Properties s3Properties) {
+		this.s3Properties = s3Properties;
+	}
 
 	private boolean isRunningOnAws() {
 		return StringUtils.isBlank(s3Properties.getEndpoint());

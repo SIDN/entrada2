@@ -5,7 +5,7 @@ import java.io.IOException;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
@@ -29,8 +29,12 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
-	@Autowired
-	private WorkService workService;
+	private final WorkService workService;
+
+	public RabbitRequestQueueService(RabbitListenerEndpointRegistry listenerRegistry, WorkService workService) {
+		super(listenerRegistry);
+		this.workService = workService;
+	}
 	
 	@RabbitListener(id = "${entrada.messaging.request.name}", queues = "${entrada.messaging.request.name}-queue", autoStartup = "${entrada.autostart:false}")
 	public void receiveMessageManual(S3EventNotification message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {

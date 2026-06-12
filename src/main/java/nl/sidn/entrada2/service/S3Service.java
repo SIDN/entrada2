@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -38,12 +37,13 @@ import software.amazon.awssdk.services.s3.model.Tagging;
 @Slf4j
 public class S3Service {
 
-	@Autowired
-	private S3Client s3Client;
-	
-	@Autowired
-	@Qualifier("fastClient")
-	private S3Client s3FastClient;
+	private final S3Client s3Client;
+	private final S3Client s3FastClient;
+
+	public S3Service(S3Client s3Client, @Qualifier("fastClient") S3Client s3FastClient) {
+		this.s3Client = s3Client;
+		this.s3FastClient = s3FastClient;
+	}
 
 	public Optional<ResponseInputStream<GetObjectResponse>> read(String bucket, String key) {
 

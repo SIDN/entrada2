@@ -1,11 +1,11 @@
 package nl.sidn.entrada2.service.messaging;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.awspring.cloud.sqs.annotation.SqsListener;
+import io.awspring.cloud.sqs.listener.MessageListenerContainerRegistry;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.RequestMessage;
@@ -25,8 +25,12 @@ public class AwsS3EventQueueService extends AbstractAwsQueue implements RequestQ
 	@Value("${entrada.messaging.request.name}-queue.fifo")
 	private String requestQueue;
 
-	@Autowired
-	private SqsTemplate sqsTemplate;
+	private final SqsTemplate sqsTemplate;
+
+	public AwsS3EventQueueService(MessageListenerContainerRegistry listenerRegistry, SqsTemplate sqsTemplate) {
+		super(listenerRegistry);
+		this.sqsTemplate = sqsTemplate;
+	}
 
 	/**
 	 * 

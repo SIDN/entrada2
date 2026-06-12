@@ -30,6 +30,7 @@ import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
+import nl.sidn.entrada2.service.S3Service;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 
@@ -46,6 +47,10 @@ public final class GoogleResolverCheck extends AbstractResolverCheck {
 
   private static final String RESOLVER_STATE_FILENAME = "google-resolvers";
   private static final String RESOLVER_NAME = "Google";
+
+  public GoogleResolverCheck(S3Service s3) {
+    super(s3);
+  }
 
   @Value("${resolver.google.hostname}")
   public String hostname;

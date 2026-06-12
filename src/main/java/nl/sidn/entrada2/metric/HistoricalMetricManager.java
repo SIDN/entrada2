@@ -29,12 +29,13 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import org.springframework.lang.Nullable;
 
 import com.influxdb.v3.client.InfluxDBClient;
 import com.influxdb.v3.client.Point;
@@ -93,8 +94,11 @@ public class HistoricalMetricManager {
 	@Value("${entrada.metrics.bin-size-secs:10}")
 	private int binSizeSeconds;
 
-	@Autowired(required = false)
-	private InfluxDBClient influxClient;
+	private final InfluxDBClient influxClient;
+
+	public HistoricalMetricManager(@Nullable InfluxDBClient influxClient) {
+		this.influxClient = influxClient;
+	}
 
 	public void update(DnsMetricValues dmv, String server, String anycastSite) {
 

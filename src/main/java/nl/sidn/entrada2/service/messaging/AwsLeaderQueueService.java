@@ -3,11 +3,11 @@ package nl.sidn.entrada2.service.messaging;
 import java.util.Base64;
 
 import org.apache.iceberg.DataFile;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.awspring.cloud.sqs.annotation.SqsListener;
+import io.awspring.cloud.sqs.listener.MessageListenerContainerRegistry;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.service.IcebergService;
@@ -23,15 +23,16 @@ public class AwsLeaderQueueService extends AbstractAwsQueue implements LeaderQue
 	@Value("${entrada.messaging.leader.name}-queue.fifo")
 	private String queueName;
 
-	@Autowired
-	private SqsTemplate sqsTemplate;
-	
+	private final SqsTemplate sqsTemplate;
+	private final IcebergService icebergService;
+	private final LeaderService leaderService;
 
-	@Autowired
-	private IcebergService icebergService;
-
-	@Autowired
-	private LeaderService leaderService;
+	public AwsLeaderQueueService(MessageListenerContainerRegistry listenerRegistry, SqsTemplate sqsTemplate, IcebergService icebergService, LeaderService leaderService) {
+		super(listenerRegistry);
+		this.sqsTemplate = sqsTemplate;
+		this.icebergService = icebergService;
+		this.leaderService = leaderService;
+	}
 
 	@SqsListener(value="${entrada.messaging.leader.name}-queue.fifo",
 			id="${entrada.messaging.leader.name}-queue.fifo",

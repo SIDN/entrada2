@@ -3,6 +3,7 @@ package nl.sidnlabs.entrada2.service.enrich.domain;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -11,6 +12,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import nl.sidn.entrada2.service.S3Service;
+import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListClient;
 import nl.sidn.entrada2.service.enrich.domain.PublicSuffixListParser;
 
 class PublicSuffixListParserFilterTest {
@@ -19,7 +22,7 @@ class PublicSuffixListParserFilterTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        parser = new PublicSuffixListParser();
+        parser = new PublicSuffixListParser(mock(S3Service.class), mock(PublicSuffixListClient.class));
 
         // Configure filtering for all PSL entries ending in .nl.
         setPrivateField(parser, "hotTlds", "nl,aw");
