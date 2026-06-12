@@ -104,24 +104,23 @@ public class ExpiredObjectChecker {
 								startDate.get(), max, now);
 
 						if (max.isBefore(now)) {
-							if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value)) {
-								String value = tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value);
-								if (NumberUtils.isCreatable(value)) {
-									int tries = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
-								
-									// expired object and max tries not yet reached, remove start tag
-									// this will cause the object to be processed again
-									log.info("Object not processed correctly, doing retry for: {}", obj.key());
+							Integer value = NumberUtils.createInteger(tags.get(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value));
+							int tries = 1;
+							if(value != null) {
+								tries = tries + value.intValue();
+							} 
+						
+							// expired object and max tries not yet reached, remove start tag
+							// this will cause the object to be processed again
+							log.info("Object not processed correctly, doing retry for: {}", obj.key());
 
-									tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
-									// remove detected just in case
-									tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
-									tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, ++tries + "");
-									s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
+							tags.remove(S3ObjectTagName.ENTRADA_PROCESS_TS_START.value);
+							// remove detected just in case
+							tags.remove(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value);
+							tags.put(S3ObjectTagName.ENTRADA_OBJECT_TRIES.value, String.valueOf(tries));
+							s3Service.tag(s3Properties.getBucket(), obj.key(), tags);
 
-									counterIncomplete++;							
-								}
-							}
+							counterIncomplete++;							
 						}
 					}
 				} else if (tags.containsKey(S3ObjectTagName.ENTRADA_OBJECT_DETECTED.value)) {

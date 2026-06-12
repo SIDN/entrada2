@@ -14,11 +14,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.retries.DefaultRetryStrategy;
+import software.amazon.awssdk.retries.StandardRetryStrategy;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
@@ -36,9 +36,6 @@ public class S3Config {
 	
 	@Value("${entrada.provisioning.enabled:true}")
 	private boolean provisioningEnabled;
-
-	@Value("${entrada.s3.fast-client.max-connections:100}")
-	private int fastClientMaxConnections;
 
 	@Autowired
 	private EntradaS3Properties s3Properties;
@@ -64,12 +61,15 @@ public class S3Config {
 				 .forcePathStyle(s3Properties.getPathStyleAccess())
 				 .region(Region.of(s3Properties.getRegion()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
-						 	.connectionTimeout(Duration.ofSeconds(30))
-			                .socketTimeout(Duration.ofSeconds(30))
+						 	.connectionTimeout(Duration.ofSeconds(5))
+			                .socketTimeout(Duration.ofSeconds(10))
 			                .maxConnections(20))
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
-						 	.retryStrategy(AwsRetryStrategy.doNotRetry())
+						 	.retryStrategy(StandardRetryStrategy.builder()
+						        .maxAttempts(2)
+								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(1))) // for higher throughput retry after 1 sec and if still fail then fail tag will be set on object
+								.build())
 						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
 					        .apiCallTimeout(Duration.ofMinutes(5))  // total time for all attempts. ls may take a long time to download, so set it high
 				        .build());
@@ -92,11 +92,17 @@ public class S3Config {
 				 .httpClientBuilder(ApacheHttpClient.builder()
 						 	.connectionTimeout(Duration.ofSeconds(5))
 			                .socketTimeout(Duration.ofSeconds(10))
-		                .maxConnections(fastClientMaxConnections))
-				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
-				 
+		                .maxConnections(20))
+				 .credentialsProvider(StaticCredentialsProvider.create(
+					AwsBasicCredentials.create(s3Properties.getAccessKey(),
+												s3Properties.getSecretKey())))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
-						 	.retryStrategy(DefaultRetryStrategy.doNotRetry())
+						 	.retryStrategy(StandardRetryStrategy.builder()
+						        .maxAttempts(2)
+								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(1)))
+								.build())
+							.apiCallAttemptTimeout(Duration.ofSeconds(5))  // per attempt
+					        .apiCallTimeout(Duration.ofSeconds(5)) // total time for all attempts. getting tags should be fast, so set it low to fail fast when there are issues with the s3 connection
 			        .build());
 
 		 applyEndpointOverride(builder);
@@ -111,8 +117,8 @@ public class S3Config {
 
 	@PostConstruct
 	private void init() {
-		log.info("Using s3 endpoint: {}", s3Properties.getEndpoint());
-		log.info("Using s3 bucket: {}", s3Properties.getBucket());
+		log.info("Using input s3 endpoint: {}", s3Properties.getEndpoint());
+		log.info("Using input s3 bucket: {}", s3Properties.getBucket());
 		
 		if(!provisioningEnabled) {
 			log.info("Provisioning is disabled, do not create required bucket");

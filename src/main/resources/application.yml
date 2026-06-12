@@ -27,7 +27,7 @@ entrada:
     max-wait-time-secs: 3600
     # mark as failed after max proc time expired, high load might cause longer proc times.
     # do not set too low
-    max-proc-time-secs: 7200
+    max-proc-time-secs: 300
     # max number of tries for decoding object
     max-tries: 2
   process:
