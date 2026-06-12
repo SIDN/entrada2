@@ -61,17 +61,19 @@ public class S3Config {
 				 .forcePathStyle(s3Properties.getPathStyleAccess())
 				 .region(Region.of(s3Properties.getRegion()))
 				 .httpClientBuilder(ApacheHttpClient.builder()
-						 	.connectionTimeout(Duration.ofSeconds(5))
-			                .socketTimeout(Duration.ofSeconds(10))
+						 	.connectionTimeout(Duration.ofSeconds(10))
+			                .socketTimeout(Duration.ofSeconds(60))  // must be high enough to avoid false timeouts during bursty streaming
 			                .maxConnections(20))
 				 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3Properties.getAccessKey(), s3Properties.getSecretKey())))
 				 .overrideConfiguration(ClientOverrideConfiguration.builder()
 						 	.retryStrategy(StandardRetryStrategy.builder()
 						        .maxAttempts(2)
-								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(1))) // for higher throughput retry after 1 sec and if still fail then fail tag will be set on object
+								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(2)))
 								.build())
-						 	.apiCallAttemptTimeout(Duration.ofMinutes(5))  // per attempt
-					        .apiCallTimeout(Duration.ofMinutes(5))  // total time for all attempts. ls may take a long time to download, so set it high
+						 	// apiCallAttemptTimeout only covers TCP connect + HTTP request/headers phase.
+						 	// once getObject() returns a ResponseInputStream, only socketTimeout governs stalled reads.
+						 	.apiCallAttemptTimeout(Duration.ofSeconds(30))
+					        .apiCallTimeout(Duration.ofMinutes(10))  // files process in a few minutes; 10 min gives headroom for a retry
 				        .build());
 
 		 applyEndpointOverride(builder);
@@ -101,8 +103,8 @@ public class S3Config {
 						        .maxAttempts(2)
 								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(1)))
 								.build())
-							.apiCallAttemptTimeout(Duration.ofSeconds(5))  // per attempt
-					        .apiCallTimeout(Duration.ofSeconds(5)) // total time for all attempts. getting tags should be fast, so set it low to fail fast when there are issues with the s3 connection
+							.apiCallAttemptTimeout(Duration.ofSeconds(3))  // per attempt
+					        .apiCallTimeout(Duration.ofSeconds(8)) // total time for all attempts. getting tags should be fast, so set it low to fail fast when there are issues with the s3 connection
 			        .build());
 
 		 applyEndpointOverride(builder);

@@ -53,10 +53,6 @@ public class NewObjectChecker {
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 
-	// should match fastClient maxConnections for maximum throughput
-	@Value("${entrada.schedule.new-object-threads:50}")
-	private int tagThreads;
-
 	@Autowired(required = false)
 	@Qualifier("rabbitJsonTemplate")
 	private AmqpTemplate rabbitTemplate;

@@ -38,10 +38,6 @@ public class ExpiredObjectChecker {
 	@Value("${entrada.object.max-proc-time-secs:3600}")
 	private int maxProcTime;
 
-	// should match fastClient maxConnections for maximum throughput
-	@Value("${entrada.schedule.expired-object-threads:50}")
-	private int tagThreads;
-
 	@Autowired
 	private EntradaS3Properties s3Properties;
 
