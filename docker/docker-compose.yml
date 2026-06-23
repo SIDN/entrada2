@@ -6,7 +6,7 @@
 # docker-compose --profile test up --scale entrada-worker=2
 # any other profile will only start the dependencies
 services:
-  influxdb3-core:
+  influxdb:
     image: influxdb:3-core
     restart: always
     env_file:
@@ -118,8 +118,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      createbucket:
-        condition: service_completed_successfully
   entrada-worker:
     image: sidnlabs/entrada2:1.0.2
     profiles: ["test"]
@@ -139,8 +137,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      createbucket:
-        condition: service_completed_successfully
       entrada-master:
         condition: service_started
 volumes:

@@ -317,6 +317,7 @@ The following table lists all configuration options starting with `iceberg.`:
 | `iceberg.s3.access-key` | S3 access key for Iceberg operations (leave empty if using Lakekeeper vended credentials) | (empty) |
 | `iceberg.s3.secret-key` | S3 secret key for Iceberg operations (leave empty if using Lakekeeper vended credentials) | (empty) |
 | `iceberg.s3.region` | S3 region for Iceberg operations | `${AWS_REGION}` |
+| `iceberg.s3.bucket` | S3 bucket name for Iceberg table data | `sidnlabs-iceberg-data` |
 | `iceberg.s3.endpoint` | S3 endpoint (only when not using AWS) | (empty) |
 | `iceberg.catalog.type` | Catalog type (rest, jdbc, or glue for AWS) | `rest` |
 | `iceberg.catalog.uri` | REST catalog URI | (empty) |
