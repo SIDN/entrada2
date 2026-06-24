@@ -20,15 +20,17 @@ services:
       - --object-store=memory
       - --admin-token-file=/app-root/config/admin-token.json
     volumes:
-      - ./influxdb-admin-token.json:/app-root/config/admin-token.json
-  influxdb-explorer:
-    image: influxdata/influxdb3-ui
+      - ./influxdb3-config-core:/app-root/config
+      - ./nginx-logs:/var/lib/nginx/logs
+  influxdb-ui:
+    image: influxdata/influxdb3-ui:1.9.0
     restart: always
     env_file:
        - path: ./docker.env
     command: ["--mode=admin"]
     volumes:
-      - ./influxdb-config.json:/app-root/config/config.json
+      # make sure directory config-ui is owned by the user running the container (default uid 1500)
+      - ./influxdb3-config-ui:/app-root/config
     ports:
       - "8888:80" 
   rabbitmq:
