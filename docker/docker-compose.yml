@@ -21,7 +21,6 @@ services:
       - --admin-token-file=/app-root/config/admin-token.json
     volumes:
       - ./influxdb3-config-core:/app-root/config
-      - ./nginx-logs:/var/lib/nginx/logs
   influxdb-ui:
     image: influxdata/influxdb3-ui:1.9.0
     restart: always
