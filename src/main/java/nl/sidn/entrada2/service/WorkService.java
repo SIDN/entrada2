@@ -296,8 +296,13 @@ public class WorkService {
 	 * Load the server and optional anycast server location information from filename.
 	 * Expected filename format: {@code<server>_<site>-*.pcap.*}
 	 * Example: ns3.dns.nl_ams-20260412-1040101_194.0.25.24_ams.pcap.gz
-	 * 
-	 * @param filename the full filename or S3 key
+	 * <p>
+	 * If the portion before the first hyphen contains more than one underscore
+	 * (e.g. {@code prefix_ns3.dns.nl_ams-...}), all leading segments up to and
+	 * including the extra underscores are discarded so that the last two
+	 * underscore-separated tokens are used as {@code <server>} and {@code <site>}.
+	 *
+	 * @param key the full S3 key or filename
 	 * @return Pair of server (left) and site (right), or null if parsing fails
 	 */
 	public Pair<String, String> extractServerAndSite(String key) {
@@ -314,10 +319,12 @@ public class WorkService {
 		}
 		
 		String[] parts = name.substring(0, firstHyphen).split("_");
-		if(parts == null || parts.length != 2) {
+		if(parts == null || parts.length < 2) {
 			return null;
 		}
-		return Pair.of(parts[0], parts[1]);
+		// If more than one underscore precedes the first dash, discard all leading
+		// segments and use only the last two: <server>_<site>
+		return Pair.of(parts[parts.length - 2], parts[parts.length - 1]);
 	}
 
 	private void cleanup(String bucket, String key, Map<String, String> tags, long duration) {
