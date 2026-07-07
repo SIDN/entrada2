@@ -298,6 +298,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 			// these are the values that are retrieved from the response
 			rcode = responseHeader.getRawRcode();
+			record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
 
 			record.set(FieldEnum.dns_aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
 			record.set(FieldEnum.dns_tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
@@ -309,6 +310,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
 
 			// EDNS0 for response
+			// this may override the rcode value set above from the response header, as the extended rcode is in the EDNS0 option, if present
 			writeResponseOptions(rspMessage, record);
 
 			if (metricsEnabled && metricsBuilder != null) {
@@ -358,7 +360,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		record.set(FieldEnum.dns_id.ordinal(), Integer.valueOf(id));
 		// Cast to int to ensure Integer boxing (getRawOpcode returns char which would box to Character)
 		record.set(FieldEnum.dns_opcode.ordinal(), Integer.valueOf(opcode));
-		record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
 		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(tsMilli));
 		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(safeReqOrRespTransport.getIpVersion()));
 		record.set(FieldEnum.prot.ordinal(), Integer.valueOf(prot));
