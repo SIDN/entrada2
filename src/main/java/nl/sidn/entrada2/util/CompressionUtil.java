@@ -32,7 +32,8 @@ public class CompressionUtil {
 	public static InputStream getDecompressorStreamWrapper(InputStream in, int bufSize, String filename)
 			throws IOException {
 
-		if (StringUtils.endsWithIgnoreCase(filename, ".pcap")) {
+		if (StringUtils.endsWithIgnoreCase(filename, ".pcap")
+				|| StringUtils.substringAfterLast(filename, ".").toLowerCase().matches("pcap[0-9]*")) {
 			return wrap(in, bufSize);
 		} else if (StringUtils.endsWithIgnoreCase(filename, ".gz")) {
 			return new GzipCompressorInputStream(wrap(in, bufSize));
@@ -47,10 +48,10 @@ public class CompressionUtil {
 	}
 	
 	public static boolean isSupportedFormat(String filename) {
-		
-		return switch (StringUtils.substringAfterLast(filename, ".")) {
+		String ext = StringUtils.substringAfterLast(filename, ".").toLowerCase();
+		return switch (ext) {
 		  case "pcap", "gz", "xz", "bz2" -> true;
-		  default -> false;
+		  default -> ext.matches("pcap[0-9]*");
 		};
 	}
 
