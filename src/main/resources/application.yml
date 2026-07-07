@@ -9,6 +9,13 @@ entrada:
     # when the s3 objects has no tags for name and/or site then the following values will be used
     default-name: default-ns
     default-site: default-site
+    ip-map:
+      # map IP addresses to nameserver names, this is used for matching DNS requests to responses
+      # and for adding the nameserver name to the Parquet output
+      # use when pcap contains DNS traffic from multiple nameservers and you want to add the nameserver name to the Parquet output
+      # overrides to server s3 tag value
+      # example:
+      #"ns1.dns.nl": "185.159.199.200,2620:10a:80ac::200"
   rdata:
     # when enabled, rdata from DNS response records will be add to Parquet (dns_rdata column)
     # When this option is enabled, entrada2 will consume more cpu/memory resources.

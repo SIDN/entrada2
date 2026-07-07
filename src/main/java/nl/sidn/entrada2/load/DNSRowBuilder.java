@@ -1,9 +1,12 @@
 package nl.sidn.entrada2.load;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.PostConstruct;
@@ -11,6 +14,9 @@ import javax.annotation.PostConstruct;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
@@ -53,15 +59,19 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	
 	@Value("#{'${entrada.filter.tlds:}'.toLowerCase().split(',')}")
 	private List<String> filteredTldsList;
-	
+
+	private final Environment environment;
+	private Map<String, String> ipToNameserverMap = Collections.emptyMap();
+
 	private Set<String> filteredTlds;
 
 	private final PublicSuffixListParser domainParser;
 	private PublicSuffixListParser.DomainResult result = new PublicSuffixListParser.DomainResult();
 
-	public DNSRowBuilder(List<AddressEnrichment> enrichments, PublicSuffixListParser domainParser) {
+	public DNSRowBuilder(List<AddressEnrichment> enrichments, PublicSuffixListParser domainParser, Environment environment) {
 		super(enrichments);
 		this.domainParser = domainParser;
+		this.environment = environment;
 	}
 	
 	@PostConstruct
@@ -85,6 +95,29 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		if (!filteredTlds.isEmpty()) {
 			log.info("TLD filtering enabled for: {}", filteredTlds);
 		}
+
+		// Build reverse IP -> nameserver-name map for fast hot-path lookup
+		Map<String, String> nameserverIpMap = Binder.get(environment)
+				.bind("entrada.nameserver.ip-map", Bindable.mapOf(String.class, String.class))
+				.orElse(Collections.emptyMap());
+		if (!nameserverIpMap.isEmpty()) {
+			ipToNameserverMap = new HashMap<>(nameserverIpMap.size() * 4);
+			for (Map.Entry<String, String> entry : nameserverIpMap.entrySet()) {
+				String name = entry.getKey();
+				for (String ip : entry.getValue().split(",")) {
+					String trimmed = ip.trim();
+					if (!trimmed.isEmpty()) {
+						try {
+							String normalized = InetAddress.getByName(trimmed).getHostAddress();
+							ipToNameserverMap.put(normalized, name);
+						} catch (Exception e) {
+							log.warn("Invalid IP address in entrada.nameserver.ip-map: {}", trimmed);
+						}
+					}
+				}
+			}
+			log.info("Nameserver IP map loaded with {} entries", ipToNameserverMap.size());
+		}
 	}
 	
 	/**
@@ -102,8 +135,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			GenericRecord record, GenericRecord recRdata) {
 		// try to be as efficient as possible, every object created here or expensive
 		// calculation can have major impact on performance
-		record.set(FieldEnum.server.ordinal(), server);
-
 		// dns request present
 		Packet reqTransport = combo.getRequest();
 		Message reqMessage = combo.getRequestMessage();
@@ -118,6 +149,16 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		long tsMilli = safeReqOrRespTransport.getTsMilli();
 		int prot = safeReqOrRespTransport.getProtocol();
 		
+		// Resolve effective server name: check if the nameserver IP is in the ip-map
+		String effectiveServer;
+		if (!ipToNameserverMap.isEmpty()) {
+			String nsIp = reqTransport != null ? reqTransport.getDst() : rspTransport.getSrc();
+			effectiveServer = ipToNameserverMap.getOrDefault(nsIp, server);
+		} else {
+			effectiveServer = server;
+		}
+		record.set(FieldEnum.server.ordinal(), effectiveServer);
+
 		// Lazy initialization - only create metrics builder if enabled
 		DnsMetricValues.DnsMetricValuesBuilder metricsBuilder = null;
 		if (metricsEnabled) {
