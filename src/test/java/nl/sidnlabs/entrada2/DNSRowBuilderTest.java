@@ -22,7 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import nl.sidn.entrada2.load.DNSRowBuilder;
@@ -42,6 +44,9 @@ public class DNSRowBuilderTest extends AbstractTest {
 
     @Mock
     private PublicSuffixListParser domainParser;
+
+    @Spy
+    private MockEnvironment environment = new MockEnvironment();
 
     @BeforeEach
     void setUp() throws Exception {
