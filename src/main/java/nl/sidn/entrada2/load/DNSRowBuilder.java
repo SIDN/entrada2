@@ -297,8 +297,9 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 			record.set(FieldEnum.dns_res_len.ordinal(), Integer.valueOf(rspMessage.getBytes()));
 			// these are the values that are retrieved from the response
-			rcode = responseHeader.getRawRcode();
-			record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));
+
+			// this may use the extended rcode in the EDNS0 option, if present
+			rcode = writeResponseOptions(rspMessage, record, responseHeader.getRawRcode());
 
 			record.set(FieldEnum.dns_aa.ordinal(), Boolean.valueOf(responseHeader.isAa()));
 			record.set(FieldEnum.dns_tc.ordinal(), Boolean.valueOf(responseHeader.isTc()));
@@ -308,10 +309,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			record.set(FieldEnum.dns_arcount.ordinal(), Integer.valueOf(responseHeader.getArCount()));
 			record.set(FieldEnum.dns_nscount.ordinal(), Integer.valueOf(responseHeader.getNsCount()));
 			record.set(FieldEnum.dns_qdcount.ordinal(), Integer.valueOf(responseHeader.getQdCount()));
-
-			// EDNS0 for response
-			// this may override the rcode value set above from the response header, as the extended rcode is in the EDNS0 option, if present
-			writeResponseOptions(rspMessage, record);
 
 			if (metricsEnabled && metricsBuilder != null) {
 				metricsBuilder.dnsResponse(true);
@@ -353,7 +350,8 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				}
 			}
 		}
-	
+
+		record.set(FieldEnum.dns_rcode.ordinal(), Integer.valueOf(rcode));	
 		record.set(FieldEnum.server_location.ordinal(), location);
 		// values from request OR response now
 		// if no request found in the request then use values from the response.
@@ -412,11 +410,14 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 	 * @param message
 	 * @param builder
 	 */
-	private void writeResponseOptions(Message message, GenericRecord record) {
+	private int writeResponseOptions(Message message, GenericRecord record, int rcode) {
+		int extendedRcode = rcode;
+
 		if (message == null) {
-			return;
+			return extendedRcode;
 		}
 
+		
 		OPTResourceRecord opt = message.getPseudo();
 		if (opt != null) {
 			
@@ -424,8 +425,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 				// get extended rcode
 				// see: https://datatracker.ietf.org/doc/html/rfc6891
 				// 12 bits code: upper 8 bits are in opt.getRcode() and lower 4 bits are in message.getHeader().getRawRcode()
-				int extendedRcode = ((int) opt.getRcode() << 4) | message.getHeader().getRawRcode();
-				record.set(FieldEnum.dns_rcode.ordinal(),  Integer.valueOf(extendedRcode));
+				extendedRcode = ((int) opt.getRcode() << 4) | message.getHeader().getRawRcode();
 			}
 			
 			// Lazy initialization - only create list if errors found
@@ -455,6 +455,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 			}
 		}
 
+		return extendedRcode;
 	}
 
 	/**
