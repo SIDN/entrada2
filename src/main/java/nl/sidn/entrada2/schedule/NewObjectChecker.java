@@ -40,7 +40,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Component
 public class NewObjectChecker {
 
-	@Value("${entrada.autostartup:true}")
+	@Value("${entrada.autostart:true}")
 	private boolean running;
 
 	private final EntradaS3Properties s3Properties;
