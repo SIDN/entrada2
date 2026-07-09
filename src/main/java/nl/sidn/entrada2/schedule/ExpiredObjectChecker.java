@@ -26,7 +26,8 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Component
 public class ExpiredObjectChecker {
 
-	private boolean running = false;
+	@Value("${entrada.autostartup:true}")
+	private boolean running;
 
 	private final LeaderService leaderService;
 	private final EntradaS3Properties s3Properties;
