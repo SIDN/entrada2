@@ -266,9 +266,10 @@ The following table lists all configuration options starting with `entrada.`:
 | Option | Description | Default |
 | ------ | ----------- | ------- |
 | `entrada.tlds` | Comma-separated list of most frequently used TLDs for fast-path optimization | `nl` |
-| `entrada.autostart` | Automatically start queue listeners at application startup | `true` |
+| `entrada.autostart` | Automatically start queue listeners and new object scanning at application startup | `true` |
 | `entrada.nameserver.default-name` | Default name server name when S3 objects have no tags | `default-ns` |
 | `entrada.nameserver.default-site` | Default anycast site when S3 objects have no tags | `default-site` |
+| `entrada.nameserver.ip-map` | Map of nameserver name to comma-separated IP addresses. Used to resolve the nameserver name from the destination IP address in the packet. Overrides the server name from S3 object tags. Example: `entrada.nameserver.ip-map.ns1.dns.nl=185.159.199.200,2620:10a:80ac::200` | (empty) |
 | `entrada.rdata.enabled` | Enable rdata from DNS response records in Parquet output (dns_rdata column) | `false` |
 | `entrada.rdata.dnssec` | Include DNSSEC RRs such as RRSIG in output | `false` |
 | `entrada.cname.enabled` | Enable CNAME record processing | `true` |
