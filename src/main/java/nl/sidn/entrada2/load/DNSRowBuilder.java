@@ -97,9 +97,15 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		}
 
 		// Build reverse IP -> nameserver-name map for fast hot-path lookup
-		Map<String, String> nameserverIpMap = Binder.get(environment)
-				.bind("entrada.nameserver.ip-map", Bindable.mapOf(String.class, String.class))
-				.orElse(Collections.emptyMap());
+		Map<String, String> nameserverIpMap;
+		try {
+			nameserverIpMap = Binder.get(environment)
+					.bind("entrada.nameserver.ip-map", Bindable.mapOf(String.class, String.class))
+					.orElse(Collections.emptyMap());
+		} catch (Exception e) {
+			log.warn("Could not bind entrada.nameserver.ip-map, using empty map: {}", e.getMessage());
+			nameserverIpMap = Collections.emptyMap();
+		}
 		if (!nameserverIpMap.isEmpty()) {
 			ipToNameserverMap = new HashMap<>(nameserverIpMap.size() * 4);
 			for (Map.Entry<String, String> entry : nameserverIpMap.entrySet()) {
