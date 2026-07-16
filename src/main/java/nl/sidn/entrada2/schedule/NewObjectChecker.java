@@ -43,6 +43,9 @@ public class NewObjectChecker {
 	@Value("${entrada.autostart:true}")
 	private boolean running;
 
+	@Value("${entrada.schedule.new-object-secs:}")
+	private String newObjectSecs;
+
 	private final EntradaS3Properties s3Properties;
 	private final S3Service s3Service;
 	private final LeaderService leaderService;
@@ -58,12 +61,12 @@ public class NewObjectChecker {
 	@Value("${entrada.messaging.request.name}")
 	private String requestQueue;
 
-	@Scheduled(initialDelayString = "5s", fixedDelayString = "#{'${entrada.schedule.new-object-secs:120}'.trim() + 's'}")
+	@Scheduled(initialDelayString = "5s", fixedDelayString = "${entrada.schedule.new-object-secs}s")
 	public void execute() {
 		log.info("NewObjectChecker execute called");
 
 		if(!running) {
-			log.info("NewObjectChecker is not running, skipping execution");
+			log.info("NewObjectChecker is not enabled, skipping execution");
 			return;
 		}
 

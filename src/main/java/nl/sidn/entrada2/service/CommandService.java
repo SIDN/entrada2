@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import nl.sidn.entrada2.messaging.Command;
 import nl.sidn.entrada2.messaging.Command.CommandType;
+import java.util.Optional;
+
 import nl.sidn.entrada2.schedule.ExpiredObjectChecker;
 import nl.sidn.entrada2.schedule.NewObjectChecker;
 import nl.sidn.entrada2.service.StateService.APP_STATE;
@@ -19,10 +21,10 @@ public class CommandService {
 private final List<RequestQueue> requestQueues;
         private final StateService stateService;
         private final WorkService workService;
-        private final NewObjectChecker newObjectChecker;
+        private final Optional<NewObjectChecker> newObjectChecker;
         private final ExpiredObjectChecker expiredObjectChecker;
 
-        public CommandService(List<RequestQueue> requestQueues, StateService stateService, WorkService workService, NewObjectChecker newObjectChecker, ExpiredObjectChecker expiredObjectChecker) {
+        public CommandService(List<RequestQueue> requestQueues, StateService stateService, WorkService workService, Optional<NewObjectChecker> newObjectChecker, ExpiredObjectChecker expiredObjectChecker) {
                 this.requestQueues = requestQueues;
                 this.stateService = stateService;
                 this.workService = workService;
@@ -37,14 +39,14 @@ private final List<RequestQueue> requestQueues;
 		case CommandType.START -> {
 			requestQueues.stream().forEach(q -> q.start());
 			stateService.setState(APP_STATE.ACTIVE);
-			newObjectChecker.start();
+			newObjectChecker.ifPresent(NewObjectChecker::start);
 			expiredObjectChecker.start();
 		}
 		case CommandType.STOP -> {
 			requestQueues.stream().forEach(q -> q.stop());
 			workService.stop();
 			stateService.setState(APP_STATE.STOPPED);
-			newObjectChecker.stop();
+			newObjectChecker.ifPresent(NewObjectChecker::stop);
 			expiredObjectChecker.stop();
 		}
 		case CommandType.FLUSH -> {
