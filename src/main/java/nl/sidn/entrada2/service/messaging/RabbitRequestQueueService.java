@@ -86,12 +86,14 @@ public class RabbitRequestQueueService extends AbstractRabbitQueue implements Re
 	}
 	
 	private boolean isSupportedEvent(String eventName) {
-		return StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:Put") || 
-				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:CompleteMultipartUpload") ||
+		// Normalize the "s3:" prefix before comparing and accept real S3 bucket notifications
+        String name = StringUtils.removeStartIgnoreCase(eventName, "s3:");
+		return StringUtils.equalsIgnoreCase(name, "ObjectCreated:Put") || 
+				StringUtils.equalsIgnoreCase(name, "ObjectCreated:CompleteMultipartUpload") ||
 				// some s3 implementations also use Put-Tagging when deleting a tag
-				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:DeleteTagging") ||
+				StringUtils.equalsIgnoreCase(name, "ObjectCreated:DeleteTagging") ||
 				// put-tagging is created when object is re-send to queue by updating its tags
-				StringUtils.equalsIgnoreCase(eventName, "s3:ObjectCreated:PutTagging");
+				StringUtils.equalsIgnoreCase(name, "ObjectCreated:PutTagging");
 	}
 
 	@Override
