@@ -42,13 +42,11 @@ public class LeaderService {
 	@Value("${entrada.leader:false}")
 	private boolean leader;
 
-	@Value("${spring.cloud.kubernetes.leader.role}")
-	private String role;
-
-	private Context context;
+	// isGrantedLeader property is used for k8s deployments, when the leader election has granted this instance to be the leader
+	private boolean isGrantedLeader;
 
 	public boolean isleader() {
-		return leader || (this.context != null);
+		return leader || isGrantedLeader;
 	}
 	
 	@PostConstruct
@@ -73,11 +71,14 @@ public class LeaderService {
 	 * @param event on granted event
 	 */
 	@EventListener
-	public void handleEvent(OnGrantedEvent event) {
+	public synchronized void handleEvent(OnGrantedEvent event) {
 		log.info("leadership granted: {}", event.getRole());
-		this.context = event.getContext();
-		
+
 		leaderQueue.start();
+		// only mark this instance as leader after the queue is started, so isleader()
+		// never reports true while the queue listener failed to start
+		this.isGrantedLeader = true;
+
 		// make sure the reference data is downloaded first time by leader
 		// others will wait for data to be present
 		downloadMetadata();
@@ -89,10 +90,12 @@ public class LeaderService {
 	 * @param event on revoked event
 	 */
 	@EventListener
-	public void handleEvent(OnRevokedEvent event) {
+	public synchronized void handleEvent(OnRevokedEvent event) {
 		log.info("leadership revoked: {}", event.getRole());
-		
-		this.context = null;
+
+		// mark as no longer leader before stopping the queue, so isleader() cannot
+		// report true anymore even if stopping the queue listener fails
+		this.isGrantedLeader = false;
 		leaderQueue.stop();
 	}
 	

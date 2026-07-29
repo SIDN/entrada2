@@ -17,13 +17,21 @@ public abstract class AbstractRabbitQueue implements Queue {
 	@Override
 	public void start() {
 		log.info("Starting queue: {}", name());
-		listenerRegistry.getListenerContainer(name()).start();
+		try {
+			listenerRegistry.getListenerContainer(name()).start();
+		} catch (Exception e) {
+			log.error("Failed to start queue: {}", name(), e);
+		}
 	}
 
 	@Override
 	public void stop() {
 		log.info("Stopping queue: {}", name());
-		listenerRegistry.getListenerContainer(name()).stop();
+		try {
+			listenerRegistry.getListenerContainer(name()).stop();
+		} catch (Exception e) {
+			log.error("Failed to stop queue: {}", name(), e);
+		}
 	}
 
 }

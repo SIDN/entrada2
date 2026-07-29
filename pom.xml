@@ -109,7 +109,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>pcap-lib</artifactId>
-            <version>0.2.27</version>
+            <version>0.2.27-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -121,7 +121,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>dnslib</artifactId>
-            <version>0.2.19</version>
+            <version>0.2.20-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
