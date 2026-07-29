@@ -22,7 +22,7 @@ public class IpTest extends AbstractTest {
     assertEquals(1480, pckts.get(0).getFragOffset());
     assertEquals(2, pckts.get(0).getReassembledFragments());
     assertTrue(pckts.get(0).getTtl() > 0);
-    assertTrue(pckts.get(0).getTsMilli() > 0);
+    assertTrue(pckts.get(0).getTsMicros() > 0);
   }
 
 }

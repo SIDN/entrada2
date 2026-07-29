@@ -108,8 +108,7 @@ public class HistoricalMetricManager {
 		}
 
 		// Round timestamp to configured bin size (e.g., 10 seconds)
-		long epochSeconds = dmv.time / 1000;
-		long binnedSeconds = (epochSeconds / binSizeSeconds) * binSizeSeconds;
+		long binnedSeconds = (dmv.time / binSizeSeconds) * binSizeSeconds;
 		Instant time = Instant.ofEpochSecond(binnedSeconds);
 
 		if (dmv.dnsQuery) {

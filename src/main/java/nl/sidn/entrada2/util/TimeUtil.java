@@ -21,6 +21,14 @@ public class TimeUtil {
         .toLocalDateTime();
   }
 
+  public static LocalDateTime timestampFromMicros(long micros) {
+
+    return Instant
+        .ofEpochSecond(micros / 1_000_000, (micros % 1_000_000) * 1000)
+        .atZone(UTC)
+        .toLocalDateTime();
+  }
+
 
   public static void sleep(long millis) {
     try {

@@ -8,6 +8,7 @@ import nl.sidnlabs.dnslib.types.ResourceRecordType;
 @Builder
 public class DnsMetricValues {
 
+  // timestamp in seconds since epoch, rounded to the nearest second
   public long time;
   // millis before response was sent to client
   public int procTime;

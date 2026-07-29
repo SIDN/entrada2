@@ -152,7 +152,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		Question question = null;
 
 		// Cache timestamp to avoid multiple calls
-		long tsMilli = safeReqOrRespTransport.getTsMilli();
+		long tsMicros = safeReqOrRespTransport.getTsMicros();
 		int prot = safeReqOrRespTransport.getProtocol();
 		
 		// Resolve effective server name: check if the nameserver IP is in the ip-map
@@ -168,7 +168,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		// Lazy initialization - only create metrics builder if enabled
 		DnsMetricValues.DnsMetricValuesBuilder metricsBuilder = null;
 		if (metricsEnabled) {
-			metricsBuilder = DnsMetricValues.builder().time(tsMilli);
+			metricsBuilder = DnsMetricValues.builder().time(tsMicros / 1_000_000);
 		}
 
 		if (reqMessage != null && !reqMessage.getQuestions().isEmpty() ) {
@@ -259,7 +259,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		// calculate the processing time
 		if (reqTransport != null && rspTransport != null) {
-			int procTime = (int)(rspTransport.getTsMilli() - reqTransport.getTsMilli());
+			int procTime = (int)((rspTransport.getTsMicros() - reqTransport.getTsMicros()) / 1000);
 			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
 			
 			if (metricsEnabled && metricsBuilder != null) {
@@ -364,7 +364,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 		record.set(FieldEnum.dns_id.ordinal(), Integer.valueOf(id));
 		// Cast to int to ensure Integer boxing (getRawOpcode returns char which would box to Character)
 		record.set(FieldEnum.dns_opcode.ordinal(), Integer.valueOf(opcode));
-		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMillis(tsMilli));
+		record.set(FieldEnum.time.ordinal(), TimeUtil.timestampFromMicros(tsMicros));
 		record.set(FieldEnum.ip_version.ordinal(), Integer.valueOf(safeReqOrRespTransport.getIpVersion()));
 		record.set(FieldEnum.prot.ordinal(), Integer.valueOf(prot));
 
