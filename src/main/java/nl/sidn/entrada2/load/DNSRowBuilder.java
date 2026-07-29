@@ -42,7 +42,6 @@ import nl.sidnlabs.pcap.packet.PacketFactory;
 public class DNSRowBuilder extends AbstractRowBuilder {
 
 	public static final int RCODE_QUERY_WITHOUT_RESPONSE = -1;
-	public static final int RCODE_RESPONSE_WITHOUT_QUERY = -2;
 	private static final int ID_UNKNOWN = -1;
 	private static final int OPCODE_UNKNOWN = -1;
 
@@ -285,9 +284,6 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 			// EDNS0 for request
 			writeRequestOptions(reqMessage, record);
-		}else {
-			// no request message found, may be overriden below if response message is found, but for now set rcode to indicate no request found
-			rcode = RCODE_RESPONSE_WITHOUT_QUERY;
 		}
 		
 		// fields from response
