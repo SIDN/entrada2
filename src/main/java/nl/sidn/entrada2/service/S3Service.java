@@ -37,6 +37,11 @@ import software.amazon.awssdk.services.s3.model.Tagging;
 @Slf4j
 public class S3Service {
 
+	// prefix used for the small marker/lock objects created by claim(), kept separate from
+	// the configured pcap input prefixes so it is never picked up by NewObjectChecker or
+	// ExpiredObjectChecker when scanning/listing pcap objects.
+	public static final String LOCK_PREFIX = ".entrada-locks/";
+
 	private final S3Client s3Client;
 	private final S3Client s3FastClient;
 
@@ -163,6 +168,54 @@ public class S3Service {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Atomically claim an object for processing by creating a small marker object using a
+	 * conditional PUT (If-None-Match: *). Unlike object tags (which can only be read then
+	 * written, i.e. not atomically), this PUT is rejected by S3 with a 412 Precondition Failed
+	 * if the marker object already exists. This guarantees that only one caller can ever
+	 * successfully claim a given key, even if multiple instances (e.g. during a leader
+	 * split-brain, or duplicate queue delivery) try to process the same object at the same time.
+	 *
+	 * @param bucket the bucket
+	 * @param lockKey the key of the marker/lock object to create
+	 * @return true if this call created the marker (claim acquired), false if it already
+	 *         existed (already claimed by another instance) or the request failed
+	 */
+	public boolean claim(String bucket, String lockKey) {
+		try {
+			PutObjectRequest putReq = PutObjectRequest.builder()
+					.bucket(bucket)
+					.key(lockKey)
+					.ifNoneMatch("*")
+					.build();
+			s3FastClient.putObject(putReq, RequestBody.empty());
+			return true;
+		} catch (S3Exception e) {
+			if (e.statusCode() == 412) {
+				// precondition failed: marker already exists, another instance claimed it first
+				log.debug("Object already claimed by another instance: {}", lockKey);
+			} else {
+				log.error("Error claiming object: {}", lockKey, e);
+			}
+		} catch (Exception e) {
+			log.error("Error claiming object: {}", lockKey, e);
+		}
+
+		return false;
+	}
+
+	/**
+	 * Release a claim acquired via {@link #claim(String, String)}, e.g. so that a later retry
+	 * for the same key can claim it again.
+	 *
+	 * @param bucket the bucket
+	 * @param lockKey the key of the marker/lock object to remove
+	 * @return true if the marker was removed (or already gone)
+	 */
+	public boolean releaseClaim(String bucket, String lockKey) {
+		return delete(bucket, lockKey);
 	}
 
 	/**

@@ -37,6 +37,11 @@ entrada:
     max-proc-time-secs: 300
     # max number of tries for decoding object
     max-tries: 2
+    # max lifetime (secs) of a claim/lock marker object used to ensure only 1 worker
+    # processes a given s3 object. If a lock is still present after this time (e.g. the pod
+    # that created it crashed before releasing it) it is removed so the object can be
+    # claimed and processed again. Default: 30 minutes
+    lock-max-lifetime-secs: 1800
   process:
     # max time for pcap file to be procssed in min
     # if worker is processing pcap longer than x secs, it is marked as stalled

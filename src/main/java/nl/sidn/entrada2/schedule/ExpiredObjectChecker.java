@@ -39,6 +39,13 @@ public class ExpiredObjectChecker {
 	@Value("${entrada.object.max-proc-time-secs:3600}")
 	private int maxProcTime;
 
+	// max lifetime (in seconds) of a claim/lock marker object (see S3Service#claim), default
+	// 30 minutes. If a lock is still present after this time (e.g. because the pod that
+	// created it crashed before releasing it) it is removed so the object can be claimed and
+	// processed again.
+	@Value("${entrada.object.lock-max-lifetime-secs:1800}")
+	private int maxLockLifetime;
+
 	public ExpiredObjectChecker(LeaderService leaderService, EntradaS3Properties s3Properties, S3Service s3Service) {
 		this.leaderService = leaderService;
 		this.s3Properties = s3Properties;
@@ -61,6 +68,9 @@ public class ExpiredObjectChecker {
 					log.info("Start checking for expired objects with prefix: {}", prefix);
 					checkForExpiredObjects(prefix);
 				}
+
+				log.info("Start checking for expired/orphaned lock objects");
+				checkForExpiredLocks();
 			} catch (Exception e) {
 				log.error("Unexpected exception while checking for expired objects");
 			}
@@ -144,6 +154,34 @@ public class ExpiredObjectChecker {
 
 		log.info("Found {} incomplete object(s) and {} not picked up objects", counterIncomplete,
 				counterNotPickedUp);
+	}
+
+	/**
+	 * Remove claim/lock marker objects (see {@link S3Service#claim(String, String)}) that are
+	 * older than {@code entrada.object.lock-max-lifetime-secs}. A lock this old means the
+	 * instance that created it never released it, most likely because the pod crashed or was
+	 * killed mid-processing. Without this cleanup the object would remain claimed forever and
+	 * never be retried.
+	 */
+	public void checkForExpiredLocks() {
+		LocalDateTime now = LocalDateTime.now();
+		ZoneId localZone = ZoneId.systemDefault();
+
+		int counterExpiredLocks = 0;
+
+		List<S3Object> locks = s3Service.ls(s3Properties.getBucket(), S3Service.LOCK_PREFIX);
+
+		for (S3Object lock : locks) {
+			LocalDateTime lockDate = LocalDateTime.ofInstant(lock.lastModified(), localZone);
+			if (lockDate.plusSeconds(maxLockLifetime).isBefore(now)) {
+				log.warn("Lock {} is older than max lifetime ({}s), removing it so the object can be claimed again",
+						lock.key(), maxLockLifetime);
+				s3Service.delete(s3Properties.getBucket(), lock.key());
+				counterExpiredLocks++;
+			}
+		}
+
+		log.info("Found and removed {} expired/orphaned lock object(s)", counterExpiredLocks);
 	}
 
 	private Optional<LocalDateTime> stringToDate(String datetr) {
