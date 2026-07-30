@@ -306,7 +306,9 @@ public class WorkService {
 		} finally {
 			// release the claim so a retry (a new message for the same key, e.g. after a
 			// failure) can be picked up again later
-			s3Service.releaseClaim(bucket, lockKey);
+			if(!s3Service.releaseClaim(bucket, lockKey)){
+				log.error("Failed to release claim for object: {}/{}", bucket, key);
+			}
 		}
 	}
 

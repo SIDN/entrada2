@@ -105,8 +105,12 @@ public class S3Config {
 						        .maxAttempts(2)
 								.backoffStrategy(BackoffStrategy.fixedDelay(Duration.ofSeconds(1)))
 								.build())
-							.apiCallAttemptTimeout(Duration.ofSeconds(3))  // per attempt
-					        .apiCallTimeout(Duration.ofSeconds(8)) // total time for all attempts. getting tags should be fast, so set it low to fail fast when there are issues with the s3 connection
+							// must be comfortably larger than connectionTimeout (5s) above, otherwise
+							// the attempt watchdog can abort a connection that was still within its
+							// own allowed connect budget, which can leave a request half-sent while
+							// the client already considers the attempt failed/retries it
+							.apiCallAttemptTimeout(Duration.ofSeconds(8))  // per attempt
+					        .apiCallTimeout(Duration.ofSeconds(15)) // total time for all attempts. getting tags should be fast, so set it low to fail fast when there are issues with the s3 connection
 			        .build());
 
 		 applyEndpointOverride(builder);

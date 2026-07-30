@@ -209,13 +209,48 @@ public class S3Service {
 	/**
 	 * Release a claim acquired via {@link #claim(String, String)}, e.g. so that a later retry
 	 * for the same key can claim it again.
+	 * <p>
+	 * Uses the primary (long-timeout, more resilient) s3Client instead of s3FastClient:
+	 * releasing a claim is rare/low-frequency (once per processed file) and correctness
+	 * critical (an unreleased lock blocks that object from ever being reprocessed until the
+	 * lock-max-lifetime TTL cleanup runs), so it's worth waiting longer rather than failing
+	 * fast like the tag get/set operations fastClient is tuned for.
+	 * <p>
+	 * Also verifies with a HeadObject call that the marker is actually gone afterwards. A
+	 * DeleteObject call can return success without an exception even though the object is
+	 * still present, e.g. if an aggressive client-side timeout aborts an in-flight request
+	 * that the server (or a load-balanced backend node) still processes asynchronously, or a
+	 * retry lands on a different backend node with a stale view of the object. If that
+	 * happens here, one more delete attempt is made via the same resilient client.
 	 *
 	 * @param bucket the bucket
 	 * @param lockKey the key of the marker/lock object to remove
-	 * @return true if the marker was removed (or already gone)
+	 * @return true if the marker was removed (verified gone), false otherwise
 	 */
 	public boolean releaseClaim(String bucket, String lockKey) {
-		return delete(bucket, lockKey);
+		if (deleteAndVerify(bucket, lockKey)) {
+			return true;
+		}
+
+		log.warn("Claim/lock for {} still present after delete, retrying once", lockKey);
+		return deleteAndVerify(bucket, lockKey);
+	}
+
+	private boolean deleteAndVerify(String bucket, String lockKey) {
+		try {
+			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(lockKey).build();
+			s3Client.deleteObject(req);
+		} catch (Exception e) {
+			log.error("Failed to release claim/lock for: {}, it will remain until the lock-max-lifetime TTL cleanup removes it", lockKey, e);
+			return false;
+		}
+
+		if (exists(bucket, lockKey)) {
+			log.error("Delete call for claim/lock {} returned without error but the object is still present", lockKey);
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
