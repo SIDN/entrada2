@@ -500,7 +500,7 @@ The column names use a prefix to indicate where the information was extracted fr
 | edns_ecs_ip_geo_country | string | Country for IP address in ECS |
 | edns_ext_error | array(int) | EDNS extended error |
 | dns_labels | int | Number of labels in DNS qname |
-| dns_proc_time | int | Time between request and response (millis) |
+| dns_proc_time | int | Time between request and response (microseconds) |
 | dns_pub_resolver | string | Name of public resolver source |
 | dns_req_len | int | Size of DNS request message |
 | dns_res_len | int | Size of DNS response message |

@@ -44,7 +44,7 @@ This document describes all columns in the ENTRADA2 Iceberg table schema.
 | `edns_ecs_ip_geo_country` | String | No | GeoIP country for EDNS Client Subnet |
 | `edns_ext_error` | List[Integer] | No | EDNS Extended DNS Error codes |
 | `dns_labels` | Integer | No | Number of labels in the query name |
-| `dns_proc_time` | Integer | No | DNS processing time in milliseconds |
+| `dns_proc_time` | Integer | No | DNS processing time in microseconds |
 | `dns_pub_resolver` | String | No | Public resolver identifier |
 | `dns_req_len` | Integer | No | DNS request message length in bytes |
 | `dns_res_len` | Integer | No | DNS response message length in bytes |

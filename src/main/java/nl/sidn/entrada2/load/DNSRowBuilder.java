@@ -258,7 +258,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 
 		// calculate the processing time
 		if (reqTransport != null && rspTransport != null) {
-			int procTime = (int)((rspTransport.getTsMicros() - reqTransport.getTsMicros()) / 1000);
+			int procTime = (int)(rspTransport.getTsMicros() - reqTransport.getTsMicros());
 			record.set(FieldEnum.dns_proc_time.ordinal(), Integer.valueOf(procTime));
 			
 			if (metricsEnabled && metricsBuilder != null) {
