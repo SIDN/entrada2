@@ -112,6 +112,10 @@ Listener startup is controlled by `entrada.autostart` (default: `true`).
 
 The processing of new PCAP files can be started and stopped using the API endpoints. When using manual startup (`entrada.autostart=false`), processing will only start when the "start" command is sent to the API. This allows for uploading new PCAP files before starting processing, which is especially useful when using the S3 object scanning feature.
 
+### Object Locking
+
+Object locking is used to ensure that only one instance of ENTRADA2 can process a given PCAP file at a time. This is achieved by creating a small marker object in S3 using a conditional PUT operation. If the marker object already exists, the PUT operation will fail, indicating that another instance has claimed the object. The fixed prefix for the lock object is `.entrada-locks/` and the lock object name is the same as the PCAP object name. The lock object is automatically deleted when processing of the PCAP file is completed, or when the lock-max-lifetime TTL expires.
+
 ### Upload Example
 
 ```bash

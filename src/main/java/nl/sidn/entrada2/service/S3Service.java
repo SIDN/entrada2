@@ -236,17 +236,18 @@ public class S3Service {
 		return deleteAndVerify(bucket, lockKey);
 	}
 
-	private boolean deleteAndVerify(String bucket, String lockKey) {
+	private boolean deleteAndVerify(String bucket, String key) {
+		log.info("Delete object: {}", key);
 		try {
-			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(lockKey).build();
+			DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
 			s3Client.deleteObject(req);
 		} catch (Exception e) {
-			log.error("Failed to release claim/lock for: {}, it will remain until the lock-max-lifetime TTL cleanup removes it", lockKey, e);
+			log.error("Object delete operation failed for: " + key, e);
 			return false;
 		}
 
-		if (exists(bucket, lockKey)) {
-			log.error("Delete call for claim/lock {} returned without error but the object is still present", lockKey);
+		if (exists(bucket, key)) {
+			log.error("Delete call for object {} returned without error but the object is still present", key);
 			return false;
 		}
 
