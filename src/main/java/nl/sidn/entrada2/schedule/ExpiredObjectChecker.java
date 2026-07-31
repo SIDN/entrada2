@@ -43,7 +43,7 @@ public class ExpiredObjectChecker {
 	// 30 minutes. If a lock is still present after this time (e.g. because the pod that
 	// created it crashed before releasing it) it is removed so the object can be claimed and
 	// processed again.
-	@Value("${entrada.object.lock-max-lifetime-secs:1800}")
+	@Value("${entrada.object.max-proc-time-secs:300}")
 	private int maxLockLifetime;
 
 	public ExpiredObjectChecker(LeaderService leaderService, EntradaS3Properties s3Properties, S3Service s3Service) {
@@ -158,7 +158,7 @@ public class ExpiredObjectChecker {
 
 	/**
 	 * Remove claim/lock marker objects (see {@link S3Service#claim(String, String)}) that are
-	 * older than {@code entrada.object.lock-max-lifetime-secs}. A lock this old means the
+	 * older than {@code entrada.object.max-proc-time-secs}. A lock this old means the
 	 * instance that created it never released it, most likely because the pod crashed or was
 	 * killed mid-processing. Without this cleanup the object would remain claimed forever and
 	 * never be retried.
