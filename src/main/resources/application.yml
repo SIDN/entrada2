@@ -138,6 +138,13 @@ spring:
  application: 
    # name of container/pod
    name: entrada
+ autoconfigure:
+   exclude:
+     # not using @RefreshScope/config-map hot-reload; this rebinder tries to reset every
+     # @ConfigurationProperties bean (incl. library ones like KubernetesClientProperties,
+     # which has no default no-arg constructor) to its defaults at startup, which just
+     # logs a harmless but noisy warning/stacktrace. Safe to disable since it is unused.
+     - org.springframework.cloud.autoconfigure.ConfigurationPropertiesRebinderAutoConfiguration
  rabbitmq:
     host:
     password:
@@ -154,11 +161,19 @@ spring:
     kubernetes:
       # see: https://docs.spring.io/spring-cloud-kubernetes/reference/appendix.html
       leader:
-        # name of k8s configmap to use to write leader pod name to
-        config-map-name: entrada-leader
-        role: master 
+        # legacy ConfigMap-based leader election (instead of the newer Lease-based
+        # spring.cloud.kubernetes.leader.election.* API) - publishes the
+        # org.springframework.integration.leader.event.OnGrantedEvent/OnRevokedEvent
+        # events that LeaderService listens for
+        enabled: true
+        role: master
         namespace: entrada
-        publish-failed-events: true
+        # name of the ConfigMap used to store the current leader
+        config-map-name: entrada-leader
+        election:
+          # must be disabled, the ConfigMap-based election (above) and Lease-based
+          # election (election.enabled) are mutually exclusive
+          enabled: false
     aws:
       sqs:
         # when using aws, enable sqs for messaging

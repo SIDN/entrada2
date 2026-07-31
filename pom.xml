@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.16</version>
+        <version>4.1.0</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
     <groupId>nl.sidn</groupId>
@@ -18,15 +18,21 @@
         <java.version>25</java.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
-        <spring-cloud.version>2025.0.0</spring-cloud.version>
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
         <spring-cloud-aws.version>3.4.1</spring-cloud-aws.version>
-        <iceberg.version>1.10.1</iceberg.version>
+        <iceberg.version>1.11.0</iceberg.version>
         <aws-java-sdk.version>2.38.9</aws-java-sdk.version>
     </properties>
     <dependencies>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
         </dependency>
 
         <dependency>
@@ -76,6 +82,12 @@
             <artifactId>spring-cloud-aws-starter</artifactId>
         </dependency>
 
+        
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter-sqs</artifactId>
@@ -109,7 +121,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>pcap-lib</artifactId>
-            <version>0.2.27-SNAPSHOT</version>
+            <version>0.2.27</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -121,7 +133,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>dnslib</artifactId>
-            <version>0.2.20-SNAPSHOT</version>
+            <version>0.2.20</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -195,13 +207,13 @@
         <dependency>
             <groupId>com.maxmind.geoip2</groupId>
             <artifactId>geoip2</artifactId>
-            <version>5.0.2</version>
+            <version>5.1.0</version>
         </dependency>
 
         <dependency>
             <groupId>commons-net</groupId>
             <artifactId>commons-net</artifactId>
-            <version>3.12.0</version>
+            <version>3.13.0</version>
         </dependency>
 
         <dependency>
@@ -212,19 +224,19 @@
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.22.1</version>
+            <version>1.22.2</version>
         </dependency>
 
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.21.0</version>
+            <version>2.22.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.tukaani</groupId>
             <artifactId>xz</artifactId>
-            <version>1.10</version>
+            <version>1.12</version>
         </dependency>
 
         <dependency>
@@ -313,7 +325,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>33.5.0-jre</version>
+            <version>33.6.0-jre</version>
         </dependency>
 
         <dependency>

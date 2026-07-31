@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.data.GenericRecord;
@@ -102,7 +102,7 @@ public class DNSRowBuilder extends AbstractRowBuilder {
 					.bind("entrada.nameserver.ip-map", Bindable.mapOf(String.class, String.class))
 					.orElse(Collections.emptyMap());
 		} catch (Exception e) {
-			log.warn("Could not bind entrada.nameserver.ip-map, using empty map: {}", e.getMessage());
+			log.warn("Could not bind entrada.nameserver.ip-map (not present in config file?), using empty map: {}", e.getMessage());
 			nameserverIpMap = Collections.emptyMap();
 		}
 		if (!nameserverIpMap.isEmpty()) {

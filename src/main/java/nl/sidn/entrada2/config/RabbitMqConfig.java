@@ -13,17 +13,17 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.config.StatelessRetryOperationsInterceptor;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.amqp.support.converter.SimpleMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import nl.sidn.entrada2.util.ConditionalOnRabbitMQ;
 
@@ -126,8 +126,8 @@ public class RabbitMqConfig {
 
 
     @Bean
-    public MessageConverter messageConverter(ObjectMapper mapper){
-    	Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter(mapper);
+    public MessageConverter messageConverter(JsonMapper mapper){
+    	JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter(mapper);
         converter.setCreateMessageIds(true); //create a unique message id for every message
         return converter;
     }
@@ -137,7 +137,7 @@ public class RabbitMqConfig {
      * Create template for sending json to queue
      */
     @Bean
-    public RabbitTemplate rabbitJsonTemplate(ConnectionFactory factory, ObjectMapper objectMapper){
+    public RabbitTemplate rabbitJsonTemplate(ConnectionFactory factory, JsonMapper objectMapper){
         RabbitTemplate template = new RabbitTemplate();
         template.setConnectionFactory(factory);
         template.setMessageConverter(messageConverter(objectMapper));
@@ -149,7 +149,7 @@ public class RabbitMqConfig {
      * Create template for sending non-json (serialized objects) to queue
      */
     @Bean
-    public RabbitTemplate rabbitByteTemplate(ConnectionFactory factory, ObjectMapper objectMapper){
+    public RabbitTemplate rabbitByteTemplate(ConnectionFactory factory, JsonMapper objectMapper){
         RabbitTemplate template = new RabbitTemplate();
         template.setConnectionFactory(factory);
         return template;
@@ -158,8 +158,8 @@ public class RabbitMqConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            RetryOperationsInterceptor retryInterceptor,
-            ObjectMapper objectMapper) {
+            StatelessRetryOperationsInterceptor retryInterceptor,
+            JsonMapper objectMapper) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(messageConverter(objectMapper));
@@ -186,7 +186,7 @@ public class RabbitMqConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerByteContainerFactory(
             ConnectionFactory connectionFactory,
-            RetryOperationsInterceptor retryInterceptor) {
+            StatelessRetryOperationsInterceptor retryInterceptor) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         
@@ -206,10 +206,10 @@ public class RabbitMqConfig {
     
     
     @Bean
-    public RetryOperationsInterceptor retryInterceptor(){
-        return RetryInterceptorBuilder.stateless().maxAttempts(3)
+    public StatelessRetryOperationsInterceptor retryInterceptor(){
+        return RetryInterceptorBuilder.stateless()
                 .backOffOptions(backoffInterval, backoffMultiplier, backoffMaxInterval)
-                .maxAttempts(retryAttempts)
+                .maxRetries(retryAttempts)
                 .build();
     }
 

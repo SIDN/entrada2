@@ -74,7 +74,10 @@ public final class OpenDNSResolverCheck extends AbstractResolverCheck {
 		RequestConfig config = RequestConfig.custom().setConnectionRequestTimeout(Timeout.ofSeconds(timeout)).build();
 
 		try (CloseableHttpClient client = HttpClientBuilder.create().setDefaultRequestConfig(config).build()) {
-			return fetchData(client);
+			List<String> subnets = fetchData(client);
+			log.info("OpenDNS resolver addresses (subnets) loaded, total: " + subnets.size());
+			return subnets;
+
 		} catch (IOException e) {
 			throw new RuntimeException("Error create HTTP request", e);
 		}
