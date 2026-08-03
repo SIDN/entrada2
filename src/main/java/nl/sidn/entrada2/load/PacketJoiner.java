@@ -37,6 +37,7 @@ public class PacketJoiner {
 	// stats counters
 	private int counter = 0;
 	private int matchedCounter = 0;
+	private int noRequestCounter = 0;
 	private int requestPacketCounter = 0;
 	private int responsePacketCounter = 0;
 	private int cacheEvictionCounter = 0;
@@ -201,6 +202,8 @@ public class PacketJoiner {
 			// and was not correctly decoded, or the request timed out before server
 			// could send a response.
 
+			noRequestCounter++;
+
 			if (log.isDebugEnabled()) {
 				log.debug("Found no request for response, dst: {} qname: {}", dnsPacket.getDst(), qname);
 			}
@@ -211,6 +214,25 @@ public class PacketJoiner {
 		}
 
 		return null;
+	}
+
+	// width of the label column in the stats box, so all numbers line up in the same column
+	private static final int STATS_LABEL_WIDTH = 40;
+	private static final int STATS_BOX_WIDTH = 52;
+
+	private String statsBorder() {
+		return "+" + "-".repeat(STATS_BOX_WIDTH) + "+";
+	}
+
+	private String statsTitle(String title) {
+		int pad = STATS_BOX_WIDTH - title.length();
+		int left = pad / 2;
+		int right = pad - left;
+		return "|" + " ".repeat(left) + title + " ".repeat(right) + "|";
+	}
+
+	private String statLine(String label, int value) {
+		return String.format("| %-" + STATS_LABEL_WIDTH + "s%10d |", label + ":", value);
 	}
 
 	/**
@@ -250,16 +272,18 @@ public class PacketJoiner {
 			}
 		}
 
-		log.info("* ---------------------------------------	*");
-		log.info("*            PCAP DNS stats             	*");
-		log.info("* ---------------------------------------	*");
-		log.info("* Matched queries:       {}", matchedCounter);
-		log.info("* Unmatched queries:     {}", purgeCounter);
-		log.info("* Cache evicted queries: {}", cacheEvictionCounter);
-		log.info("* ---------------------------------------	*");
+		log.info(statsBorder());
+		log.info(statsTitle("PCAP DNS stats"));
+		log.info(statsBorder());
+		log.info(statLine("Matching request/response queries", matchedCounter));
+		log.info(statLine("No request found for response queries", noRequestCounter));
+		log.info(statLine("Unmatched request queries", purgeCounter));
+		log.info(statLine("Cache evicted request queries", cacheEvictionCounter));
+		log.info(statsBorder());
 
 		requestCache.clear();
 		counter = 0;
+		noRequestCounter = 0;
 		matchedCounter = 0;
 		requestPacketCounter = 0;
 		responsePacketCounter = 0;

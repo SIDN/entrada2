@@ -19,9 +19,9 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <spring-cloud.version>2025.1.2</spring-cloud.version>
-        <spring-cloud-aws.version>3.4.1</spring-cloud-aws.version>
+        <spring-cloud-aws.version>4.1.0</spring-cloud-aws.version>
         <iceberg.version>1.11.0</iceberg.version>
-        <aws-java-sdk.version>2.38.9</aws-java-sdk.version>
+        <aws-java-sdk.version>2.47.5</aws-java-sdk.version>
     </properties>
     <dependencies>
 
