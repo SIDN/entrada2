@@ -121,7 +121,7 @@
         <dependency>
             <groupId>nl.sidnlabs</groupId>
             <artifactId>pcap-lib</artifactId>
-            <version>0.2.27</version>
+            <version>0.2.28-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
@@ -146,6 +146,12 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <version>1.28.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>1.5.7-28</version>
         </dependency>
 
         <dependency>

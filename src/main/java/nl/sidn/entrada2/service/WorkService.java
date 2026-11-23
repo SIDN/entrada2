@@ -246,25 +246,34 @@ public class WorkService {
 
 					Optional<PcapReader> oreader = createReader(key, ois.get());
 					if (oreader.isPresent()) {
-						if(process_(oreader.get(), bucket, key, server, anycastSite, fileOffset)) {
-							//ok
-							okCounter.increment();	
-							fileProcessedOk = true;
-						}else {
-							int offset = processed.get();
-							log.error("Error processing file: {}/{} offset {}", bucket, key, offset);
-							
-							tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
-							// save offset of last row processed of, when retrying skip forward to this row
-							tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
+						try {
+							if(process_(oreader.get(), bucket, key, server, anycastSite, fileOffset)) {
+								//ok
+								okCounter.increment();	
+								fileProcessedOk = true;
+							}else {
+								int offset = processed.get();
+								log.error("Error processing file: {}/{} offset {}", bucket, key, offset);
+								
+								tags.put(S3ObjectTagName.ENTRADA_PROCESS_FAILED.value, "true");
+								// save offset of last row processed of, when retrying skip forward to this row
+								tags.put(S3ObjectTagName.ENTRADA_OBJECT_OFFSET.value, String.valueOf(offset));
 
-							if(tries > maxTries) {
-								log.warn("Object {} exceeded max tries ({}), marking as failed", key, maxTries);
-								tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
-								maxTriesReachedCounter.increment();
+								if(tries > maxTries) {
+									log.warn("Object {} exceeded max tries ({}), marking as failed", key, maxTries);
+									tags.put(S3ObjectTagName.ENTRADA_OBJECT_MAX_TRIES_REACHED.value, "true");
+									maxTriesReachedCounter.increment();
+								}
+
+								errorCounter.increment();
 							}
-
-							errorCounter.increment();
+						} finally {
+							// release the decompressor stream (and native zstd buffers) back to its pool
+							try {
+								oreader.get().close();
+							} catch (Exception e) {
+								log.error("Error closing pcap reader for: {}/{}", bucket, key, e);
+							}
 						}
 					} else {
 						log.error("Error getting inputstream for file: {}/{}", bucket, key);

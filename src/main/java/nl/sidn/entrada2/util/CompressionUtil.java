@@ -10,8 +10,12 @@ import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.tukaani.xz.XZInputStream;
+
+import com.github.luben.zstd.RecyclingBufferPool;
 
 public class CompressionUtil {
 	
@@ -32,15 +36,18 @@ public class CompressionUtil {
 	public static InputStream getDecompressorStreamWrapper(InputStream in, int bufSize, String filename)
 			throws IOException {
 
-		if (StringUtils.endsWithIgnoreCase(filename, ".pcap")
+		if (Strings.CI.endsWith(filename, ".pcap")
 				|| StringUtils.substringAfterLast(filename, ".").toLowerCase().matches("pcap[0-9]*")) {
 			return wrap(in, bufSize);
-		} else if (StringUtils.endsWithIgnoreCase(filename, ".gz")) {
+		} else if (Strings.CI.endsWith(filename, ".gz")) {
 			return new GzipCompressorInputStream(wrap(in, bufSize));
-		} else if (StringUtils.endsWithIgnoreCase(filename, ".xz")) {
+		} else if (Strings.CI.endsWith(filename, ".xz")) {
 			return new XZInputStream(wrap(in, bufSize));
-		} else if (StringUtils.endsWithIgnoreCase(filename, ".bz2")) {
+		} else if (Strings.CI.endsWith(filename, ".bz2")) {
 			return new BZip2CompressorInputStream(wrap(in, bufSize), true);
+		}else if (Strings.CI.endsWith(filename, ".zst")) {
+			// reuse buffers across the many sequentially-decompressed files instead of allocating new ones each time
+			return new ZstdCompressorInputStream(wrap(in, bufSize), RecyclingBufferPool.INSTANCE);
 		}
 
 		// unkown file type
