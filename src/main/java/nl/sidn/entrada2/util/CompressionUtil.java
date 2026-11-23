@@ -57,7 +57,7 @@ public class CompressionUtil {
 	public static boolean isSupportedFormat(String filename) {
 		String ext = StringUtils.substringAfterLast(filename, ".").toLowerCase();
 		return switch (ext) {
-		  case "pcap", "gz", "xz", "bz2" -> true;
+		  case "pcap", "gz", "xz", "bz2", "zst" -> true;
 		  default -> ext.matches("pcap[0-9]*");
 		};
 	}
