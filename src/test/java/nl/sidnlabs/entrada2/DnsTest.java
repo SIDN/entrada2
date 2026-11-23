@@ -33,5 +33,24 @@ public class DnsTest extends AbstractTest {
 
   }
 
+  @Test
+  public void testQueryResponseZstdOk() {
+    // same pcap as testQueryResponseOk but zstd compressed
+    PcapReader reader = createReaderFor("pcap/sidnlabs-test-query-response-ok.pcap.zst");
+    List<Packet> pckts = reader.stream().collect(Collectors.toList());
+    assertEquals(2, pckts.size());
+
+    // query
+    DNSPacket dp = (DNSPacket) pckts.get(0);
+    assertEquals(1, dp.getMessageCount());
+    assertEquals(MessageType.QUERY, dp.getMessages().get(0).getHeader().getQr());
+
+    // response
+    dp = (DNSPacket) pckts.get(1);
+    assertEquals(1, dp.getMessageCount());
+    assertEquals(MessageType.RESPONSE, dp.getMessages().get(0).getHeader().getQr());
+
+  }
+
   
 }
